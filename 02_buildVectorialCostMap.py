@@ -1,71 +1,147 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jun 12 16:01:12 2019
+DEMO script: building Vectorial Cost Map
+@author: J.Ricardo Sanchez Ibanez (ricardosan@uma.es), Github: @Ryk-San
 
-@author: Richi
 """
-import numpy as np
 
+import numpy as np
+from time import time
 from matplotlib import cbook
 from matplotlib.colors import LightSource
 import matplotlib.pyplot as plt
 from matplotlib.cbook import get_sample_data
 import lib.camis as camis
-import csv
+import lib.hexgrid as hg
+import lib.terrain_processing as tp
+import math
+
 from scipy import ndimage
+import scipy.interpolate as interp
 
-rad2deg = 180/np.pi
-
+occupancyRadius = .5 #meters
+globalRes = .5
 slopeThreshold = 30
 
-elevationMap = np.loadtxt(open("terrainData/UMARescueAreaDEM.csv", "rb"), delimiter=" ", skiprows=0)
-utmOrigin = np.loadtxt(open("terrainData/UMARescueAreaUTMOrigin.csv", "rb"), delimiter=" ", skiprows=0)
-globalRes = .5
+CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT = \
+camis.readCamis('cuadriga_camis.csv')
+
+hiRes_elevationMap = np.loadtxt(open("terrainData/UMARescueArea_10cmDEM.csv",\
+                                     "rb"), delimiter=" ", skiprows=0)
+hiRes_posX = np.loadtxt(open("terrainData/UMARescueArea_10cmPosX.csv",\
+                                     "rb"), delimiter=" ", skiprows=0)
+hiRes_posY = np.loadtxt(open("terrainData/UMARescueArea_10cmPosY.csv",\
+                                     "rb"), delimiter=" ", skiprows=0)
+
+hiRes = hiRes_posX[0,1] - hiRes_posX[0,0]
+
+slopeMap, aspectMapX, aspectMapY, smoothDEM = tp.getConvSlopeMaps(hiRes_posX, hiRes_posY, hiRes_elevationMap,\
+                                                       occupancyRadius, hiRes)
+obstacleMap = slopeMap > slopeThreshold
+obstacleMap = obstacleMap.astype(int)
+obstacleMap[0,:] = 1
+obstacleMap[-1,:] = 1
+obstacleMap[:,0] = 1
+obstacleMap[:,-1] = 1
+proximityMap = hiRes*ndimage.morphology.distance_transform_edt(1-obstacleMap)
+proximityMap = proximityMap - occupancyRadius
+proximityMap[np.where(proximityMap[:]<0)] = 0
 
 
-cuadrigaCamis = np.loadtxt(open("cuadriga_camis.csv", "rb"), delimiter=",", skiprows=0)
+# Hexagonal Grid
+triX, triY = hg.getHexGrid(hiRes_posX,hiRes_posY,globalRes)
 
-x = np.linspace(utmOrigin[0], utmOrigin[0] + globalRes*elevationMap.shape[1], elevationMap.shape[1])
-y = np.linspace(utmOrigin[1], utmOrigin[1] + globalRes*elevationMap.shape[0], elevationMap.shape[0])
+points = np.zeros((hiRes_posX.size,2))
 
-XX,YY = np.meshgrid(x,y)
+points[:,0] = hiRes_posX.flatten()
+points[:,1] = hiRes_posY.flatten()
 
-dX,dY = np.gradient(elevationMap,*[globalRes, globalRes])
+init = time()
 
-slopeMap = np.zeros_like(elevationMap)
-obstacleMap = np.zeros_like(elevationMap)
+tri_slopeMap = interp.griddata(points, slopeMap.flatten(), (triX, triY), method='nearest')
+tri_slopeMap[np.where(triX < hiRes_posX[0,0])] = np.nan
+tri_slopeMap[np.where(triX > hiRes_posX[-1,-1])] = np.nan
+tri_slopeMap[np.where(triY < hiRes_posY[0,0])] = np.nan
+tri_slopeMap[np.where(triY > hiRes_posY[-1,-1])] = np.nan
 
+tri_VCMap = camis.getVectorialCostMap(\
+                                      tri_slopeMap,CdRoots,CaRoots,Cl1Roots,\
+                                      Cl2Roots,AniCoLUT)
+#tri_elevationMap = interp.griddata(points, hiRes_elevationMap.flatten(), (triX-hiRes_posX[0,0], triY-hiRes_posY[0,0]), method='cubic')
+tri_aspectMapX = interp.griddata(points, aspectMapX.flatten(), (triX, triY), method='nearest')
+tri_aspectMapY = interp.griddata(points, aspectMapY.flatten(), (triX, triY), method='nearest')
+tri_proximityMap = interp.griddata(points, proximityMap.flatten(), (triX, triY), method='nearest')
 
+tri_aspectMapX[np.where(np.isnan(tri_slopeMap))] = np.nan
+tri_aspectMapY[np.where(np.isnan(tri_slopeMap))] = np.nan
+tri_proximityMap[np.where(np.isnan(tri_slopeMap))] = np.nan
 
-for i in range(elevationMap.shape[1]):
-    for j in range(elevationMap.shape[0]):
-        slopeMap[j][i] = rad2deg*np.arctan(np.sqrt(dX[j][i]**2+dY[j][i]**2))
-        if slopeMap[j][i] > slopeThreshold:
-            obstacleMap[j][i] = 1
+obstacleMask = tri_proximityMap == 0
 
-proximityMap = globalRes*ndimage.morphology.distance_transform_edt(1-obstacleMap)
+anisotropyMap = tri_VCMap[0][:][:]
+anisotropyMap[obstacleMask] = np.inf
+Q1 = tri_VCMap[1][:][:]
+Q1[obstacleMask] = np.inf
+Q2 = tri_VCMap[2][:][:]
+Q2[obstacleMask] = np.inf
+D1 = tri_VCMap[3][:][:]
+D1[obstacleMask] = np.inf
+D2 = tri_VCMap[4][:][:]
+D2[obstacleMask] = np.inf
 
-vectorialCostMap = camis.getVectorialCostMap(slopeMap,cuadrigaCamis)
+print('Elapsed time to compute all: '+str(time()-init))
 
-II,JJ = np.meshgrid(np.linspace(0,elevationMap.shape[1],elevationMap.shape[1]),np.linspace(0,elevationMap.shape[0],elevationMap.shape[0]))
+np.savetxt('UMARescueArea_VCM_X.csv', triX, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_Y.csv', triY, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_Anisotropy.csv', anisotropyMap, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_Q1.csv', Q1, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_Q2.csv', Q2, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_D1.csv', D1, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_D2.csv', D2, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_AspectX.csv', tri_aspectMapX, delimiter=" ")
+np.savetxt('UMARescueArea_VCM_AspectY.csv', tri_aspectMapY, delimiter=" ")
 
-
-Cad = np.sqrt(vectorialCostMap[0][:][:])
-
-z = elevationMap
-dx = globalRes
-dy = globalRes
-
-
-# Shade from the northwest, with the sun 45 degrees from horizontal
-ls = LightSource(azdeg=315, altdeg=45)
-cmap = plt.cm.gist_earth
+#cmap = plt.cm.gist_earth
+#
+fig, axes = plt.subplots(constrained_layout=True)
+cc = axes.contourf(triX, triY, tri_proximityMap, 100, vmax = 5)
+fig.colorbar(cc,location='bottom')
+axes.set_aspect('equal')
+plt.show()
+#
+#fig, axes = plt.subplots(constrained_layout=True)
+#cc = axes.contourf(triX, triY, sqrtQ1, 100, cmap = 'Reds')
+#fig.colorbar(cc,location='bottom')
+#axes.set_aspect('equal')
+#plt.show()
+#
+#fig, axes = plt.subplots(constrained_layout=True)
+#cc = axes.contourf(triX, triY, sqrtQ2, 100)
+#fig.colorbar(cc,location='bottom')
+#axes.set_aspect('equal')
+#plt.show()
+#
+#fig, axes = plt.subplots(constrained_layout=True)
+#cc = axes.contourf(triX, triY, D1, 100)
+#fig.colorbar(cc,location='bottom')
+#axes.set_aspect('equal')
+#plt.show()
+#
+#fig, axes = plt.subplots(constrained_layout=True)
+#cc = axes.contourf(triX, triY, D2, 100)
+#fig.colorbar(cc,location='bottom')
+#axes.set_aspect('equal')
+#plt.show()
 
 fig, axes = plt.subplots(constrained_layout=True)
-
-axes.contourf(II, JJ, proximityMap,100,cmap=cmap,dmax=10)
+cc = axes.contourf(triX, triY, tri_slopeMap, 100, vmax = 30, cmap = 'plasma')
+fig.colorbar(cc,location='bottom')
 axes.set_aspect('equal')
 plt.show()
 
-
+fig, axes = plt.subplots(constrained_layout=True)
+cc = axes.contourf(np.abs(np.arctan2(aspectMapY,aspectMapX)), 20,cmap = 'hsv')
+fig.colorbar(cc,location='bottom')
+axes.set_aspect('equal')
+plt.show()
 

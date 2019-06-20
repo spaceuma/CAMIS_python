@@ -8,6 +8,9 @@
 #==============================================================================
 
 import numpy as np
+from scipy.optimize import curve_fit
+from bisect import bisect_left
+import csv
 
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
@@ -62,15 +65,57 @@ def computeCAMIScost(B,Cd,Ca,Cl1,Cl2):
     D = np.array(((D1), (D2)))
     return (np.sqrt(np.dot(np.dot(Bt,Q),B))-np.dot(Bt,D))
 
+def getCAMIScost(B,Q1,Q2,D1,D2):
+    Bt = np.transpose(B)
+    Q = np.array(((Q1,D1*D2), (D1*D2, Q2)))
+    D = np.array(((D1), (D2)))
+    return (np.sqrt(np.dot(np.dot(Bt,Q),B))-np.dot(Bt,D))
+
 # =============================================================================
 #    Explicit formulation of CAMIS
 # =============================================================================
-def fittingCAMIS(x,x1,x2,x3,x4,x5,x6,x7,x8,Co):
+    
+def dirCost(gradient, K):
+    # Gradient in degrees!
+    return np.polyval(K, gradient)
+    
+def computeDirCosts(gradient, beta, cost):
+    popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost)
+    CdRoots = (popt[0],popt[1],popt[-1])
+    CaRoots = (popt[2],popt[3],popt[-1])
+    Cl1Roots = (popt[4],popt[-1])
+    Cl2Roots = (popt[4],popt[-1])
+    
+    linearGradient = np.linspace(0,30,31)
+    heading = np.arange(0, 2*np.pi, 0.01)
+    aspect = 0 
+    
+    Cd = dirCost(linearGradient, CdRoots)
+    Ca = dirCost(linearGradient, CaRoots)
+    Cl1 = dirCost(linearGradient, Cl1Roots)
+    Cl2 = dirCost(linearGradient, Cl2Roots)
+    
+    Cs = []
+    AniCoLUT = np.zeros((2,linearGradient.size))
+    Anisotropy = np.zeros_like(linearGradient)
+    for i,g in enumerate(linearGradient):
+        for theta in heading:
+            B = computeBeta(aspect,theta)
+            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+            Cs.append(preCost)
+        Anisotropy[i] = max(Cs)/min(Cs)
+        Cs = []
+    
+    AniCoLUT[:][0] = linearGradient
+    AniCoLUT[:][1] = Anisotropy
+    return CdRoots, CaRoots, Cl1Roots, Cl2Roots, AniCoLUT
+
+def fittingCAMIS(x,x1,x2,x3,x4,x5,Co):
     alpha, beta = x
-    Cd = dirCost(alpha, x1, x2, Co)
-    Ca = dirCost(alpha, x3, x4, Co)
-    Cl1 = dirCost(alpha, x5, x6, Co)
-    Cl2 = dirCost(alpha, x7, x8, Co)
+    Cd = dirCost(alpha, [x1, x2, Co])
+    Ca = dirCost(alpha, [x3, x4, Co])
+    Cl1 = dirCost(alpha, [x5, Co])
+    Cl2 = dirCost(alpha, [x5, Co])
     cBeta = np.cos(beta)
     sBeta = np.sin(beta)
     K1 = (Ca+Cd)/2
@@ -86,31 +131,85 @@ def fittingCAMIS(x,x1,x2,x3,x4,x5,x6,x7,x8,Co):
 #    Computation of the beta vector
 # =============================================================================
 def computeBeta(aspect,heading):
-    c, s = np.cos(aspect), np.sin(aspect)
-    R = np.array(((c,s), (-s, c)))
-    aHeading = np.array(((np.cos(heading)), (np.sin(heading))))
+#    c, s = np.cos(aspect), np.sin(aspect)
+#    R = np.array(((c,s), (-s, c)))
+    R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
+    if heading.size == 1:
+        aHeading = np.array(((np.cos(heading)), (np.sin(heading))))
+    else:
+        aHeading = heading
     T = np.dot(R,np.transpose(aHeading))
     return T
 
-def dirCost(gradient, K1, K2, Co):
-    # Gradient in degrees!
-    return K1*gradient**2 + K2*gradient + Co
-
-def getVectorialCostMap(slopeMap,popt):
-    vectorialCostMap = np.zeros([4,slopeMap.shape[0],slopeMap.shape[1]])
+def getVectorialCostMap(slopeMap,CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT):
+    vectorialCostMap = np.zeros([5,slopeMap.shape[0],slopeMap.shape[1]])
     for i in range(slopeMap.shape[1]):
         for j in range(slopeMap.shape[0]):
-            Cd = dirCost(slopeMap[j][i], popt[0], popt[1], popt[8])
-            Ca = dirCost(slopeMap[j][i], popt[2], popt[3], popt[8])
-            Cl1 = dirCost(slopeMap[j][i], popt[4], popt[5], popt[8])
-            Cl2 = dirCost(slopeMap[j][i], popt[6], popt[7], popt[8])
-            vectorialCostMap[0][j][i] = ((Ca+Cd)/2)**2 #Q1 = ((Ca+Cd)/2)**2
-            vectorialCostMap[1][j][i] = ((Cl1+Cl2)/2)**2#Q2 = ((Cl2+Cl1)/2)**2
-            vectorialCostMap[2][j][i] =  (Ca-Cd)/2 #D1 = (Ca-Cd)/2
-            vectorialCostMap[3][j][i] = (Cl2-Cl1)/2 #D2 = (Cl2-Cl1)/2
+            Cd = dirCost(slopeMap[j][i], CdRoots)
+            Ca = dirCost(slopeMap[j][i], CaRoots)
+            Cl1 = dirCost(slopeMap[j][i], Cl1Roots)
+            Cl2 = dirCost(slopeMap[j][i], Cl2Roots)
+            vectorialCostMap[0][j][i] = getAnisotropy(slopeMap[j][i],AniCoLUT)
+            vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
+            vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
+            vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
+            vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2
     return vectorialCostMap
 
-def showCAMIS(popt,beta,gradient,cost):
+def getAnisotropy(slope,AniCoLUT):
+    if slope <= AniCoLUT[0][0]:
+        return AniCoLUT[1][0]
+    if slope >= AniCoLUT[0][-1]:
+        return AniCoLUT[1][-1]
+    index = bisect_left(AniCoLUT[0][:], slope)
+    decimalPart = (slope - AniCoLUT[0][index-1])/(AniCoLUT[0][index] - AniCoLUT[0][index-1])
+    anisotropy = decimalPart*(AniCoLUT[1][index]-AniCoLUT[1][index-1]) + AniCoLUT[1][index-1]
+    return anisotropy
+
+def lookup(x, xs, ys):
+    if x <= xs[0]:  return ys[0]
+    if x >= xs[-1]: return ys[-1]
+
+    i = bisect_left(xs, x)
+    k = (x - xs[i-1])/(xs[i] - xs[i-1])
+    y = k*(ys[i]-ys[i-1]) + ys[i-1]
+
+    return y
+
+
+def saveCamis(fileName,CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT):
+    with open(fileName, mode='w') as file:
+        camis_writer = csv.writer(file, delimiter=',', quotechar='"',\
+                                  quoting=csv.QUOTE_MINIMAL)
+        camis_writer.writerow(CdRoots)
+        camis_writer.writerow(CaRoots)
+        camis_writer.writerow(Cl1Roots)
+        camis_writer.writerow(Cl2Roots)
+        camis_writer.writerow(AniCoLUT[0][:])
+        camis_writer.writerow(AniCoLUT[1][:])
+    return
+
+def readCamis(fileName):
+    with open(fileName) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',', quotechar='"',\
+                                  quoting=csv.QUOTE_MINIMAL)
+        CdRoots = [float(i) for i in next(csv_reader)]
+        next(csv_reader)
+        CaRoots = [float(i) for i in next(csv_reader)]
+        next(csv_reader)
+        Cl1Roots = [float(i) for i in next(csv_reader)]
+        next(csv_reader)
+        Cl2Roots = [float(i) for i in next(csv_reader)]
+        next(csv_reader)
+        gradientArray = [float(i) for i in next(csv_reader)]
+        next(csv_reader)
+        aniCoeff = [float(i) for i in next(csv_reader)]
+        AniCoLUT = np.zeros((2,len(gradientArray)))
+        AniCoLUT[:][0] = gradientArray
+        AniCoLUT[:][1] = aniCoeff
+    return CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT
+
+def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     
@@ -118,10 +217,10 @@ def showCAMIS(popt,beta,gradient,cost):
     heading = np.arange(0, 2*np.pi, 0.01)
     aspect = 0 
     
-    Cd = dirCost(linearGradient, popt[0], popt[1], popt[8])
-    Ca = dirCost(linearGradient, popt[2], popt[3], popt[8])
-    Cl1 = dirCost(linearGradient, popt[4], popt[5], popt[8])
-    Cl2 = dirCost(linearGradient, popt[6], popt[7], popt[8])
+    Cd = dirCost(linearGradient, CdRoots)
+    Ca = dirCost(linearGradient, CaRoots)
+    Cl1 = dirCost(linearGradient, Cl1Roots)
+    Cl2 = dirCost(linearGradient, Cl2Roots)
     
     CMax = max(Ca[-1],Cl1[-1])
     CMax = max(CMax,Cl2[-1])

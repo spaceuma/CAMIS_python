@@ -14,14 +14,18 @@ import scipy.signal
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
 
-def readCuadrigaData(file):
+def readCuadrigaData(file, show=0):
     Roll = []
     Pitch = []
     Yaw = []
     Current = []
+    Speed = []
     utmPoseX = []
     utmPoseY = []
     Time = []
+    Ref = []
+    Error = []
+    GPSspeed = []
     
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
@@ -36,41 +40,80 @@ def readCuadrigaData(file):
                 utmData = utm.from_latlon(float(row[9]), float(row[10]))
                 utmPoseX.append(utmData[0])
                 utmPoseY.append(utmData[1])
+                GPSspeed.append(float(row[13]))
                 Roll.append(r)
                 Pitch.append(p)
                 Current.append(c)
+                Ref.append(reference)
+                Error.append(error)
                 t = dt.datetime.strptime(row[15], '%H:%M:%S.%f')
                 Time.append((t.hour * 60 + t.minute) * 60 + t.second + t.microsecond/1000000)
             line_count += 1
         print(f'Processed {line_count} lines.')
+    
+    #Smooth the path
+    N = 10
+    utmPoseX = np.convolve(utmPoseX, np.ones((N,))/N, mode='same')
+    utmPoseX = utmPoseX[5:-5]
+    utmPoseY = np.convolve(utmPoseY, np.ones((N,))/N, mode='same')
+    utmPoseY = utmPoseY[5:-5]
+    Time = Time[5:-5]
+    Roll = Roll[5:-5]
+    Pitch = Pitch[5:-5]
+    Current = Current[5:-5]
+    GPSspeed = GPSspeed[5:-5]
         
     # Adjustments
     initTime = Time[0]
     Time[:] = [t - initTime for t in Time]
-    
-    #Smooth the path
-    utmPoseX = scipy.ndimage.median_filter(utmPoseX,size=5)
-    utmPoseY = scipy.ndimage.median_filter(utmPoseY,size=5)
-    
-    #Compute Yaw
     dX = np.append(0,np.diff(utmPoseX))
     dY = np.append(0,np.diff(utmPoseY))
-    Yaw = []
-    for i,y in enumerate(dX):
-        Yaw.append(rad2deg*np.arctan2(dY[i],dX[i]))
+    segmentPath = np.sqrt(dX**2+dY**2)
     
-    #Eliminate unwanted values
-    Roll[:] = [r for i,r in enumerate(Roll) if (dX[i] != 0 or dY[i] != 0) and (Current[i] > 4) and (Current[i]) < 40]
-    Pitch[:] = [p for i,p in enumerate(Pitch) if (dX[i] != 0 or dY[i] != 0) and (Current[i] > 4) and (Current[i]) < 40]
-    Yaw[:] = [y for i,y in enumerate(Yaw) if (dX[i] != 0 or dY[i] != 0) and (Current[i] > 4) and (Current[i]) < 40]
-    Current[:] = [c for i,c in enumerate(Current) if (dX[i] != 0 or dY[i] != 0) and (Current[i] > 4) and (Current[i]) < 40]
     
+    logic = np.logical_and((segmentPath > 0),(np.asarray(Current) > 4))
+    logic = np.logical_and((np.asarray(Current) < 40), logic)
+    
+    Time[:] = [t for i,t in enumerate(Time) if logic[i]]
+    utmPoseX = [x for i,x in enumerate(utmPoseX) if logic[i]]
+    utmPoseY = [y for i,y in enumerate(utmPoseY) if logic[i]]
+    
+    dX = np.append(0,np.diff(utmPoseX))
+    dY = np.append(0,np.diff(utmPoseY))
+    segmentPath = np.sqrt(dX**2+dY**2)
+    dT = np.append(0,np.diff(Time))
+    Speed = segmentPath/dT
+    Speed = Speed.tolist()
+    
+    Yaw = rad2deg*np.arctan2(dY,dX)
+    Roll = [r for i,r in enumerate(Roll) if logic[i]]
+    Pitch = [p for i,p in enumerate(Pitch) if logic[i]]
+    Current = [c for i,c in enumerate(Current) if logic[i]]
+    GPSspeed = [s for i,s in enumerate(GPSspeed) if logic[i]]
+
     # Filtering
     Current = scipy.ndimage.median_filter(Current,size=10)
     Roll = scipy.ndimage.median_filter(Roll,size=10)
     Pitch = scipy.ndimage.median_filter(Pitch,size=10)
+    
+    if show == 1:
+        fig, ax = plt.subplots()
+        ax.plot(Speed)
+#        ax.set_xlim(0, Time[-1])
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('Speed [m/s]')
+        ax.grid(True)
+        ax.legend(labels = ['Computed Speed','GPS Speed'])
+        fig, ax = plt.subplots()
+        ax.plot(utmPoseX,utmPoseY)
+        ax.set_xlabel('UTM-X [m]')
+        ax.set_ylabel('UTM-Y [m]')
+        ax.grid(True)
+        ax.legend(labels = ['Path'])
+        plt.tight_layout()
+        ax.set_aspect('equal')
             
-    return Roll, Pitch, Yaw, np.ndarray.tolist(Current)
+    return Roll[1:], Pitch[1:], Yaw[1:], np.ndarray.tolist(Current[1:]), Speed[1:]
 
 
 def getData(file):
