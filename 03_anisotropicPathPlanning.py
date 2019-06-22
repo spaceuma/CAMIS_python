@@ -76,8 +76,8 @@ AspectMap[1] = np.loadtxt(open('UMARescueArea_VCM_AspectY.csv',\
 #axes.set_aspect('equal')
 #plt.show()
 
-goal = np.asarray([200,300])
-start = np.asarray([140,165])
+start = np.asarray([200,300])
+goal = np.asarray([140,165])
 #
 #x = np.asarray([0,0])
 #xj = np.asarray([0,1])
@@ -106,8 +106,8 @@ for j in range(Tmap.shape[0]):
             Tmap[j,i] = TmapS[nodeLink[1],nodeLink[0]] + TmapG[nodeLink[1],nodeLink[0]] - TmapG[j,i]
 
 fig, ax = plt.subplots()
-ax.contourf(XMap, YMap, Tmap, 100, cmap = 'magma', alpha = .5)
-ax.contour(XMap, YMap, Tmap, 100, cmap = 'magma')
+ax.contourf(XMap, YMap, Tmap, 200, cmap = 'magma', alpha = .5)
+ax.contour(XMap, YMap, Tmap, 200, cmap = 'magma')
 ax.set_aspect('equal')
 plt.show()
 
