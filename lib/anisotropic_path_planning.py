@@ -15,6 +15,12 @@ import lib.hexgrid as hexgrid
 import lib.camis as camis
 
 def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
+    VCmapG = np.ones_like(VCmap)
+    VCmapG[0] = VCmap[0]
+    VCmapG[1] = VCmap[1]
+    VCmapG[2] = -VCmap[2]
+    VCmapG[3] = -VCmap[3]
+    
     # State Maps
     #  State -1 = far
     #  State 0 = narrow
@@ -33,9 +39,11 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     stateMapG = np.ones_like(anisotropyMap)*(-1)
     stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
     stateMapG[np.where(anisotropyMap == np.inf)] = 2
+    stateMapG[np.where(anisotropyMap == np.nan)] = 2
     stateMapS = np.ones_like(anisotropyMap)*(-1)
     stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
     stateMapS[np.where(anisotropyMap == np.inf)] = 2
+    stateMapS[np.where(anisotropyMap == np.nan)] = 2
     
     # Direction Maps are initialized
     dirMapG = np.ones_like(anisotropyMap)*np.inf
@@ -55,19 +63,20 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     
     # Initial T update
     NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)   
-    TmapG, nbTG, nbNodesG= updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap,Xmap,Ymap,res,goal)
+    TmapG, nbTG, nbNodesG= updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmapG, aspectMap, anisotropyMap,Xmap,Ymap,res,goal)
     
     NClist, stateMapS = getNewConsidered(nodeTargetS,stateMapS)
     TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmap, aspectMap, anisotropyMap,Xmap,Ymap,res,start)
 
     iter = 1
     size = np.size(anisotropyMap)
-#    
+    
 #    fig, axes = plt.subplots(constrained_layout=True)
-#    cc = axes.contourf(Xmap, Ymap, TmapS, 100)
+#    cc = axes.contourf(Xmap, Ymap, stateMapG, 100)
 #    fig.colorbar(cc,location='bottom')
 #    axes.set_aspect('equal')
 #    plt.show()
+#    
     
     while nbNodesG or nbNodesS:
         if nbNodesG:
@@ -75,22 +84,23 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
             NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)
             stateMapG = updateStateMap(nodeTargetG,stateMapG)
-            TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap,Xmap,Ymap,res)
+            TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmapG, aspectMap, anisotropyMap,Xmap,Ymap,res)
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
             NClist, stateMapS = getNewConsidered(nodeTargetS,stateMapS)
             stateMapS = updateStateMap(nodeTargetS,stateMapS)
             TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmap, aspectMap, anisotropyMap,Xmap,Ymap,res)
-        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:
+        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
             nodeLink = nodeTargetG
             break
-        if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 1:
+        if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 2:
             nodeLink = nodeTargetS
             break
-        iter = iter + 2
-        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
-        print(iter)
+#        iter = iter + 2
+#        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
+#        print(iter)
+        
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink,stateMapG,stateMapS
 
 #def initialUpdateNode(nodeTarget, costMap, Tmap, nbT, nbNodes, closedMap):
@@ -189,32 +199,16 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
                         computeDistance(nodeTarget+[k,j],nodeTarget,Xmap,Ymap) <= 2*res*anisotropy:
                             afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                     except:
-                        print('nanai')
+                        pass
             localAFPairs = []
             SS = []
             SS[:] = afList
             while (len(SS)!=0):
-                try:
-                    afList[0]
-                except:
-                    fig, axes = plt.subplots(constrained_layout=True)
-                    cc = axes.contourf(Xmap, Ymap, stateMap, 100)
-                    fig.colorbar(cc,location='bottom')
-                    axes.set_aspect('equal')
-                    plt.show()
-                    print('caca2')
-                n = SS[0]
+                ss = SS[0]
                 del SS[0]
-                if len(SS)==1:
-                    if (computeDistance(n,SS[-1],Xmap,Ymap) <= res + np.finfo(float).eps):
-                        localAFPairs.append(np.concatenate((n,SS[-1])))
-                    break
-                else:
-                    try:
-                        if (computeDistance(n,SS[-1],Xmap,Ymap) <= res + np.finfo(float).eps):
-                            localAFPairs.append(np.concatenate((n,SS[-1])))
-                    except:
-                        pass 
+                for j in range(len(SS)):
+                    if (computeDistance(ss,SS[j],Xmap,Ymap) <= 2*res + np.finfo(float).eps):
+                        localAFPairs.append(np.concatenate((ss,SS[j])))
             nfPairs = []
             for j in range(len(localAFPairs)):
                 if checkNF(localAFPairs[j],nodeTarget,anisotropy,res):
@@ -227,15 +221,12 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
         D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
         T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap)
-        nIndex = bisect.bisect_left(nbT,T)
-        nbT.insert(nIndex,T)
-        nbNodes.insert(nIndex, nodeTarget)
-        Tmap[nodeTarget[1],nodeTarget[0]] = T
         if np.isinf(Tmap[nodeTarget[1],nodeTarget[0]]):
                 nIndex = bisect.bisect_left(nbT,T)
                 nbT.insert(nIndex,T)
                 nbNodes.insert(nIndex, nodeTarget)
                 Tmap[nodeTarget[1],nodeTarget[0]] = T
+                dirMap[nodeTarget[1],nodeTarget[0]] = direc
         else:
             if T < Tmap[nodeTarget[1],nodeTarget[0]]:
                 tempT = Tmap[nodeTarget[1],nodeTarget[0]]
@@ -247,13 +238,14 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
                 nbT.insert(nIndex,T)
                 nbNodes.insert(nIndex, nodeTarget)
                 Tmap[nodeTarget[1],nodeTarget[0]] = T  
+                dirMap[nodeTarget[1],nodeTarget[0]] = direc
     return Tmap, nbT, nbNodes
 
 def checkNF(afPair, n, anisotropy,res):
     C1 = afPair[2]-n[0];
     C2 = afPair[3]-n[1];
     C3 = afPair[0]-afPair[2];
-    C4 = afPair[2]-afPair[3];
+    C4 = afPair[1]-afPair[3];
     amin = -.5*(2*C1*C3 + C1*C4 + C2*C3 + 2*C2*C4)
     ddp = 2*res**2
     dp0 = -ddp*amin

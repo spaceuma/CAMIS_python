@@ -21,7 +21,7 @@ import scipy.interpolate as interp
 
 occupancyRadius = .5 #meters
 globalRes = .5
-slopeThreshold = 30
+slopeThreshold = 25
 
 CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT = \
 camis.readCamis('cuadriga_camis.csv')
@@ -76,6 +76,10 @@ tri_aspectMapX[np.where(np.isnan(tri_slopeMap))] = np.nan
 tri_aspectMapY[np.where(np.isnan(tri_slopeMap))] = np.nan
 tri_proximityMap[np.where(np.isnan(tri_slopeMap))] = np.nan
 
+tri_secMap = (2 - tri_proximityMap)/2
+tri_secMap[np.where(tri_proximityMap==0)] = 0
+tri_secMap[np.where(tri_secMap < 0)] = 0
+
 obstacleMask = tri_proximityMap == 0
 
 anisotropyMap = tri_VCMap[0][:][:]
@@ -84,10 +88,17 @@ Q1 = tri_VCMap[1][:][:]
 Q1[obstacleMask] = np.inf
 Q2 = tri_VCMap[2][:][:]
 Q2[obstacleMask] = np.inf
+
+Q1 = Q1*(1+tri_secMap)
+Q2 = Q2*(1+tri_secMap)
+
 D1 = tri_VCMap[3][:][:]
 D1[obstacleMask] = np.inf
 D2 = tri_VCMap[4][:][:]
 D2[obstacleMask] = np.inf
+
+D1 = D1*(1-tri_secMap)
+D2 = D2*(1-tri_secMap)
 
 print('Elapsed time to compute all: '+str(time()-init))
 
@@ -103,11 +114,11 @@ np.savetxt('UMARescueArea_VCM_AspectY.csv', tri_aspectMapY, delimiter=" ")
 
 #cmap = plt.cm.gist_earth
 #
-fig, axes = plt.subplots(constrained_layout=True)
-cc = axes.contourf(triX, triY, tri_proximityMap, 100, vmax = 5)
-fig.colorbar(cc,location='bottom')
-axes.set_aspect('equal')
-plt.show()
+#fig, axes = plt.subplots(constrained_layout=True)
+#cc = axes.contourf(triX, triY, Q1, 100,vmax = 2700)
+#fig.colorbar(cc,location='bottom')
+#axes.set_aspect('equal')
+#plt.show()
 #
 #fig, axes = plt.subplots(constrained_layout=True)
 #cc = axes.contourf(triX, triY, sqrtQ1, 100, cmap = 'Reds')
