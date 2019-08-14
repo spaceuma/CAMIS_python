@@ -14,18 +14,23 @@ rad2deg = 180/np.pi
 # =============================================================================
 #     Get Convoluted Slope Maps: Gradient Map and Aspect Maps
 # =============================================================================
-def getConvSlopeMaps(XX, YY, DEM, occupancyRadius, res):
-    r = int(occupancyRadius/res)
+def getConvSlopeMaps(XX, YY, DEM, occupancyRadius, res, globalRes):
+    r = int((occupancyRadius+globalRes)/res)
+    r = r + 1 - r%2
     y,x = np.ogrid[-r: r+1, -r: r+1]
     convMatrix = x**2+y**2 <= r**2
     convMatrix = convMatrix.astype(float)
     convMatrix = convMatrix/convMatrix.sum()
-    
+
+    smoothDEM = signal.medfilt2d(DEM,r)
     smoothDEM = signal.convolve2d(DEM, convMatrix, mode='same',\
                                   boundary='symm')
-    
+    smoothDEM = signal.convolve2d(smoothDEM, convMatrix, mode='same',\
+                                  boundary='symm')
     nX, nY, nZ = surface_normal(XX,YY,smoothDEM)
     gradientMap = rad2deg*np.arccos(nZ)
+#    gradientMap = np.maximum(gradientMap,signal.convolve2d(gradientMap, convMatrix, mode='same',\
+#                                  boundary='symm'))
     aspectMapX = nX/np.sqrt(nX**2+nY**2)
     aspectMapY = nY/np.sqrt(nX**2+nY**2)
 #    dX,dY = np.gradient(smoothDEM,*[res, res])

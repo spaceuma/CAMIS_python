@@ -15,13 +15,22 @@ import lib.camis as camis
 
 
 "01 - The CSV files collected during preliminar experiments are loaded"
-csvFiles = ['cuadrigaData/20190531/JornadasRescate01.txt',
+csvFiles = [
+            'cuadrigaData/20190531/JornadasRescate01.txt',
             'cuadrigaData/20190531/JornadasRescate02.txt',
             'cuadrigaData/20190531/JornadasRescate03.txt',
-            'cuadrigaData/201811/slopeTest04.txt',
+#            'cuadrigaData/201811/slopeTest04.txt',
             'cuadrigaData/201811/slopeTest05.txt',
             'cuadrigaData/201811/slopeTest09.txt',
-            'cuadrigaData/201811/slopeTest10.txt'
+            'cuadrigaData/201811/slopeTest10.txt',
+            'cuadrigaData/20190624/2019_06_24_11_17_55.txt',
+            'cuadrigaData/20190624/2019_06_24_11_22_21.txt',
+            'cuadrigaData/20190624/2019_06_24_11_32_17.txt',
+            'cuadrigaData/20190624/2019_06_24_11_36_06.txt',
+            'cuadrigaData/20190624/2019_06_24_11_45_59.txt',
+            'cuadrigaData/20190624/2019_06_24_11_49_29.txt',
+            'cuadrigaData/20190624/2019_06_24_11_52_47.txt',
+            'cuadrigaData/20190624/2019_06_24_11_57_35.txt'
             ]
 
 
@@ -44,14 +53,30 @@ for file in csvFiles:
     cost = cost + currentCost.tolist()
     gradient = gradient + G
     
-    
+
+beta.append(np.pi)
+cost.append(100)
+gradient.append(30)
+
+beta.append(0)
+cost.append(100)
+gradient.append(30)
+
+beta.append(np.pi/2)
+cost.append(100)
+gradient.append(30)
+
+beta.append(-np.pi)
+cost.append(100)
+gradient.append(30)
+
 "03 - The functions Cd, Ca, Cl1 and Cl2 are obtained through a fitting process"
 beta = [0 if np.isnan(x) else x for x in beta]
 CdRoots, CaRoots, Cl1Roots, Cl2Roots, AniCoLUT = \
 camis.computeDirCosts(gradient,beta,cost)
 
 "04 - Representation of CAMIS together with raw data"
-#camis.showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost)
+camis.showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost)
 
 "05 - Saving CAMIS"
 camis.saveCamis('cuadriga_camis.csv',CdRoots,CaRoots,Cl1Roots,Cl2Roots,\

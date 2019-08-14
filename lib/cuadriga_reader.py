@@ -33,7 +33,7 @@ def readCuadrigaData(file, show=0):
         for row in csv_reader:
             error = float(row[14])
             reference = float(row[0])
-            if error < 0.3 and reference > 0:
+            if error < 1.0 and reference > 0:
                 c = np.abs(float(row[4])) + np.abs(float(row[5]))
                 r = -float(row[6])-5.5
                 p = float(row[7])+13.7
@@ -69,7 +69,8 @@ def readCuadrigaData(file, show=0):
     dX = np.append(0,np.diff(utmPoseX))
     dY = np.append(0,np.diff(utmPoseY))
     segmentPath = np.sqrt(dX**2+dY**2)
-    
+    dT = np.append(0,np.diff(Time))
+    Speed = segmentPath/dT
     
     logic = np.logical_and((segmentPath > 0),(np.asarray(Current) > 4))
     logic = np.logical_and((np.asarray(Current) < 40), logic)
@@ -82,28 +83,76 @@ def readCuadrigaData(file, show=0):
     dY = np.append(0,np.diff(utmPoseY))
     segmentPath = np.sqrt(dX**2+dY**2)
     dT = np.append(0,np.diff(Time))
+    
+    heading = np.arctan2(dY,dX)
+    for i in range(1,len(heading)):
+        if np.abs(heading[i]-heading[i-1]) > np.pi:
+            heading[i] = heading[i] + 2*np.pi
+            
+    heading = np.convolve(heading, np.ones((N,))/N, mode='same')
+    
+    dHeading = np.append(0,np.diff(heading))
+    
+    angularSpeed = dHeading/dT
+    
+    
+    
     Speed = segmentPath/dT
     Speed = Speed.tolist()
+    
+    Curvature = np.abs(angularSpeed/Speed)
+    Curvature = np.convolve(Curvature, np.ones((N,))/N, mode='same')
     
     Yaw = rad2deg*np.arctan2(dY,dX)
     Roll = [r for i,r in enumerate(Roll) if logic[i]]
     Pitch = [p for i,p in enumerate(Pitch) if logic[i]]
     Current = [c for i,c in enumerate(Current) if logic[i]]
     GPSspeed = [s for i,s in enumerate(GPSspeed) if logic[i]]
+    
+    maxSpeed = .6
+    maxCurvature = 2.0
+    Roll = [r for i,r in enumerate(Roll) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Pitch = [p for i,p in enumerate(Pitch) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Current = [c for i,c in enumerate(Current) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    GPSspeed = [s for i,s in enumerate(GPSspeed) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Yaw = [y for i,y in enumerate(Yaw) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Time = [t for i,t in enumerate(Time) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Curvature = [c for i,c in enumerate(Curvature) if Speed[i] > .25 and Speed[i] < maxSpeed]
+    Speed = [s for i,s in enumerate(Speed) if Speed[i] > .25 and Speed[i] < maxSpeed]
+
+    Roll = [r for i,r in enumerate(Roll) if Curvature[i] < maxCurvature]
+    Pitch = [p for i,p in enumerate(Pitch) if Curvature[i] < maxCurvature]
+    Current = [c for i,c in enumerate(Current) if Curvature[i] < maxCurvature]
+    GPSspeed = [s for i,s in enumerate(GPSspeed) if Curvature[i] < maxCurvature]
+    Yaw = [y for i,y in enumerate(Yaw) if Curvature[i] < maxCurvature]
+    Time = [t for i,t in enumerate(Time) if Curvature[i] < maxCurvature]
+    Speed = [s for i,s in enumerate(Speed) if Curvature[i] < maxCurvature]
+    Curvature = [c for i,c in enumerate(Curvature) if Curvature[i] < maxCurvature]
+    
 
     # Filtering
-    Current = scipy.ndimage.median_filter(Current,size=10)
-    Roll = scipy.ndimage.median_filter(Roll,size=10)
-    Pitch = scipy.ndimage.median_filter(Pitch,size=10)
+    N = 4
+    Current = np.convolve(Current, np.ones((N,))/N, mode='same')
+    Roll = np.convolve(Roll, np.ones((N,))/N, mode='same')
+    Pitch = np.convolve(Pitch, np.ones((N,))/N, mode='same')
+    Current = Current[5:-5]
+    Roll = Roll[5:-5]
+    Pitch = Pitch[5:-5]
+    Time = Time[5:-5]
+    Speed = Speed[5:-5]
+    GPSspeed = GPSspeed[5:-5]
+    Yaw = Yaw[5:-5]
+    Curvature = Curvature[5:-5]
     
     if show == 1:
         fig, ax = plt.subplots()
-        ax.plot(Speed)
+        ax.plot(Time,Speed,Time,GPSspeed)
 #        ax.set_xlim(0, Time[-1])
         ax.set_xlabel('Time [s]')
         ax.set_ylabel('Speed [m/s]')
         ax.grid(True)
         ax.legend(labels = ['Computed Speed','GPS Speed'])
+        
         fig, ax = plt.subplots()
         ax.plot(utmPoseX,utmPoseY)
         ax.set_xlabel('UTM-X [m]')
@@ -112,6 +161,34 @@ def readCuadrigaData(file, show=0):
         ax.legend(labels = ['Path'])
         plt.tight_layout()
         ax.set_aspect('equal')
+        
+        Gradient = np.zeros_like(Roll)
+        for i, r in enumerate(Roll):
+            Gradient[i] = rad2deg*np.arccos(np.cos(deg2rad*Roll[i])*np.cos(deg2rad*Pitch[i]))
+        
+        fig, ax = plt.subplots()
+        ax.plot(Time,Roll,Time,Pitch,Time,Gradient)
+        ax.set_xlim(0, Time[-1])
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('Angle [degrees]')
+        ax.grid(True)
+        ax.legend(labels = ['Roll','Pitch','Gradient'])
+        
+        fig, ax = plt.subplots()
+        ax.plot(Time,Current)
+#        ax.set_xlim(0, Time[-1])
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('[A]')
+        ax.grid(True)
+        ax.legend(labels = ['Current'])
+        
+        fig, ax = plt.subplots()
+        ax.plot(Time,Curvature)
+#        ax.set_xlim(0, Time[-1])
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('[A]')
+        ax.grid(True)
+        ax.legend(labels = ['Curvature'])
             
     return Roll[1:], Pitch[1:], Yaw[1:], np.ndarray.tolist(Current[1:]), Speed[1:]
 

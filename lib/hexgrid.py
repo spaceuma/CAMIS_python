@@ -17,4 +17,7 @@ def getHexGrid(Xmap,Ymap,res):
     II,JJ = np.meshgrid(np.linspace(0,IMax,IMax+1),np.linspace(0,JMax,JMax+1))
     hX = Xmap[0,0] + res*(II + .5*JJ) - DY/math.sqrt(3)
     hY = Ymap[0,0] + res*math.sqrt(3)/2*JJ
-    return hX, hY
+    XX,YY = np.meshgrid(np.linspace(0,np.ceil(DX),np.ceil(DX)+1),np.linspace(0,np.ceil(DY),np.ceil(DY)+1))
+    xy2J = 2*YY/(np.sqrt(3)*res)
+    xy2I = (DY/np.sqrt(3)+ XX)/res-0.5*xy2J
+    return hX, hY, xy2I, xy2J

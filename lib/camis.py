@@ -11,6 +11,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from bisect import bisect_left
 import csv
+import math
 
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
@@ -66,10 +67,12 @@ def computeCAMIScost(B,Cd,Ca,Cl1,Cl2):
     return (np.sqrt(np.dot(np.dot(Bt,Q),B))-np.dot(Bt,D))
 
 def getCAMIScost(B,Q1,Q2,D1,D2):
-    Bt = np.transpose(B)
-    Q = np.array(((Q1,D1*D2), (D1*D2, Q2)))
-    D = np.array(((D1), (D2)))
-    return (np.sqrt(np.dot(np.dot(Bt,Q),B))-np.dot(Bt,D))
+#    Bt = np.transpose(B)
+#    Q = np.array(((Q1,D1*D2), (D1*D2, Q2)))
+#    D = np.array(((D1), (D2)))
+#    return (math.sqrt(np.dot(np.dot(Bt,Q),B))-np.dot(Bt,D))
+    return np.sqrt(Q1*B[0]**2+Q2*B[1]**2+2*D1*D2*B[0]*B[1]) - \
+           (B[0]*D1 + B[1]*D2)
 
 # =============================================================================
 #    Explicit formulation of CAMIS
@@ -82,13 +85,14 @@ def dirCost(gradient, K):
 def computeDirCosts(gradient, beta, cost):
     popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost)
     CdRoots = (popt[0],popt[1],popt[-1])
-    CaRoots = (popt[2],popt[3],popt[-1])
-    Cl1Roots = (popt[4],popt[-1])
-    Cl2Roots = (popt[4],popt[-1])
-    
-    linearGradient = np.linspace(0,30,31)
+    CaRoots = (8*popt[2],popt[3],popt[-1])
+#    Cl1Roots = (popt[4],popt[5],popt[-1])
+#    Cl2Roots = (popt[4],popt[5],popt[-1])
+    Cl1Roots = (8*popt[2],popt[3],popt[-1])
+    Cl2Roots = (8*popt[2],popt[3],popt[-1])
+    linearGradient = np.linspace(0,45,46)
     heading = np.arange(0, 2*np.pi, 0.01)
-    aspect = 0 
+    aspect = [1,0] 
     
     Cd = dirCost(linearGradient, CdRoots)
     Ca = dirCost(linearGradient, CaRoots)
@@ -110,12 +114,12 @@ def computeDirCosts(gradient, beta, cost):
     AniCoLUT[:][1] = Anisotropy
     return CdRoots, CaRoots, Cl1Roots, Cl2Roots, AniCoLUT
 
-def fittingCAMIS(x,x1,x2,x3,x4,x5,Co):
+def fittingCAMIS(x,x1,x2,x3,x4,x5, x6,Co):
     alpha, beta = x
     Cd = dirCost(alpha, [x1, x2, Co])
     Ca = dirCost(alpha, [x3, x4, Co])
-    Cl1 = dirCost(alpha, [x5, Co])
-    Cl2 = dirCost(alpha, [x5, Co])
+    Cl1 = dirCost(alpha, [x5, x6, Co])
+    Cl2 = dirCost(alpha, [x5, x6, Co])
     cBeta = np.cos(beta)
     sBeta = np.sin(beta)
     K1 = (Ca+Cd)/2
@@ -215,7 +219,7 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     
     linearGradient = np.linspace(0,30,31)
     heading = np.arange(0, 2*np.pi, 0.01)
-    aspect = 0 
+    aspect = [1,0]
     
     Cd = dirCost(linearGradient, CdRoots)
     Ca = dirCost(linearGradient, CaRoots)
@@ -232,43 +236,86 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     rgba_colors[:, 3] = np.abs(np.sin(beta))
     
     
-    fig1 = plt.figure()
-    ax1 = fig1.add_subplot(1, 1, 1)
+    left, width = 0.1, 0.65
+    bottom, height = 0.1, 0.65
+    spacing = 0.005
+    rect_scatter = [left, bottom, width, height]
+    rect_histx = [left, bottom + height + spacing, width, 0.2]
+    rect_histy = [left + width + spacing, bottom, 0.2, height]
+    
+    fig1 = plt.figure(figsize=(8, 8))
+    ax1 = plt.axes(rect_scatter)
+    ax1.tick_params(direction='in', top=True, right=True)
     ax1.set_facecolor('xkcd:pale grey')
-    ax1.set_title('$\longleftarrow$ Lateral Direction #2      Lateral Direction #1 $\longrightarrow$')
+    ax1.set_title('$\longleftarrow$ Lateral Direction #2      Lateral Direction #1 $\longrightarrow$',y = -0.13)
     plt.grid('True')
     ax1.fill_betweenx(linearGradient,0,Cl1,color='xkcd:sea blue')
     ax1.fill_betweenx(linearGradient,0,-Cl2,color='xkcd:leaf')
     ax1.scatter(costY,gradient,color=rgba_colors)
     ax1.legend(['Lateral Cost 1','Lateral Cost 2','Experimental Data'])
+    
     ax1.set_xlim(-CMax,CMax)
-    ax1.set_ylim(0,linearGradient[-1])
+    gradientArray = np.asarray(gradient)
+    ax1.set_ylim(0,gradientArray.max())
     ax1.plot(Cl1,linearGradient, lw = 2, color = 'xkcd:dusk blue')
     ax1.plot(-Cl2,linearGradient, lw = 2, color = 'xkcd:camo green')
-    plt.xlabel('Cost [Am/s]')
+    plt.xlabel('Cost [As/m]')
     plt.ylabel('Slope Gradient [degrees]')
+    ax_histx = plt.axes(rect_histx)
+    ax_histx.tick_params(direction='in', labelbottom=False)
+    ax_histy = plt.axes(rect_histy)
+    ax_histy.tick_params(direction='in', labelleft=False)
+    
+    binwidth = 0.25
+    binsX = np.arange(-CMax, CMax + binwidth, binwidth)
+    binsY = np.arange(0, gradientArray.max() + binwidth, binwidth)
+    ax_histx.hist(costY, bins=binsX, color = "m")
+    ax_histy.hist(gradient, bins=binsY, orientation='horizontal', color = "m")
+    
+    ax_histx.set_xlim(ax1.get_xlim())
+    ax_histy.set_ylim(ax1.get_ylim())
+
+
     fig1.tight_layout()
     
     rgba_colors[:,0] = np.abs(np.cos(beta))
     rgba_colors[:, 3] = np.abs(np.cos(beta))
     
     
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(1, 1, 1)
+    fig2 = plt.figure(figsize=(8, 8))
+    ax2 = plt.axes(rect_scatter)
     ax2.set_facecolor('xkcd:pale grey')
-    ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$')
+    ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$',y = -0.13)
     plt.grid('True')
     ax2.fill_betweenx(linearGradient,0,Cd,color='xkcd:sea blue')
     ax2.fill_betweenx(linearGradient,0,-Ca,color='xkcd:leaf')
     ax2.scatter(costX,gradient,color=rgba_colors)
     ax2.legend(['Descent Cost','Ascent Cost','Experimental Data'])
     ax2.set_xlim(-CMax,CMax)
-    ax2.set_ylim(0,linearGradient[-1])
+    ax2.set_ylim(0,gradientArray.max())
     ax2.plot(Cd,linearGradient, lw = 2, color = 'xkcd:dusk blue')
     ax2.plot(-Ca,linearGradient, lw = 2, color = 'xkcd:camo green')
-    plt.xlabel('Cost [Am/s]')
+    plt.xlabel('Cost [As/m]')
     plt.ylabel('Slope Gradient [degrees]')
+    ax_histx = plt.axes(rect_histx)
+    ax_histx.tick_params(direction='in', labelbottom=False)
+    ax_histy = plt.axes(rect_histy)
+    ax_histy.tick_params(direction='in', labelleft=False)
+    
+    binwidth = 0.25
+    binsX = np.arange(-CMax, CMax + binwidth, binwidth)
+    binsY = np.arange(0, gradientArray.max() + binwidth, binwidth)
+    ax_histx.hist(costX, bins=binsX, color = "m")
+    ax_histy.hist(gradient, bins=binsY, orientation='horizontal', color = "m")
+    
+    ax_histx.set_xlim(ax2.get_xlim())
+    ax_histy.set_ylim(ax2.get_ylim())
+    
     fig2.tight_layout()
+    
+    
+    
+    
     
     fig3 = plt.figure()
     
@@ -286,7 +333,12 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     ax3.plot(linearGradient,sqrtQ2,color='g')
     ax3.plot(linearGradient,D1,color='m')
     ax3.plot(linearGradient,D2,color='y')
-    ax3.legend(['sqrt(Q1)','sqrt(Q2)','D1','D2'])
+    ax3.plot(linearGradient,Ca,color='burlywood')
+    ax3.plot(linearGradient,Cd,color='lightblue')
+    ax3.plot(linearGradient,Cl1,color='yellowgreen')
+    ax3.plot(linearGradient,Cl2,color='coral')
+    ax3.legend(['sqrt(Q1)','sqrt(Q2)','D1','D2','Ascent Cost Ca',\
+                'Descent Cost Cd','Lateral Cost Cl1','Lateral Cost Cl2'])
     plt.ylabel('Cost [As/m]')
     plt.xlabel('Slope Gradient [degrees]')
     
