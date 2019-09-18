@@ -31,33 +31,29 @@ ZZ[np.where(YY<20)] = 20/5
 slopeMap, aspectMapX, aspectMapY, _ = tp.getConvSlopeMaps(XX, YY, ZZ,\
                                                        1, 1,1)
 triX, triY, XY2I, XY2J = hg.getHexGrid(XX,YY,1)
+
+class Robot:
+    def __init__(self, camis_file, slope_threshold):
+        self.CdRoots,self.CaRoots,self.Cl1Roots,self.Cl2Roots,self.AniCoLUT = \
+        camis.readCamis(camis_file)
+        self.slope_threshold = self.AniCoLUT[-1][0]
+    def printSlopeThreshold(self):
+        print("The slope threshold is " + str(180/np.pi*self.slope_threshold) + "degrees")
+
+r1 = Robot('cuadriga_camis.csv',np.max(slopeMap))
+r1.printSlopeThreshold()
+
+
 CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT = \
 camis.readCamis('cuadriga_camis.csv')
 
 CdRoots = [0.0, 0.1, 20.198279377002958]
 CaRoots = [0.04681520102276125, 0.8, 20.198279377002958]
-Cl1Roots = [2, 20.198279377002958]
-Cl2Roots = [2, 20.198279377002958]
+Cl1Roots = [4, 20.198279377002958]
+Cl2Roots = [4, 20.198279377002958]
 
 maxSlope = np.max(slopeMap)
-linearGradient = np.linspace(0,np.ceil(maxSlope),np.ceil(maxSlope)+1)
-Cs = []
-heading = np.arange(0, 2*np.pi, 0.01)
-AniCoLUT = np.zeros((2,linearGradient.size))
-Anisotropy = np.zeros_like(linearGradient)
-for i,g in enumerate(linearGradient):
-    for theta in heading:
-        B = camis.computeBeta([1,0] ,theta)
-        preCost = camis.computeCAMIScost(B,camis.dirCost(linearGradient[i], CdRoots),\
-                                   camis.dirCost(linearGradient[i], CaRoots),\
-                                   camis.dirCost(linearGradient[i], Cl1Roots),\
-                                   camis.dirCost(linearGradient[i], Cl2Roots))
-        Cs.append(preCost)
-    Anisotropy[i] = max(Cs)/min(Cs)
-    Cs = []
-    
-AniCoLUT[:][0] = linearGradient
-AniCoLUT[:][1] = Anisotropy
+
 
 
 
@@ -125,7 +121,7 @@ start = np.asarray([40,10])
 goal = np.asarray([45,50])
 
 init = time()
-Tmap, dirMap, stateMap = \
+Tmap, dirMap, stateMap, maxAnisoMap = \
 ap.computeTmap(VCMap,AspectMap,AnisotropyMap,goal,start,triX,triY,globalRes)
 print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
 
@@ -138,7 +134,7 @@ XY2IJ[1] = XY2J
 
 startWaypoint = IJ2XY[:,start[1],start[0]]
 goalWaypoint = IJ2XY[:,goal[1],goal[0]]
-path = ap.getPath(dirMap, IJ2XY, XY2IJ, startWaypoint, goalWaypoint, 0, 0, globalRes)
+path,uu = ap.getPath(dirMap, IJ2XY, XY2IJ, startWaypoint, goalWaypoint, 0, 0, globalRes)
 
 
 path = np.asarray(path)
@@ -159,7 +155,7 @@ ax.set_aspect('equal')
 plt.show()
 
 fig, axes = plt.subplots(constrained_layout=True)
-cc = axes.contourf(triX, triY, Q1, 100, cmap = 'plasma')
+cc = axes.contourf(triX, triY, AnisotropyMap, 100, cmap = 'plasma')
 fig.colorbar(cc,location='bottom')
 axes.set_aspect('equal')
 plt.show()
