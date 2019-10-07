@@ -16,6 +16,7 @@ import math
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
 
+
 # =============================================================================
 #    rpy2ab -> Mapping from Roll-Pitch-Yaw angles to Alpha-Beta angles
 # =============================================================================
@@ -77,6 +78,8 @@ def getCAMIScost(B,Q1,Q2,D1,D2):
 # =============================================================================
 #    Explicit formulation of CAMIS
 # =============================================================================
+           
+           
     
 def dirCost(gradient, K):
     # Gradient in degrees!
@@ -84,23 +87,25 @@ def dirCost(gradient, K):
     
 def computeDirCosts(gradient, beta, cost):
     popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost)
-    CdRoots = (popt[0],popt[1],popt[-1])
-    CaRoots = (8*popt[2],popt[3],popt[-1])
-#    Cl1Roots = (popt[4],popt[5],popt[-1])
-#    Cl2Roots = (popt[4],popt[5],popt[-1])
-    Cl1Roots = (8*popt[2],popt[3],popt[-1])
-    Cl2Roots = (8*popt[2],popt[3],popt[-1])
-    linearGradient = np.linspace(0,45,46)
+    cdRoots = (popt[0],popt[1],popt[-1])
+    caRoots = (8*popt[2],popt[3],popt[-1])
+    cl1Roots = (popt[4],popt[5],popt[-1])
+    cl2Roots = (popt[4],popt[5],popt[-1])
+    return cdRoots, caRoots, cl1Roots, cl2Roots
+
+
+
+def computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots, maxGradient):
+    linearGradient = np.linspace(0,maxGradient,maxGradient+1)
     heading = np.arange(0, 2*np.pi, 0.01)
     aspect = [1,0] 
-    
-    Cd = dirCost(linearGradient, CdRoots)
-    Ca = dirCost(linearGradient, CaRoots)
-    Cl1 = dirCost(linearGradient, Cl1Roots)
-    Cl2 = dirCost(linearGradient, Cl2Roots)
+    Cd = dirCost(linearGradient, cdRoots)
+    Ca = dirCost(linearGradient, caRoots)
+    Cl1 = dirCost(linearGradient, cl1Roots)
+    Cl2 = dirCost(linearGradient, cl2Roots)
     
     Cs = []
-    AniCoLUT = np.zeros((2,linearGradient.size))
+    anicoLUT = np.zeros((2,linearGradient.size))
     Anisotropy = np.zeros_like(linearGradient)
     for i,g in enumerate(linearGradient):
         for theta in heading:
@@ -110,9 +115,11 @@ def computeDirCosts(gradient, beta, cost):
         Anisotropy[i] = max(Cs)/min(Cs)
         Cs = []
     
-    AniCoLUT[:][0] = linearGradient
-    AniCoLUT[:][1] = Anisotropy
-    return CdRoots, CaRoots, Cl1Roots, Cl2Roots, AniCoLUT
+    anicoLUT[:][0] = linearGradient
+    anicoLUT[:][1] = Anisotropy
+    
+    return anicoLUT
+    
 
 def fittingCAMIS(x,x1,x2,x3,x4,x5, x6,Co):
     alpha, beta = x
@@ -137,13 +144,15 @@ def fittingCAMIS(x,x1,x2,x3,x4,x5, x6,Co):
 def computeBeta(aspect,heading):
 #    c, s = np.cos(aspect), np.sin(aspect)
 #    R = np.array(((c,s), (-s, c)))
-    R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
+    if np.asarray(aspect).size == 1:
+        R = np.array(((np.cos(aspect),np.sin(aspect)), (-np.sin(aspect), np.cos(aspect))))
+    else:
+        R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
     if heading.size == 1:
         aHeading = np.array(((np.cos(heading)), (np.sin(heading))))
     else:
         aHeading = heading
-    T = np.dot(R,np.transpose(aHeading))
-    return T
+    return np.dot(R,np.transpose(aHeading))
 
 def getVectorialCostMap(slopeMap,CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT):
     vectorialCostMap = np.zeros([5,slopeMap.shape[0],slopeMap.shape[1]])
@@ -436,6 +445,57 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     
     plt.show()
         
+    
+    
+# =============================================================================
+#    Class of CAMIS model for any robot
+# =============================================================================
 
-
-
+class CamisModel:
+    def __init__(self, cdRoots, caRoots, cl1Roots, cl2Roots, anicoLUT):
+        self.cdRoots = cdRoots
+        self.caRoots = caRoots
+        self.cl1Roots = cl1Roots
+        self.cl2Roots = cl2Roots
+        self.anicoLUT = anicoLUT
+        self.slopeThreshold = self.anicoLUT[0][-1]
+    
+    @classmethod
+    def fromFile(cls, camis_file):
+        return cls(*readCamis(camis_file))
+    
+    @classmethod
+    def fromRoots(cls, cdRoots, caRoots, cl1Roots, cl2Roots, slopeThreshold):
+        anicoLUT = computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots,\
+                                        slopeThreshold)
+        return cls(cdRoots, caRoots, cl1Roots, cl2Roots, anicoLUT)
+    
+    def getCost(self, slope, aspect, heading):
+        beta = computeBeta(aspect,heading)
+        Cd = dirCost(slope, self.cdRoots)
+        Ca = dirCost(slope, self.caRoots)
+        Cl1 = dirCost(slope, self.cl1Roots)
+        Cl2 = dirCost(slope, self.cl2Roots)
+        Q1 = ((Ca+Cd)/2)**2
+        Q2 = ((Cl1+Cl2)/2)**2
+        D1 =  (Ca-Cd)/2
+        D2 = (Cl2-Cl1)/2
+        return getCAMIScost(beta,Q1,Q2,D1,D2)
+        
+    def printSlopeThreshold(self):
+        print("The slope threshold is " + str(self.slopeThreshold) \
+              + " degrees")
+    def printCostRoots(self):
+        print("Descent Cost Roots:   " + ''.join(str(c)+" " for c in \
+                                               self.cdRoots))
+        print("Ascent Cost Roots:    " + ''.join(str(c)+" " for c in \
+                                               self.caRoots))
+        print("Lateral 1 Cost Roots: " + ''.join(str(c)+" " for c in \
+                                               self.cl1Roots))
+        print("Lateral 2 Cost Roots: " + ''.join(str(c)+" " for c in \
+                                               self.cl2Roots))
+    def printAnicoLUT(self):
+        print("Linear Gradient Array is:  " + ''.join(str(c)+" " for c in \
+                                               self.anicoLUT[:][0]))
+        print("Anisotropy Array is:       " + ''.join(str(c)+" " for c in \
+                                               self.anicoLUT[:][1]))

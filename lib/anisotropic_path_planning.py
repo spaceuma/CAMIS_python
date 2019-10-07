@@ -12,7 +12,11 @@ import operator
 import time
 import bisect
 import lib.hexgrid as hexgrid
-import lib.camis as camis
+import lib.camislib as camislib
+import sys
+from scipy.optimize import minimize_scalar
+from numba import jit, float64, int64
+
 
 def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
 #    VCmap[2] = -VCmap[2]
@@ -52,8 +56,8 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     NClist, stateMap = getNewConsidered(nodeTarget,stateMap)   
     Tmap, nbT, nbNodes, maxAnisoMap= updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res,goal)
 
-    iter = 1
-    size = np.size(anisotropyMap)
+#    iter = 1
+#    size = np.size(anisotropyMap)
     
 #    fig, axes = plt.subplots(constrained_layout=True)
 #    cc = axes.contourf(Xmap, Ymap, stateMapG, 100)
@@ -67,12 +71,12 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
         NClist, stateMap = getNewConsidered(nodeTarget,stateMap)
         stateMap = updateStateMap(nodeTarget,stateMap)
         Tmap, nbT, nbNodes,maxAnisoMap = updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
-        Tmap, nbT, nbNodes = updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
+#        Tmap, nbT, nbNodes = updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
         if stateMap[start[1],start[0]] == 2:
             break
-        iter = iter + 1
-        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
-        print(iter)
+#        iter = iter + 1
+#        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
+#        print(iter)
         
     return Tmap, dirMap, stateMap, maxAnisoMap
 
@@ -174,9 +178,9 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
 #        if iter > 1000:
 #            nodeLink = []
 #            break
-        iter = iter + 2
-        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
-        print(iter)
+#        iter = iter + 2
+#        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
+#        print(iter)
         
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink,stateMapG,stateMapS
 #    Tmap = np.zeros_like(TmapG)
@@ -344,14 +348,15 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
                 ss = SS[0]
                 del SS[0]
                 for j in SS:
-                    if (computeDistance(ss,j,Xmap,Ymap) <= res + .001):
-                        localAFPairs.append(np.concatenate((ss,j)))
+                    if (computeDistance(ss,j,Xmap,Ymap) <= 1.1*res):
+                        localAFPairs.append(np.concatenate((ss,j)))     
             nfPairs = []
             for j in localAFPairs:
                 if checkNF(j,nodeTarget,anisotropy,res):
                     nfPairs.append(j)
                     maxAnisomap[j[1],j[0]] = max(anisotropy,maxAnisomap[j[1],j[0]])
                     maxAnisomap[j[3],j[2]] = max(anisotropy,maxAnisomap[j[3],j[2]])
+            nfPairs = checkNFPairs(nodeTarget, nfPairs,Xmap,Ymap)
             if len(nfPairs) == 0:
                 for j in afList:
                     nfPairs.append(np.concatenate((j,j)))
@@ -368,6 +373,47 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
     return Tmap, nbT, nbNodes, maxAnisomap
 
+def checkNFPairs(nodeTarget, nfPairs,Xmap,Ymap):
+    validNFPairs = []
+    SS= []
+    SS[:] = nfPairs
+    while (len(SS)!=0):
+        ss = SS[0]
+        del SS[0]
+        valid = True
+        for j in nfPairs:
+            if not((ss[0]==j[0])and(ss[1]==j[1])and(ss[2]==j[2])and(ss[3]==j[3])):
+                if (checkCross(nodeTarget,ss,j,Xmap,Ymap)):
+                    valid = False
+        if valid == True:
+            validNFPairs.append(ss)
+    return validNFPairs
+
+
+# Checks if nfPairA is behind nfPairB
+@jit(nopython=True, parallel=True)
+def checkCross(nodeTarget, nfPairA, nfPairB, Xmap, Ymap):
+    vectorA1 = np.asarray([Xmap[nfPairA[1],nfPairA[0]], Ymap[nfPairA[1],nfPairA[0]]]) - \
+               np.asarray([Xmap[nodeTarget[1],nodeTarget[0]], Ymap[nodeTarget[1],nodeTarget[0]]])
+    vectorA2 = np.asarray([Xmap[nfPairA[3],nfPairA[2]], Ymap[nfPairA[3],nfPairA[2]]]) - \
+               np.asarray([Xmap[nodeTarget[1],nodeTarget[0]], Ymap[nodeTarget[1],nodeTarget[0]]])
+    vectorB1 = np.asarray([Xmap[nfPairB[1],nfPairB[0]], Ymap[nfPairB[1],nfPairB[0]]]) - \
+               np.asarray([Xmap[nodeTarget[1],nodeTarget[0]], Ymap[nodeTarget[1],nodeTarget[0]]])
+    vectorB2 = np.asarray([Xmap[nfPairB[3],nfPairB[2]], Ymap[nfPairB[3],nfPairB[2]]]) - \
+               np.asarray([Xmap[nodeTarget[1],nodeTarget[0]], Ymap[nodeTarget[1],nodeTarget[0]]])
+    if (((vectorA1[0]*vectorB1[1]-vectorA1[1]*vectorB1[0])*(vectorA1[0]*vectorA2[1]-vectorA1[1]*vectorA2[0]) >= 0) and \
+        ((vectorA2[0]*vectorB1[1]-vectorA2[1]*vectorB1[0])*(vectorA2[0]*vectorA1[1]-vectorA2[1]*vectorA1[0]) >= 0)) or \
+        (((vectorA1[0]*vectorB2[1]-vectorA1[1]*vectorB2[0])*(vectorA1[0]*vectorA2[1]-vectorA1[1]*vectorA2[0]) >= 0) and \
+        ((vectorA2[0]*vectorB2[1]-vectorA2[1]*vectorB2[0])*(vectorA2[0]*vectorA1[1]-vectorA2[1]*vectorA1[0]) >= 0)):
+        magA1 = np.sqrt(vectorA1[0]**2+vectorA1[1]**2)
+        magA2 = np.sqrt(vectorA2[0]**2+vectorA2[1]**2)
+        magB1 = np.sqrt(vectorB1[0]**2+vectorB1[1]**2)
+        magB2 = np.sqrt(vectorB2[0]**2+vectorB2[1]**2)
+        minB = min(magB1,magB2)
+        if (minB + 1e-10 < magA1)and(minB + 1e-10 < magA2):
+            return True
+    return False
+
 def checkNF(afPair, n, anisotropy,res):
     C1 = afPair[2]-n[0];
     C2 = afPair[3]-n[1];
@@ -380,13 +426,13 @@ def checkNF(afPair, n, anisotropy,res):
     p1 = 0.5*ddp+dp0+p0
     dP = dp0**2 - 2*ddp*p0;
     if dP < 0:
-        return 'false'
+        return False
     elif p0 <= 0 or p1 <= 0:
-        return 'true'
+        return True
     elif amin >= 0 and amin <= 1:
-        return 'true'
+        return True
     else:
-        return 'false'
+        return False
 
 def computeDistance(nodeA, nodeB, Xmap, Ymap):
     dx = Xmap[nodeA[1],nodeA[0]] - Xmap[nodeB[1],nodeB[0]]
@@ -419,19 +465,173 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
                 T = preT
                 direc = preDir
     return T,direc
+#@jit(nopython=True, parallel=True)
+#def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap):
+##    if np.isnan(aspect[0]) or np.isnan(aspect[1]):
+##        aspect = [1,0]
+#    T = np.inf
+#    direc = np.nan
+#    x = np.asarray([Xmap[nodeTarget[1],nodeTarget[0]],Ymap[nodeTarget[1],nodeTarget[0]]])
+#    nfPairs = np.asarray(nfPairs)
+#    if len(nfPairs.shape) == 1:
+#        xj = np.asarray([Xmap[nfPairs[1],nfPairs[0]],Ymap[nfPairs[1],nfPairs[0]]])
+#        xk = np.asarray([Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]])
+#        Tj = Tmap[nfPairs[1],nfPairs[0]]
+#        Tk = Tmap[nfPairs[3],nfPairs[2]]
+#        a = 0
+#        b = 1
+#        nIter = 30
+#        tau=(np.sqrt(5)-1)/2;
+#        epsilon1=a+(1-tau)*(b-a)
+#        epsilon2=a+tau*(b-a)
+#               
+#        R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
+#        
+#        heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+#        beta1 = np.dot(R,np.transpose(heading1))
+#        f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) - \
+#               (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+#        
+#        heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+#        beta2 = np.dot(R,np.transpose(heading2))
+#        f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) - \
+#               (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
+#        accuracy = 0.1
+#        k = 0
+#        while np.abs(b-a)>accuracy and k<nIter:
+#            k = k+1
+#            if f_x1 < f_x2:
+#                b = epsilon2
+#                epsilon2 = epsilon1
+#                epsilon1 = a+(1-tau)*(b-a)
+#            else:
+#                a = epsilon1
+#                epsilon1 = epsilon2
+#                epsilon2 = a+tau*(b-a)
+#            heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+#            beta1 = np.dot(R,np.transpose(heading1))
+#            f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) - \
+#               (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+#            heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+#            beta2 = np.dot(R,np.transpose(heading2))
+#            f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) - \
+#               (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
+#        if f_x1 < f_x2:
+#            minEpsilon = epsilon1
+#            minT = f_x1
+#        else:
+#            minEpsilon = epsilon2
+#            minT = f_x2
+#        
+#        minDirVector = (x-minEpsilon*xj-(1-minEpsilon)*xk)
+#        minDir = np.arctan2(minDirVector[1],minDirVector[0])
+#        preT = minT
+#        preDir = minDir
+#        if preT < T:
+#            T = preT
+#            direc = preDir
+#    else:
+#        for i in range(len(nfPairs)):
+#            xj = np.asarray([Xmap[nfPairs[i][1],nfPairs[i][0]],Ymap[nfPairs[i][1],nfPairs[i][0]]])
+#            xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],Ymap[nfPairs[i][3],nfPairs[i][2]]])
+#            Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
+#            Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
+#            a = 0
+#            b = 1
+#            nIter = 30
+#            tau=(np.sqrt(5)-1)/2;
+#            epsilon1=a+(1-tau)*(b-a)
+#            epsilon2=a+tau*(b-a)
+#                   
+#            R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
+#            
+#            heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+#            beta1 = np.dot(R,np.transpose(heading1))
+#            f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) - \
+#                   (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+#            
+#            heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+#            beta2 = np.dot(R,np.transpose(heading2))
+#            f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) - \
+#                   (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
+#            accuracy = 0.1
+#            k = 0
+#            while np.abs(b-a)>accuracy and k<nIter:
+#                k = k+1
+#                if f_x1 < f_x2:
+#                    b = epsilon2
+#                    epsilon2 = epsilon1
+#                    epsilon1 = a+(1-tau)*(b-a)
+#                else:
+#                    a = epsilon1
+#                    epsilon1 = epsilon2
+#                    epsilon2 = a+tau*(b-a)
+#                heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+#                beta1 = np.dot(R,np.transpose(heading1))
+#                f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) - \
+#                   (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+#                heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+#                beta2 = np.dot(R,np.transpose(heading2))
+#                f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) - \
+#                   (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
+#            if f_x1 < f_x2:
+#                minEpsilon = epsilon1
+#                minT = f_x1
+#            else:
+#                minEpsilon = epsilon2
+#                minT = f_x2
+#            
+#            minDirVector = (x-minEpsilon*xj-(1-minEpsilon)*xk)
+#            minDir = np.arctan2(minDirVector[1],minDirVector[0])
+#            preT = minT
+#            preDir = minDir
+#            if preT < T:
+#                T = preT
+#                direc = preDir
+#    return T,direc
 
+#@jit(nopython=True, parallel=True)
+#def anisotropicT(epsilon,x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
+#    headingx = x[0] - epsilon * xj[0] - (1-epsilon) * xk[0]
+#    headingy = x[1]-epsilon*xj[1]-(1-epsilon)*xk[1]
+#    Bx = aspect[0]*headingx+aspect[1]*headingy
+#    By = aspect[0]*headingy-aspect[1]*headingx
+#    return np.sqrt(Q1*Bx**2+Q2*By**2+2*D1*D2*Bx*By) - \
+#           (Bx*D1 + By*D2) + epsilon*Tj + (1-epsilon)*Tk
+#           
+#
+#def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
+#    res = minimize_scalar(anisotropicT, bounds=(0,1), args = (x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect), method='bounded', options={'xatol': 1e-03, 'maxiter': 500, 'disp': 0})
+#    minEpsilon = res.x
+#    minT = res.fun
+#    
+#    
+#    minDirVector = (x-minEpsilon*xj-(1-minEpsilon)*xk)
+#    minDirVector = minDirVector/np.linalg.norm(minDirVector)
+#    minDir = np.arctan2(minDirVector[1],minDirVector[0])
+#    return minT,minDir
+# 
+##@jit(nopython=True, parallel=True)          
 def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
     a = 0
     b = 1
-    nIter = 30
+    nIter = 500
     tau=(np.sqrt(5)-1)/2;
     epsilon1=a+(1-tau)*(b-a)
     epsilon2=a+tau*(b-a)
-    beta1 = camis.computeBeta(aspect,x-epsilon1*xj-(1-epsilon1)*xk)
-    f_x1= camis.getCAMIScost(beta1,Q1,Q2,D1,D2) + epsilon1*Tj + (1-epsilon1)*Tk
-    beta2 = camis.computeBeta(aspect,x-epsilon2*xj-(1-epsilon2)*xk)
-    f_x2= camis.getCAMIScost(beta2,Q1,Q2,D1,D2) + epsilon2*Tj + (1-epsilon2)*Tk
-    accuracy = 0.1
+           
+    R = np.array(((aspect[0],aspect[1]), (-aspect[1], aspect[0])))
+    
+    heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+    beta1 = np.dot(R,np.transpose(heading1))
+    f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) + \
+           (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+    
+    heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+    beta2 = np.dot(R,np.transpose(heading2))
+    f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) + \
+           (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
+    accuracy = 0.001
     k = 0
     while np.abs(b-a)>accuracy and k<nIter:
         k = k+1
@@ -443,10 +643,14 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
             a = epsilon1
             epsilon1 = epsilon2
             epsilon2 = a+tau*(b-a)
-        beta1 = camis.computeBeta(aspect,x-epsilon1*xj-(1-epsilon1)*xk)
-        f_x1= camis.getCAMIScost(beta1,Q1,Q2,D1,D2) + epsilon1*Tj + (1-epsilon1)*Tk
-        beta2 = camis.computeBeta(aspect,x-epsilon2*xj-(1-epsilon2)*xk)
-        f_x2= camis.getCAMIScost(beta2,Q1,Q2,D1,D2) + epsilon2*Tj + (1-epsilon2)*Tk
+        heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
+        beta1 = np.dot(R,np.transpose(heading1))
+        f_x1 = np.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) + \
+           (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
+        heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
+        beta2 = np.dot(R,np.transpose(heading2))
+        f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) + \
+           (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
     if f_x1 < f_x2:
         minEpsilon = epsilon1
         minT = f_x1
@@ -455,7 +659,6 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
         minT = f_x2
     
     minDirVector = (x-minEpsilon*xj-(1-minEpsilon)*xk)
-#    minDirVector = minDirVector/np.linalg.norm(minDirVector)
     minDir = np.arctan2(minDirVector[1],minDirVector[0])
     return minT,minDir
 
@@ -475,34 +678,31 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
         uij = np.zeros_like(waypoint,int)
         uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
         uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
-        k1 = .5*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
+        k1 = .2*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
         u.append(uij)
         if any(np.isnan(k1)):
             break
         if (k1[0] == 0)and(k1[1] == 0):
             break
         waypoint = path[-1]-k1
-#        k2 = .5*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
-#        if (k2[0] == 0)and(k2[1] == 0):
-#            break
-#        if any(np.isnan(k1)) or any(np.isnan(k2)):
-#            break
-#        waypoint = path[-1]-.5*(k1+k2)
+        k2 = .3*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
+        if (k2[0] == 0)and(k2[1] == 0):
+            break
+        if any(np.isnan(k1)) or any(np.isnan(k2)):
+            break
+        waypoint = path[-1]-.5*(k1+k2)
         path.append(waypoint)
         if np.sqrt((path[-1][0] - endWaypoint[0])**2+(path[-1][1] - endWaypoint[1])**2) < 1.5*res:
             break
+        if (np.abs((k1[0] + k2[0])) <= np.finfo(float).eps) and (np.abs((k1[1] + k2[1])) <= np.finfo(float).eps):
+            return path, u
     path.append(endWaypoint)
     return path, u
 
 def interpolatedControl(waypoint,dirMap,uij,IJ2XY,res):
     xc = IJ2XY[:,uij[1],uij[0]]
     u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
-    print(waypoint-xc)
-    print(u)
-    print(v)
-    print(w)
     e1,e2,e3 = interpolationCoefficients(waypoint,u,v,w,res)
-    print([e1, e2, e3])
     if np.isnan(dirMap[uij[1],uij[0]]):
         d1 = [0,0]
     else:
@@ -522,6 +722,18 @@ def interpolatedControl(waypoint,dirMap,uij,IJ2XY,res):
     
     return control/np.linalg.norm(control)
 
+def getTriInterpolation(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
+    uij = np.zeros_like(waypoint,int)
+    uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
+    uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
+    xc = IJ2XY[:,uij[1],uij[0]]
+    u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
+    e1,e2,e3 = interpolationCoefficients(waypoint,u,v,w,res)
+    T1 = Tmap[uij[1],uij[0]]
+    T2 = Tmap[vij[1],vij[0]]
+    T3 = Tmap[wij[1],wij[0]]
+    return e1*T1 + e2*T2 + e3*T3
+
 def interpolationCoefficients(x,u,v,w,h):
     C = 2/(3*h**2)
     z = x-w
@@ -531,13 +743,6 @@ def interpolationCoefficients(x,u,v,w,h):
     e1 = C1 + C2
     e2 = C3 - C1
     e3 = 1 - C2 - C3
-    print(C1)
-    print(C2)
-    print(C3)
-    print(z)
-    print(u-v)
-    print(u-w)
-    print(v-w)
     return e1,e2,e3
 
 def findSimplex(waypoint,xc,uij,IJ2XY,res):
@@ -548,7 +753,6 @@ def findSimplex(waypoint,xc,uij,IJ2XY,res):
     w = np.zeros_like(u)
     vij = np.zeros_like(uij,int)
     wij = np.zeros_like(uij,int)
-    print(ori)
     if ori > 120:
         vij[:] = uij + [-1,0]
         wij[:] = uij + [-1,1]
@@ -569,9 +773,6 @@ def findSimplex(waypoint,xc,uij,IJ2XY,res):
         wij[:] = uij + [-1,0]
     v[:] = IJ2XY[:,vij[1],vij[0]]
     w[:] = IJ2XY[:,wij[1],wij[0]]
-    print(uij)
-    print(vij)
-    print(wij)
     return u,v,w,vij,wij
 #def findSimplex(waypoint,xc,uij,IJ2XY,res):
 #    N = getNeighbours(uij)
