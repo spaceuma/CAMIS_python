@@ -21,9 +21,9 @@ env1 = camis.AnisotropicMap(DEM, demRes, planRes, (0,0))
 env1.smoothMap(1.0)
 
 cdRoots =  [0.0, 0.10, 1.0]
-caRoots =  [0.0, 0.10, 1.0]
-cl1Roots = [0.0, 0.10, 1.0]
-cl2Roots = [0.0, 0.30, 1.0]
+caRoots =  [0.0, 0.30, 1.0]
+cl1Roots = [0.0, 0.20, 1.0]
+cl2Roots = [0.0, 0.20, 1.0]
 
 r1 = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 45.0)
 env1.computeVecCostMap(r1)
@@ -33,3 +33,6 @@ goal = np.asarray([40,40])
 
 env1.executePlanning(goal,start)
 env1.showResults()
+
+fig, axes = plt.subplots(constrained_layout=True)
+env1.showMap('elevation',fig,axes)

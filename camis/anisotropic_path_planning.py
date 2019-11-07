@@ -608,19 +608,23 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
         except:
             print('ERROR: path is not fully computed')
             return path, u
-        k1 = .2*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
+        k1 = .1*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
         u.append(uij)
         if any(np.isnan(k1)):
             break
         if (k1[0] == 0)and(k1[1] == 0):
             break
         waypoint = path[-1]-k1
-        k2 = .3*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
+        k2 = .1*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
         if (k2[0] == 0)and(k2[1] == 0):
             break
         if any(np.isnan(k1)) or any(np.isnan(k2)):
             break
-        waypoint = path[-1]-.5*(k1+k2)
+        if np.arccos((k1[0]*k2[0]+k1[1]*k2[1])/(np.linalg.norm(k1)*np.linalg.norm(k2)))>45.0*np.pi/180.0:
+#            waypoint = path[-1]-10*k1
+            break
+        else:
+            waypoint = path[-1]-.5*(k1+k2)
         path.append(waypoint)
         if np.sqrt((path[-1][0] - endWaypoint[0])**2+(path[-1][1] - endWaypoint[1])**2) < 1.5*res:
             break

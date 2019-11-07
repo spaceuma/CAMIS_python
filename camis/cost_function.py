@@ -93,20 +93,15 @@ def dirCost(gradient, K):
     return np.polyval(K, gradient)
     
 def computeDirCosts(gradient, beta, cost):
-    popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost)
+    sigma = np.ones_like(gradient)
+    sigma[[-4,-3,-2,-1]] = 0.01
+    popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost, sigma=sigma)
     cdRoots = (popt[0],popt[1],popt[-1])
     caRoots = (popt[2],popt[3],popt[-1])
-    cl1Roots = (popt[4],popt[-1])
-    cl2Roots = (popt[4],popt[-1])
+    cl1Roots = (popt[4],popt[5],popt[-1])
+    cl2Roots = (popt[4],popt[5],popt[-1])
     return cdRoots, caRoots, cl1Roots, cl2Roots
 
-def computeAsymptoticCosts(gradient, beta, cost):
-    popt,_ = curve_fit(fittingAsymptCAMIS, (gradient,beta), cost)
-    cdRoots = (popt[0],popt[-1])
-    caRoots = (popt[1],popt[-1])
-    cl1Roots = (popt[2],popt[-1])
-    cl2Roots = (popt[3],popt[-1])
-    return cdRoots, caRoots, cl1Roots, cl2Roots
 
 
 def computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots, maxGradient):
@@ -134,29 +129,12 @@ def computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots, maxGradient):
     
     return anicoLUT
 
-def fittingAsymptCAMIS(x,x1,x2,x3,x4,Co):
-    alpha, beta = x
-    Cd = asymptoticCost(alpha, 27.0, x1, Co)
-    Ca = asymptoticCost(alpha, 27.0, x2, Co)
-    Cl1 = asymptoticCost(alpha, 27.0, x3, Co)
-    Cl2 = asymptoticCost(alpha, 27.0, x4, Co)
-    cBeta = np.cos(beta)
-    sBeta = np.sin(beta)
-    K1 = (Ca+Cd)/2
-    K2 = (Cl1+Cl2)/2
-    D1 = (Ca-Cd)/2
-    D2 = (Cl2-Cl1)/2
-    Q1 = np.power(K1,2)
-    Q2 = np.power(K2,2)
-    return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
-           (cBeta*D1 + sBeta*D2)
-
-def fittingCAMIS(x,x1,x2,x3,x4,x5,Co):
+def fittingCAMIS(x,x1,x2,x3,x4,x5,x6,Co):
     alpha, beta = x
     Cd = dirCost(alpha, [x1, x2, Co])
     Ca = dirCost(alpha, [x3, x4, Co])
-    Cl1 = dirCost(alpha, [x5, Co])
-    Cl2 = dirCost(alpha, [x5, Co])
+    Cl1 = dirCost(alpha, [x5, x6, Co])
+    Cl2 = dirCost(alpha, [x5, x6, Co])
     cBeta = np.cos(beta)
     sBeta = np.sin(beta)
     K1 = (Ca+Cd)/2
@@ -188,15 +166,23 @@ def getVectorialCostMap(slopeMap,CdRoots,CaRoots,Cl1Roots,Cl2Roots,AniCoLUT):
     vectorialCostMap = np.zeros([5,slopeMap.shape[0],slopeMap.shape[1]])
     for i in range(slopeMap.shape[1]):
         for j in range(slopeMap.shape[0]):
-            Cd = dirCost(slopeMap[j][i], CdRoots)
-            Ca = dirCost(slopeMap[j][i], CaRoots)
-            Cl1 = dirCost(slopeMap[j][i], Cl1Roots)
-            Cl2 = dirCost(slopeMap[j][i], Cl2Roots)
-            vectorialCostMap[0][j][i] = getAnisotropy(slopeMap[j][i],AniCoLUT)
-            vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
-            vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
-            vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
-            vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2
+            if (slopeMap[j][i] > AniCoLUT[0][-1]):
+                Cobs = dirCost(AniCoLUT[0][-1], CdRoots) + 2*(slopeMap[j][i]-AniCoLUT[0][-1])**2
+                vectorialCostMap[0][j][i] = 1.0
+                vectorialCostMap[1][j][i] = Cobs**2 # Q1
+                vectorialCostMap[2][j][i] = Cobs**2# Q2
+                vectorialCostMap[3][j][i] = 0.0 # D1
+                vectorialCostMap[4][j][i] = 0.0 # D2
+            else:
+                Cd = dirCost(slopeMap[j][i], CdRoots)
+                Ca = dirCost(slopeMap[j][i], CaRoots)
+                Cl1 = dirCost(slopeMap[j][i], Cl1Roots)
+                Cl2 = dirCost(slopeMap[j][i], Cl2Roots)
+                vectorialCostMap[0][j][i] = getAnisotropy(slopeMap[j][i],AniCoLUT)
+                vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
+                vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
+                vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
+                vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
     return vectorialCostMap
 
 def getAnisotropy(slope,AniCoLUT):
@@ -519,7 +505,7 @@ class CamisModel:
         print("Anisotropy Array is:       " + ''.join(str(c)+" " for c in \
                                                self.anicoLUT[:][1]))
     def showCAMIS(self):
-        linearGradient = np.linspace(0,30,31)
+        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0]
         
@@ -609,7 +595,7 @@ class CamisModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Xs.append(B[0]*preCost)
                 Ys.append(B[1]*preCost)
-            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/25))
+            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.slopeThreshold))
             Xs = []
             Ys = []
         
@@ -657,8 +643,8 @@ class CamisModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
                 Ps.append(1/preCost)
-            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/30))
-            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/30))
+            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
+            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
             Cs = []
             Ps = []
             Bs = []
