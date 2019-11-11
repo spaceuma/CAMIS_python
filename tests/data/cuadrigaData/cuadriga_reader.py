@@ -128,6 +128,7 @@ def readCuadrigaData(file, show=0):
     Time = Time[5:]
     dHeading = dHeading[5:]
     segmentPath = segmentPath[5:]
+    traversedDist = np.cumsum(segmentPath)
     dT = dT[5:]
     Curvature = Curvature[5:]
     
@@ -179,7 +180,7 @@ def readCuadrigaData(file, show=0):
         ax.grid(True)
         ax.legend(labels = ['Curvature'])
             
-    return utmPoseX[5:], utmPoseY[5:], heading[5:], Roll[5:], Pitch[5:], Yaw[5:], Current[5:], Speed[5:]
+    return utmPoseX[5:], utmPoseY[5:], heading[5:], Roll[5:], Pitch[5:], Yaw[5:], Current[5:], Speed[5:], traversedDist
 
 
 def getData(file):

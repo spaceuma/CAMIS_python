@@ -29,7 +29,6 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     
     # Define nodeTargets
     nodeTarget = [goal[0],goal[1]]
-    
     stateMap[nodeTarget[1],nodeTarget[0]] = 1
     
     # Both closedMaps are created
@@ -61,20 +60,14 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
         Tmap, nbT, nbNodes = updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, Xmap, Ymap, res)
         if stateMap[start[1],start[0]] == 2:
             break
-#        iter = iter + 1
-#        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
-#        print(iter)
-        
     return Tmap, dirMap, stateMap
 
 def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
-    VCmapG = np.ones_like(VCmap)
-    VCmapG[0] = VCmap[0]
-    VCmapG[1] = VCmap[1]
-    VCmapG[2] = -VCmap[2]
-    VCmapG[3] = -VCmap[3]
-    
-    maxAnisoMap = np.ones_like(anisotropyMap)
+    VCmapS = np.ones_like(VCmap)
+    VCmapS[0] = VCmap[0]
+    VCmapS[1] = VCmap[1]
+    VCmapS[2] = -VCmap[2]
+    VCmapS[3] = -VCmap[3]
     
     # State Maps
     #  State -1 = far
@@ -83,10 +76,10 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     #  State 2 = closed
     stateMapG = -1*np.ones_like(anisotropyMap)
     stateMapS = stateMapG
+    
     # Define nodeTargets
     nodeTargetG = [goal[0],goal[1]]
     nodeTargetS = [start[0],start[1]]
-    
     stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
     stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
     
@@ -118,20 +111,11 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     
     # Initial T update
     NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)   
-    TmapG, nbTG, nbNodesG, maxAnisoMap= updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmapG, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res,goal)
+    TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res,goal)
     
     NClist, stateMapS = getNewConsidered(nodeTargetS,stateMapS)
-    TmapS, nbTS, nbNodesS, maxAnisoMap = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res,start)
-
-    iter = 1
-    size = np.size(anisotropyMap)
-    
-#    fig, axes = plt.subplots(constrained_layout=True)
-#    cc = axes.contourf(Xmap, Ymap, stateMapG, 100)
-#    fig.colorbar(cc,location='bottom')
-#    axes.set_aspect('equal')
-#    plt.show()
-#    
+    TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res,start)
+     
     nodeLink = []
     while nbNodesG or nbNodesS:
         if nbNodesG:
@@ -139,37 +123,29 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
             NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)
             stateMapG = updateStateMap(nodeTargetG,stateMapG)
-            TmapG, nbTG, nbNodesG,maxAnisoMap = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmapG, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
-            TmapG, nbTG, nbNodesG = updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmapG, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
+            TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res)
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
             NClist, stateMapS = getNewConsidered(nodeTargetS,stateMapS)
             stateMapS = updateStateMap(nodeTargetS,stateMapS)
-            TmapS, nbTS, nbNodesS,maxAnisoMap = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
-            TmapS, nbTS, nbNodesS = updateTNarrowBand(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
+            TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)
         if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
-#            d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
-#            d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]]
-#            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .1:
-            if anisotropyMap[nodeTargetG[1],nodeTargetG[0]] <= 1.2:
+            d1 = dirMapS[nodeTargetG[1],nodeTargetG[0]]
+            d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
+            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .09:
+#            if anisotropyMap[nodeTargetG[1],nodeTargetG[0]] <= 1.2:
                 nodeLink = nodeTargetG
                 break
         if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 2:
-#            d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
-#            d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]]
-#            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .1:
-            if anisotropyMap[nodeTargetS[1],nodeTargetS[0]] <= 1.2:
+            d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
+            d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
+            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .09:
+#            if anisotropyMap[nodeTargetS[1],nodeTargetS[0]] <= 1.2:
                 nodeLink = nodeTargetS
                 break
-#        if iter > 1000:
-#            nodeLink = []
-#            break
-#        iter = iter + 2
-#        print('Completed: ' + "{0:.2f}".format(100*iter/size) + ' %')
-#        print(iter)
         
-    return TmapG, TmapS, dirMapG, dirMapS, nodeLink,stateMapG,stateMapS
+    return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
     
 
 def updateStateMap(nodeTarget,stateMap):
@@ -615,21 +591,21 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
         if (k1[0] == 0)and(k1[1] == 0):
             break
         waypoint = path[-1]-k1
-        k2 = .1*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
-        if (k2[0] == 0)and(k2[1] == 0):
-            break
-        if any(np.isnan(k1)) or any(np.isnan(k2)):
-            break
-        if np.arccos((k1[0]*k2[0]+k1[1]*k2[1])/(np.linalg.norm(k1)*np.linalg.norm(k2)))>45.0*np.pi/180.0:
-#            waypoint = path[-1]-10*k1
-            break
-        else:
-            waypoint = path[-1]-.5*(k1+k2)
+#        k2 = .1*res*interpolatedControl(waypoint,dirMap,uij,IJ2XY,res)
+#        if (k2[0] == 0)and(k2[1] == 0):
+#            break
+#        if any(np.isnan(k1)) or any(np.isnan(k2)):
+#            break
+#        if np.arccos((k1[0]*k2[0]+k1[1]*k2[1])/(np.linalg.norm(k1)*np.linalg.norm(k2)))>45.0*np.pi/180.0:
+##            waypoint = path[-1]-10*k1
+#            break
+#        else:
+#            waypoint = path[-1]-.5*(k1+k2)
         path.append(waypoint)
         if np.sqrt((path[-1][0] - endWaypoint[0])**2+(path[-1][1] - endWaypoint[1])**2) < 1.5*res:
             break
-        if (np.abs((k1[0] + k2[0])) <= np.finfo(float).eps) and (np.abs((k1[1] + k2[1])) <= np.finfo(float).eps):
-            return path, u
+#        if (np.abs((k1[0] + k2[0])) <= np.finfo(float).eps) and (np.abs((k1[1] + k2[1])) <= np.finfo(float).eps):
+#            return path, u
     path.append(endWaypoint)
     return path, u
 
@@ -668,6 +644,48 @@ def getTriInterpolation(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
     T3 = Tmap[wij[1],wij[0]]
     return e1*T1 + e2*T2 + e3*T3
 
+def getTriNearest(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
+    uij = np.zeros_like(waypoint,int)
+    uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
+    uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
+    xc = IJ2XY[:,uij[1],uij[0]]
+    u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
+    e1,e2,e3 = interpolationCoefficients(waypoint,u,v,w,res)
+    if e1 > e2:
+        if e1 > e3:
+            return Tmap[uij[1],uij[0]]
+        else:
+            return Tmap[wij[1],wij[0]]   
+    else:
+        if e2 > e3:
+            return Tmap[vij[1],vij[0]]
+        else:
+            return Tmap[wij[1],wij[0]]
+
+def getTriHighest(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
+    uij = np.zeros_like(waypoint,int)
+    uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
+    uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
+    xc = IJ2XY[:,uij[1],uij[0]]
+    u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
+    return np.amax((Tmap[uij[1],uij[0]],Tmap[vij[1],vij[0]],Tmap[wij[1],wij[0]]))
+
+def getTriLowest(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
+    uij = np.zeros_like(waypoint,int)
+    uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
+    uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
+    xc = IJ2XY[:,uij[1],uij[0]]
+    u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
+    return np.amin((Tmap[uij[1],uij[0]],Tmap[vij[1],vij[0]],Tmap[wij[1],wij[0]]))
+ 
+def getTriMedian(waypoint,Tmap,XY2IJ,IJ2XY,res, Xmin, Ymin):
+    uij = np.zeros_like(waypoint,int)
+    uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
+    uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
+    xc = IJ2XY[:,uij[1],uij[0]]
+    u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
+    return np.median((Tmap[uij[1],uij[0]],Tmap[vij[1],vij[0]],Tmap[wij[1],wij[0]]))
+       
 def interpolationCoefficients(x,u,v,w,h):
     C = 2/(3*h**2)
     z = x-w

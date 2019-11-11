@@ -13,6 +13,8 @@ import scipy.interpolate as interp
 import camis.anisotropic_path_planning as ap
 import matplotlib
 
+from mayavi import mlab
+
 from scipy import signal
 from scipy import ndimage
 from time import time
@@ -59,11 +61,6 @@ class PDEM:
 #                                      mode='same', boundary='symm')
 #        self.computeSlope()
         self.maxSlopeMap = ndimage.maximum_filter(self.slopeMap, footprint=convMatrix, mode='nearest')
-        r = int(radius/self.demRes)
-        r = r + 1 - r%2
-        y,x = np.ogrid[-r: r+1, -r: r+1]
-        convMatrix = x**2+y**2 <= r**2
-        convMatrix = convMatrix.astype(float)
         
 #        smoothDEM = signal.convolve2d(self.elevationMap, convMatrix/convMatrix.sum(), \
 #                                      mode='same', boundary='symm')
@@ -73,9 +70,14 @@ class PDEM:
         self.elevationMap = signal.convolve2d(self.elevationMap, convMatrix/convMatrix.sum(), \
                                       mode='same', boundary='symm')
         self.computeSlope()
+    
+    def processSlope(self, sdThreshold):
 #        self.computeLaplacian()
         AA = np.ones_like(self.maxSlopeMap)*30.0*np.pi/180.0
-        self.slopeMap[np.where(self.sdMap > 10.0)] = np.maximum(AA[np.where(self.sdMap > 10.0)],self.maxSlopeMap[np.where(self.sdMap > 10.0)])
+        self.slopeMap[np.where(self.sdMap > sdThreshold)] = \
+                        np.maximum(AA[np.where(self.sdMap > sdThreshold)],\
+                        self.maxSlopeMap[np.where(self.sdMap > sdThreshold)])
+    
     def computeSlope(self):
         self.gradientY, self.gradientX = np.gradient(self.elevationMap,\
                                                      self.demRes,\
@@ -141,39 +143,50 @@ class PDEM:
         return slope,beta
         
     def show3dDEM(self):
-        fig, ax = plt.subplots(subplot_kw=dict(projection='3d'), constrained_layout=True)
-        ls = LightSource(270, 45)
-        # To use a custom hillshading mode, override the built-in shading and pass
-        # in the rgb colors of the shaded surface calculated from "shade".
-        slopeMap = rad2deg*self.slopeMap
-        vmin=slopeMap.min().min()
-        vmax=slopeMap.max().max()
-        zRange = max(-self.xMap[0][0]+self.xMap[-1][-1],-self.yMap[0][0]+self.yMap[-1][-1])
-        rgb = ls.shade(self.elevationMap, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
-        ax.plot_surface(self.xMap, self.yMap, self.elevationMap, rstride=1, cstride=1, facecolors=rgb,
-                               linewidth=0, antialiased=False, shade=False)
-        cset = ax.contourf(self.xMap, self.yMap, slopeMap, zdir='z', offset=self.elevationMap.max().max()-zRange, cmap=cm.gist_rainbow)
-        ax.view_init(elev=35., azim=-120.)
-        
-#        norm = matplotlib.colors.Normalize(vmin, vmax)
-#        m = cm.ScalarMappable(cmap=plt.cm.gist_earth, norm=norm)
-#        m.set_array([])
-#        plt.colorbar(m)
-        cbar = fig.colorbar(cset,orientation='horizontal',shrink=0.5)
-        cbar.set_label('Slope (deg)')
-#        ax.autoscale()
-#        ax.auto_scale_xyz([self.xMap[0][0], self.xMap[-1][-1]], \
-#                          [self.yMap[0][0], self.yMap[-1][-1]], \
-#                          [self.elevationMap.min().min(), self.elevationMap.max().max()])
-        ax.set_aspect('equal')
-        ax.set_xlim(self.xMap[0][0], self.xMap[-1][-1])
-        ax.set_ylim(self.yMap[0][0], self.yMap[-1][-1])
-        ax.set_zlim(self.elevationMap.max().max()-zRange, self.elevationMap.max().max())
-        
-        plt.show()
+#        fig, ax = plt.subplots(subplot_kw=dict(projection='3d'), constrained_layout=True)
+#        ls = LightSource(270, 45)
+#        # To use a custom hillshading mode, override the built-in shading and pass
+#        # in the rgb colors of the shaded surface calculated from "shade".
+#        slopeMap = rad2deg*self.slopeMap
+#        vmin=slopeMap.min().min()
+#        vmax=slopeMap.max().max()
+#        zRange = max(-self.xMap[0][0]+self.xMap[-1][-1],-self.yMap[0][0]+self.yMap[-1][-1])
+#        rgb = ls.shade(self.elevationMap, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
+#        ax.plot_surface(self.xMap, self.yMap, self.elevationMap, rstride=1, cstride=1, facecolors=rgb,
+#                               linewidth=0, antialiased=False, shade=False)
+#        cset = ax.contourf(self.xMap, self.yMap, slopeMap, zdir='z', offset=self.elevationMap.max().max()-zRange, cmap=cm.gist_rainbow)
+#        ax.view_init(elev=35., azim=-120.)
+#        
+##        norm = matplotlib.colors.Normalize(vmin, vmax)
+##        m = cm.ScalarMappable(cmap=plt.cm.gist_earth, norm=norm)
+##        m.set_array([])
+##        plt.colorbar(m)
+#        cbar = fig.colorbar(cset,orientation='horizontal',shrink=0.5)
+#        cbar.set_label('Slope (deg)')
+##        ax.autoscale()
+##        ax.auto_scale_xyz([self.xMap[0][0], self.xMap[-1][-1]], \
+##                          [self.yMap[0][0], self.yMap[-1][-1]], \
+##                          [self.elevationMap.min().min(), self.elevationMap.max().max()])
+#        ax.set_aspect('equal')
+#        ax.set_xlim(self.xMap[0][0], self.xMap[-1][-1])
+#        ax.set_ylim(self.yMap[0][0], self.yMap[-1][-1])
+#        ax.set_zlim(self.elevationMap.max().max()-zRange, self.elevationMap.max().max())
+#        
+#        plt.show()
+        mlab.figure(size=(640, 800))
+        mlab.surf(self.oldElevationMap, colormap='gist_earth', warp_scale='auto')
+        mlab.show()
     def showMap(self, opt, fig, axes):
         if   opt == 'elevation':
             cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
+        if   opt == 'old-elevation':
+#            levels = np.linspace(47.0,55.0,25)
+#            cc = axes.contourf(self.xMap, self.yMap, self.oldElevationMap, levels=levels, cmap = cm.gist_earth, extend='both')
+            cc = axes.contourf(self.xMap, self.yMap, self.oldElevationMap, 50, cmap = cm.gist_earth, extend='both')
+            axes.contour(self.xMap, self.yMap, self.oldElevationMap, 50, colors = 'k', alpha=.3)
+#            cc.set_clim(47.0,55.0)
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Height (m)')
         if   opt == 'elevation-contour':
             cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
             axes.contour(self.xMap, self.yMap, self.elevationMap, 100, colors = 'k', alpha=.3)
@@ -203,8 +216,6 @@ class PDEM:
         elif opt == 'laplacian-abs':
             cc = axes.contourf(self.xMap, self.yMap, np.abs(self.laplacianMap), 100, cmap = 'nipy_spectral')
             cc.set_clim(0,5.0)
-        cbar = fig.colorbar(cc)
-        cbar.set_label('Height (m)')
         axes.set_aspect('equal')
         plt.show()
 
@@ -313,6 +324,7 @@ class AnisotropicMap(PDEM):
         
         print('Elapsed time to compute the Vectorial Cost Map: '+str(time()-init))
     
+    # Executing OUM to compute the path
     def executePlanning(self, goal, start):
         init = time()
         IJ2XY = np.zeros([2,self.hexXmap.shape[0],self.hexYmap.shape[1]])
@@ -337,7 +349,42 @@ class AnisotropicMap(PDEM):
         path,uu = ap.getPath(dirMap, IJ2XY, XY2IJ, start, goal, self.xMin, self.yMin, self.planRes)
         self.path = np.asarray(path)
         self.getPathData()
+    
+    # Executing BiOUM to compute the path faster
+    def executeBiPlanning(self, goal, start):
+        init = time()
+        IJ2XY = np.zeros([2,self.hexXmap.shape[0],self.hexYmap.shape[1]])
+        IJ2XY[0] = self.hexXmap
+        IJ2XY[1] = self.hexYmap
+        XY2IJ = np.zeros([2,self.xy2I.shape[0],self.xy2J.shape[1]])
+        XY2IJ[0] = self.xy2I
+        XY2IJ[1] = self.xy2J
+        ijStart = np.round(XY2IJ[:,start[1],start[0]]).astype(int)
+        ijGoal = np.round(XY2IJ[:,goal[1],goal[0]]).astype(int)
+        # TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS
+        self.TmapG, self.TmapS, self.dirMapG, self.dirMapS, nodeLink, stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
+        ap.computeBiTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
+                       ijGoal, ijStart, self.hexXmap, self.hexYmap, self.planRes)
+        print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
+        self.linkNode = nodeLink
+        linkCoord = IJ2XY[:,nodeLink[1],nodeLink[0]]
         
+        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, linkCoord, goal, self.xMin, self.yMin, self.planRes)
+        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, linkCoord, start, self.xMin, self.yMin, self.planRes)
+        
+        self.IJ2XY = IJ2XY
+        self.XY2IJ = XY2IJ
+        
+        TlinkG = self.TmapG[nodeLink[1],nodeLink[0]]
+        TlinkS = self.TmapS[nodeLink[1],nodeLink[0]]
+        
+        self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),np.asarray(self.pathG)))
+        self.Tmap = np.zeros_like(self.TmapG)
+        self.Tmap[:] = self.TmapG
+        self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
+        self.Tmap[np.where(self.Tmap < 0.0)] = np.inf
+        self.getPathData()
+        self.linkPos = linkCoord
         
     def getPathData(self):
         pathElevation = []
@@ -395,7 +442,7 @@ class AnisotropicMap(PDEM):
                 pathRoll[index] = 0.0
             if (index == self.path.shape[0] - 1):
                 print('stop')
-            pathEstimatedTotalCost.append(ap.getTriInterpolation(waypoint,self.Tmap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
+            pathEstimatedTotalCost.append(ap.getTriLowest(waypoint,self.Tmap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             if index == 0:
                 pathComputedTotalCost.append(0)
             else:
@@ -428,12 +475,48 @@ class AnisotropicMap(PDEM):
         fig.colorbar(cc)
         ax.set_aspect('equal')
         plt.show()
-        
+    def showHexBiTmaps(self):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.hexXmap, self.hexYmap, self.TmapG, 100, cmap = 'nipy_spectral', alpha = .5)
+        ax.contour(self.hexXmap, self.hexYmap, self.TmapG, 100, cmap = 'nipy_spectral')
+        ax.plot(self.path[:,0],self.path[:,1],'r')
+#        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapG), np.sin(self.dirMapG),scale = 40)
+        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkG), np.sin(self.dirLinkG),scale = 40)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Total Cost To Goal')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_aspect('equal')
+        plt.show()  
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.hexXmap, self.hexYmap, self.TmapS, 100, cmap = 'nipy_spectral', alpha = .5)
+        ax.contour(self.hexXmap, self.hexYmap, self.TmapS, 100, cmap = 'nipy_spectral')
+        ax.plot(self.path[:,0],self.path[:,1],'r')
+#        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapS), np.sin(self.dirMapS),scale = 40)
+        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkS), np.sin(self.dirLinkS),scale = 40)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Total Cost from Start')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_aspect('equal')
+        plt.show()   
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral', alpha = .5)
+        ax.contour(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral')
+        ax.plot(self.path[:,0],self.path[:,1],'r')
+#        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapS), np.sin(self.dirMapS),scale = 40)
+#        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkS), np.sin(self.dirLinkS),scale = 40)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Total Cost from Start')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_aspect('equal')
+        plt.show()   
     def showResults(self):
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.contourf(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral', alpha = .5)
         ax.contour(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral')
-        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMap), np.sin(self.dirMap),scale = 40)
+#        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMap), np.sin(self.dirMap),scale = 40)
         ax.plot(self.path[:,0],self.path[:,1],'r')
         cbar = fig.colorbar(cc)
         cbar.set_label('Total Cost')
@@ -458,8 +541,9 @@ class AnisotropicMap(PDEM):
         plt.show()
         
         
-    def showPath(self, fig, axes, color):
-        axes.plot(self.path[:,0],self.path[:,1], color)
+    def showPath(self, fig, axes, color, style):
+        axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style)
+#        axes.scatter(self.linkPos[0], self.linkPos[1], c=color)
         plt.show()
         
     def showPathData(self, opt, fig, axes, color):
@@ -479,7 +563,10 @@ class AnisotropicMap(PDEM):
             axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]])
         elif opt == 'total-cost-estimated':
             axes.plot(self.pathTravDist, [self.pathEstimatedTotalCost[0]-x for x in self.pathEstimatedTotalCost], color, linewidth = 2, linestyle='dotted')
-            axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]])  
+            axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]])
+        elif opt == 'total-cost-estimated-filtered':
+            axes.plot(self.pathTravDist, [x for x in self.pathEstimatedTotalCost], color, linewidth = 2, linestyle='dotted')
+            axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]]) 
         elif opt == 'full-orientation':
             axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathSlope], color, linestyle='solid', linewidth = 2)
             axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathPitch], color, linestyle='dotted', linewidth = 2)

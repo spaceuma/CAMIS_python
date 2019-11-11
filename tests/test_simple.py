@@ -31,8 +31,10 @@ env1.computeVecCostMap(r1)
 start = np.asarray([10,10])
 goal = np.asarray([40,40])
 
-env1.executePlanning(goal,start)
-env1.showResults()
+env1.executeBiPlanning(goal,start)
 
-fig, axes = plt.subplots(constrained_layout=True)
-env1.showMap('elevation',fig,axes)
+#env1.executePlanning(goal,start)
+#env1.showResults()
+#
+#fig, axes = plt.subplots(constrained_layout=True)
+#env1.showMap('elevation',fig,axes)

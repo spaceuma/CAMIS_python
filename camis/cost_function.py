@@ -85,24 +85,63 @@ def getCAMIScost(B,Q1,Q2,D1,D2):
 #    Explicit formulation of CAMIS
 # =============================================================================
            
-def asymptoticCost(gradient, gradient_threshold, K, Co):
-    return Co + K/(gradient_threshold - gradient)     
-    
-def dirCost(gradient, K):
-    # Gradient in degrees!
-    return np.polyval(K, gradient)
-    
-def computeDirCosts(gradient, beta, cost):
-    sigma = np.ones_like(gradient)
-    sigma[[-4,-3,-2,-1]] = 0.01
+def computeDirCosts(gradient, beta, cost, sigma):
     popt,_ = curve_fit(fittingCAMIS, (gradient,beta), cost, sigma=sigma)
     cdRoots = (popt[0],popt[1],popt[-1])
     caRoots = (popt[2],popt[3],popt[-1])
     cl1Roots = (popt[4],popt[5],popt[-1])
     cl2Roots = (popt[4],popt[5],popt[-1])
-    return cdRoots, caRoots, cl1Roots, cl2Roots
+    return cdRoots, caRoots, cl1Roots, cl2Roots 
+
+def fittingCAMIS(x,x1,x2,x3,x4,x5,x6,Co):
+    alpha, beta = x
+    Cd = dirCost(alpha, [x1, x2, Co])
+    Ca = dirCost(alpha, [x3, x4, Co])
+    Cl1 = dirCost(alpha, [x5, x6, Co])
+    Cl2 = dirCost(alpha, [x5, x6, Co])
+    cBeta = np.cos(beta)
+    sBeta = np.sin(beta)
+    K1 = (Ca+Cd)/2
+    K2 = (Cl1+Cl2)/2
+    D1 = (Ca-Cd)/2
+    D2 = (Cl2-Cl1)/2
+    Q1 = np.power(K1,2)
+    Q2 = np.power(K2,2)
+    return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
+           (cBeta*D1 + sBeta*D2)
+    
+def dirCost(gradient, K):
+    # Gradient in degrees!
+    return np.polyval(K, gradient)
 
 
+def computeRiskyDirCosts(steepness_data, beta_data, steepness_threshold, cost_data, sigma):
+    popt,_ = curve_fit(fittingRiskyCAMIS, (steepness_data,beta_data,steepness_threshold), cost_data, sigma=sigma)
+    cdRoots = (popt[0],-popt[0]*steepness_threshold-popt[-1]/steepness_threshold,popt[-1])
+    caRoots = (popt[1],-popt[1]*steepness_threshold-popt[-1]/steepness_threshold,popt[-1])
+    cl1Roots = (popt[2],-popt[2]*steepness_threshold-popt[-1]/steepness_threshold,popt[-1])
+    cl2Roots = (popt[2],-popt[2]*steepness_threshold-popt[-1]/steepness_threshold,popt[-1])
+    return cdRoots, caRoots, cl1Roots, cl2Roots 
+
+def fittingRiskyCAMIS(x,x1,x2,x3,Co):
+    alpha, beta, alpha_threshold = x
+    Cd = riskyDirCost(alpha, alpha_threshold, [x1, Co])
+    Ca = riskyDirCost(alpha, alpha_threshold, [x2, Co])
+    Cl1 = riskyDirCost(alpha, alpha_threshold, [x3, Co])
+    Cl2 = riskyDirCost(alpha, alpha_threshold, [x3, Co])
+    cBeta = np.cos(beta)
+    sBeta = np.sin(beta)
+    K1 = (Ca+Cd)/2
+    K2 = (Cl1+Cl2)/2
+    D1 = (Ca-Cd)/2
+    D2 = (Cl2-Cl1)/2
+    Q1 = np.power(K1,2)
+    Q2 = np.power(K2,2)
+    return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
+           (cBeta*D1 + sBeta*D2)
+
+def riskyDirCost(steepness, steepness_threshold, K):
+    return K[0]*steepness**2-(K[0]*steepness_threshold+K[1]/steepness_threshold)*steepness+K[1]
 
 def computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots, maxGradient):
     linearGradient = np.linspace(0,maxGradient,maxGradient+1)
@@ -129,22 +168,7 @@ def computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots, maxGradient):
     
     return anicoLUT
 
-def fittingCAMIS(x,x1,x2,x3,x4,x5,x6,Co):
-    alpha, beta = x
-    Cd = dirCost(alpha, [x1, x2, Co])
-    Ca = dirCost(alpha, [x3, x4, Co])
-    Cl1 = dirCost(alpha, [x5, x6, Co])
-    Cl2 = dirCost(alpha, [x5, x6, Co])
-    cBeta = np.cos(beta)
-    sBeta = np.sin(beta)
-    K1 = (Ca+Cd)/2
-    K2 = (Cl1+Cl2)/2
-    D1 = (Ca-Cd)/2
-    D2 = (Cl2-Cl1)/2
-    Q1 = np.power(K1,2)
-    Q2 = np.power(K2,2)
-    return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
-           (cBeta*D1 + sBeta*D2)
+
 
 # =============================================================================
 #    Computation of the beta vector
@@ -346,90 +370,90 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     
     
     
-    fig3 = plt.figure()
-    
-    sqrtQ1 = np.zeros_like(linearGradient)
-    sqrtQ2 = np.zeros_like(linearGradient)
-    D1 = np.zeros_like(linearGradient)
-    D2 = np.zeros_like(linearGradient)
-    for i,g in enumerate(linearGradient):
-        sqrtQ1[i] = (Ca[i]+Cd[i])/2
-        sqrtQ2[i] = (Cl2[i]+Cl1[i])/2
-        D1[i] = (Ca[i]-Cd[i])/2
-        D2[i] = (Cl2[i]-Cl1[i])/2
-    ax3 = fig3.add_subplot(1, 1, 1)
-    ax3.plot(linearGradient,sqrtQ1,color='b')
-    ax3.plot(linearGradient,sqrtQ2,color='g')
-    ax3.plot(linearGradient,D1,color='m')
-    ax3.plot(linearGradient,D2,color='y')
-    ax3.plot(linearGradient,Ca,color='burlywood')
-    ax3.plot(linearGradient,Cd,color='lightblue')
-    ax3.plot(linearGradient,Cl1,color='yellowgreen')
-    ax3.plot(linearGradient,Cl2,color='coral')
-    ax3.legend(['sqrt(Q1)','sqrt(Q2)','D1','D2','Ascent Cost Ca',\
-                'Descent Cost Cd','Lateral Cost Cl1','Lateral Cost Cl2'])
-    plt.ylabel('Cost [As/m]')
-    plt.xlabel('Slope Gradient [degrees]')
-    
-    Bs = []
-    Cs = []
-    Anisotropy = np.zeros_like(linearGradient)
-    for i,g in enumerate(linearGradient):
-        for theta in heading:
-            B = computeBeta(aspect,theta)
-            Bs.append(np.arctan2(B[1],B[0]))
-            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-            Cs.append(preCost)
-        Anisotropy[i] = max(Cs)/min(Cs)
-        Cs = []
-        Bs = []
-    ax3b = ax3.twinx()
-    ax3b.plot(linearGradient,Anisotropy,color='r')
-    ax3b.set_ylabel('Anisotropy', color='r')
-    ax3b.tick_params('y', colors='r')
-    fig3.tight_layout()
-    
-
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot(Cd, np.zeros_like(linearGradient), linearGradient, color = 'r')
-    ax.plot(-Ca, np.zeros_like(linearGradient), linearGradient, color = 'r')
-    ax.plot(np.zeros_like(linearGradient), Cl1, linearGradient, color = 'r')
-    ax.plot(np.zeros_like(linearGradient), -Cl2, linearGradient, color = 'r')
-    Xs = []
-    Ys = []
-     
-    for i,g in enumerate(linearGradient):
-        for theta in heading:
-            B = computeBeta(aspect,theta)
-            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-            Xs.append(B[0]*preCost)
-            Ys.append(B[1]*preCost)
-        ax.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/25))
-        Xs = []
-        Ys = []
-    ax.set_xlim(-CMax,CMax)
-    ax.set_ylim(-CMax,CMax)
-    ax.set_aspect('equal')
-    fig.tight_layout()
-    
-    fig5 = plt.figure()
-    ax5 = fig5.add_subplot(1, 1, 1)
-    ax5 = plt.subplot(111, projection='polar')
-    ax5.set_facecolor('xkcd:light blue')
-    Bs = []
-    Cs = []
-    for i,g in enumerate(linearGradient):
-        for theta in heading:
-            B = computeBeta(aspect,theta)
-            Bs.append(np.arctan2(B[1],B[0]))
-            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-            Cs.append(preCost)
-        ax5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2)
-        Cs = []
-        Bs = []
-    fig5.tight_layout()
+#    fig3 = plt.figure()
+#    
+#    sqrtQ1 = np.zeros_like(linearGradient)
+#    sqrtQ2 = np.zeros_like(linearGradient)
+#    D1 = np.zeros_like(linearGradient)
+#    D2 = np.zeros_like(linearGradient)
+#    for i,g in enumerate(linearGradient):
+#        sqrtQ1[i] = (Ca[i]+Cd[i])/2
+#        sqrtQ2[i] = (Cl2[i]+Cl1[i])/2
+#        D1[i] = (Ca[i]-Cd[i])/2
+#        D2[i] = (Cl2[i]-Cl1[i])/2
+#    ax3 = fig3.add_subplot(1, 1, 1)
+#    ax3.plot(linearGradient,sqrtQ1,color='b')
+#    ax3.plot(linearGradient,sqrtQ2,color='g')
+#    ax3.plot(linearGradient,D1,color='m')
+#    ax3.plot(linearGradient,D2,color='y')
+#    ax3.plot(linearGradient,Ca,color='burlywood')
+#    ax3.plot(linearGradient,Cd,color='lightblue')
+#    ax3.plot(linearGradient,Cl1,color='yellowgreen')
+#    ax3.plot(linearGradient,Cl2,color='coral')
+#    ax3.legend(['sqrt(Q1)','sqrt(Q2)','D1','D2','Ascent Cost Ca',\
+#                'Descent Cost Cd','Lateral Cost Cl1','Lateral Cost Cl2'])
+#    plt.ylabel('Cost [As/m]')
+#    plt.xlabel('Slope Gradient [degrees]')
+#    
+#    Bs = []
+#    Cs = []
+#    Anisotropy = np.zeros_like(linearGradient)
+#    for i,g in enumerate(linearGradient):
+#        for theta in heading:
+#            B = computeBeta(aspect,theta)
+#            Bs.append(np.arctan2(B[1],B[0]))
+#            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+#            Cs.append(preCost)
+#        Anisotropy[i] = max(Cs)/min(Cs)
+#        Cs = []
+#        Bs = []
+#    ax3b = ax3.twinx()
+#    ax3b.plot(linearGradient,Anisotropy,color='r')
+#    ax3b.set_ylabel('Anisotropy', color='r')
+#    ax3b.tick_params('y', colors='r')
+#    fig3.tight_layout()
+#    
+#
+#
+#    fig = plt.figure()
+#    ax = fig.add_subplot(111, projection='3d')
+#    ax.plot(Cd, np.zeros_like(linearGradient), linearGradient, color = 'r')
+#    ax.plot(-Ca, np.zeros_like(linearGradient), linearGradient, color = 'r')
+#    ax.plot(np.zeros_like(linearGradient), Cl1, linearGradient, color = 'r')
+#    ax.plot(np.zeros_like(linearGradient), -Cl2, linearGradient, color = 'r')
+#    Xs = []
+#    Ys = []
+#     
+#    for i,g in enumerate(linearGradient):
+#        for theta in heading:
+#            B = computeBeta(aspect,theta)
+#            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+#            Xs.append(B[0]*preCost)
+#            Ys.append(B[1]*preCost)
+#        ax.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/25))
+#        Xs = []
+#        Ys = []
+#    ax.set_xlim(-CMax,CMax)
+#    ax.set_ylim(-CMax,CMax)
+#    ax.set_aspect('equal')
+#    fig.tight_layout()
+#    
+#    fig5 = plt.figure()
+#    ax5 = fig5.add_subplot(1, 1, 1)
+#    ax5 = plt.subplot(111, projection='polar')
+#    ax5.set_facecolor('xkcd:light blue')
+#    Bs = []
+#    Cs = []
+#    for i,g in enumerate(linearGradient):
+#        for theta in heading:
+#            B = computeBeta(aspect,theta)
+#            Bs.append(np.arctan2(B[1],B[0]))
+#            preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+#            Cs.append(preCost)
+#        ax5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2)
+#        Cs = []
+#        Bs = []
+#    fig5.tight_layout()
         
     
     
