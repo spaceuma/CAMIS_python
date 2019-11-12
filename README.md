@@ -1,9 +1,11 @@
 <img src="docs/media/CAMISLogo.png" align="right" />
 
 # CAMIS for path planning
-> PYTHON implementation of CAMIS and biOUM path planner
+> PYTHON package including CAMIS and biOUM path planner
 
-*Author:* J. Ricardo Sánchez Ibáñez
+*Author:* [J. Ricardo Sánchez Ibáñez](https://github.com/JRicardoSan)
+
+*Supervisor:* [Carlos J. Pérez del Pulgar](https://github.com/carlibiri)
 
 *Contact info:* ricardosan@uma.es
 
