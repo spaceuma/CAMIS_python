@@ -1,5 +1,7 @@
-# Continuous Anisotropic Model for Inclined Surfaces (CAMIS)
-PYTHON implementation of CAMIS and biOUM path planner
+<img src="docs/media/CAMISLogo.png" align="right" />
+
+# CAMIS for path planning
+> PYTHON implementation of CAMIS and biOUM path planner
 
 *Author:* J. Ricardo Sánchez Ibáñez
 
