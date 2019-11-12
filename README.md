@@ -3,9 +3,9 @@
 # CAMIS for path planning
 > PYTHON package including CAMIS and biOUM path planner
 
-*Author:* [J. Ricardo Sánchez Ibáñez](https://github.com/JRicardoSan)
+*Author:* [J. Ricardo Sánchez Ibáñez](https://github.com/JRicardoSan) [![orcid](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-5130-3808)
 
-*Supervisor:* [Carlos J. Pérez del Pulgar](https://github.com/carlibiri)
+*Supervisor:* [Carlos J. Pérez del Pulgar](https://github.com/carlibiri) [![orcid](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0001-5819-8310)
 
 *Contact info:* ricardosan@uma.es
 
