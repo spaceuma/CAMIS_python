@@ -14,11 +14,10 @@ import data.cuadrigaData.cuadriga_reader as cr
 from context import camis
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 
 
-#fittingMode = 'DEM'
-fittingMode = 'IMU'
+fittingMode = 'DEM'
+#fittingMode = 'IMU'
 
 
 #if fittingMode == 'DEM':
@@ -166,18 +165,18 @@ rIsoAsc.showCAMIS()
 
 "05 - Saving CAMIS"
 if fittingMode == 'DEM':
-    camis.saveCamis('cuadriga_camis_dem.csv',CdRoots,CaRoots,Cl1Roots,Cl2Roots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_dem.csv',CdRoots,CaRoots,Cl1Roots,Cl2Roots,\
                 r1.anicoLUT)
-    camis.saveCamis('cuadriga_camis_dem_iso_med.csv',isoRoots,isoRoots,isoRoots,isoRoots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_dem_iso_med.csv',isoRoots,isoRoots,isoRoots,isoRoots,\
                 rIsoMed.anicoLUT)
-    camis.saveCamis('cuadriga_camis_dem_iso_asc.csv',CaRoots,CaRoots,CaRoots,CaRoots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_dem_iso_asc.csv',CaRoots,CaRoots,CaRoots,CaRoots,\
                 rIsoAsc.anicoLUT)
 if fittingMode == 'IMU':
-    camis.saveCamis('cuadriga_camis_imu.csv',CdRoots,CaRoots,Cl1Roots,Cl2Roots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_imu.csv',CdRoots,CaRoots,Cl1Roots,Cl2Roots,\
                 r1.anicoLUT)
-    camis.saveCamis('cuadriga_camis_imu_iso_med.csv',isoRoots,isoRoots,isoRoots,isoRoots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_imu_iso_med.csv',isoRoots,isoRoots,isoRoots,isoRoots,\
                 rIsoMed.anicoLUT)
-    camis.saveCamis('cuadriga_camis_imu_iso_asc.csv',CaRoots,CaRoots,CaRoots,CaRoots,\
+    camis.saveCamis('data/camisRoots/cuadriga_camis_imu_iso_asc.csv',CaRoots,CaRoots,CaRoots,CaRoots,\
                 rIsoAsc.anicoLUT)
 
 

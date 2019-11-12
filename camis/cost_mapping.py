@@ -174,8 +174,8 @@ class PDEM:
 #        
 #        plt.show()
         mlab.figure(size=(640, 800))
-        mlab.surf(self.oldElevationMap, colormap='gist_earth', warp_scale='auto')
-        mlab.show()
+        mlab.surf(np.flipud(self.oldElevationMap), colormap='gist_earth', warp_scale=10.0)
+        mlab.view(-59, 58, 1773, [-.5, -.5, 512])
     def showMap(self, opt, fig, axes):
         if   opt == 'elevation':
             cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
