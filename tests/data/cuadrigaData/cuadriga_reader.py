@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jun 11 12:44:19 2019
-
-@author: Richi
+Library to extract data from Cuadriga
 """
 import csv
 import utm
@@ -36,7 +34,8 @@ def readCuadrigaData(file, show=0):
             if error < 1.0 and reference > 0:
                 c = np.abs(float(row[4])) + np.abs(float(row[5]))
                 r = -float(row[6])-5.5
-                p = float(row[7])+13.7
+#                p = float(row[7])+13.7
+                p = float(row[7])+10.7
                 utmData = utm.from_latlon(float(row[9]), float(row[10]))
                 utmPoseX.append(utmData[0])
                 utmPoseY.append(utmData[1])
@@ -57,7 +56,10 @@ def readCuadrigaData(file, show=0):
     utmPoseX = utmPoseX[5:-5]
     utmPoseY = np.convolve(utmPoseY, np.ones((N,))/N, mode='same')
     utmPoseY = utmPoseY[5:-5]
-    Current = scipy.ndimage.median_filter(Current,size=10)
+#    Current = scipy.ndimage.median_filter(Current,size=10)
+    Current = np.convolve(Current, np.ones((N,))/N, mode='same')
+    Roll = np.convolve(Roll, np.ones((N,))/N, mode='same')
+    Pitch = np.convolve(Pitch, np.ones((N,))/N, mode='same')
     Time = Time[5:-5]
     Roll = Roll[5:-5]
     Pitch = Pitch[5:-5]

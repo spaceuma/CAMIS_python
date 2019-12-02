@@ -1,0 +1,10 @@
+name: Cuadriga
+slope_threshold: 25.0
+sd_threshold: 10.0
+occupancy_radius: 0.5
+tracking_error: 0.5
+camis_type: Driving
+friction_parallel: 0.95
+friction_perp: 0.88
+mg: 20.93
+slip_coeff: 3.0

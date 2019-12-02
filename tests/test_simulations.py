@@ -7,9 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from context import camis
 import copy
+import yaml
 
 # USER - Choose Simulation Map
-nSimMap =4
+nSimMap =0
 
 # =============================================================================
 ## ENVIRONMENTS CREATION ##
@@ -18,17 +19,25 @@ x = np.linspace(0,49,50)
 y = np.linspace(0,49,50)
 XX,YY = np.meshgrid(x,y)
 
-
+if nSimMap == 0:
+    DEM = 2*(np.cos(XX/4)**2 + np.sin(YY/4)**2)
 if nSimMap == 1:
-    DEM = 4*(np.cos(XX/4)**2 + np.cos(YY/4)**2)
+    DEM = 4*(np.cos(XX/8)**2 + np.cos(YY/8)**2)
 if nSimMap == 2:
     DEM = 2*np.sin(np.sqrt((XX/5)**2+(YY/5)**2)/2)**2
 if nSimMap == 3:
     DEM = 2*(np.sin(XX/4)+1.0)
 if nSimMap == 4:
     DEM = YY/5
-    DEM[np.where(YY>35)] = 35/5
-    DEM[np.where(YY<15)] = 15/5
+#    DEM[np.where(YY>35)] = 35/5
+#    DEM[np.where(YY<15)] = 15/5
+if nSimMap == 5:
+    DEM = YY/5 + (np.cos(XX/4)**2 + np.sin(YY/4)**2)
+
+if nSimMap == 6:
+    DEM = 2*(np.sin(XX/10+np.pi/4)**2 + np.sin(YY/10+np.pi/4)**2)
+
+
 
 # DEM resolution
 demRes = 1.0
@@ -39,47 +48,43 @@ planRes = 1.0
 # We create a new environment (offset is zero,zero) and 4 copies
 env1 = camis.AnisotropicMap(DEM, demRes, planRes, (0,0))
 env1.smoothMap(2.0)
+sdThreshold = 11.0
+slopeThreshold = 24.0
+env1.computeObstacles(sdThreshold,slopeThreshold)
 env2 = copy.deepcopy(env1)
 env3 = copy.deepcopy(env1)
 env4 = copy.deepcopy(env1)
 
+env1.show3dDEM()
 
 # =============================================================================
 ## DIFFERENT CUSTOM CAMIS CREATION ##
 # =============================================================================
 # ROBOT 1
-cdRoots =  [0.0, 0.20, 1.0]
-caRoots =  [0.0, 0.20, 1.0]
-cl1Roots = [0.0, 0.20, 1.0]
-cl2Roots = [0.0, 0.20, 1.0]
-r1 = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 90.0)
+with open("data/simRobot1.yml", 'r') as file:
+    robot1 = yaml.full_load(file) 
+r1 = camis.CamisModel(robot1) 
 env1.computeVecCostMap(r1)
 r1.showCAMIS()
 
 # ROBOT 2
-cdRoots =  [0.0, 0.10, 1.0]
-caRoots =  [0.0, 0.30, 1.0]
-cl1Roots = [0.0, 0.20, 1.0]
-cl2Roots = [0.0, 0.20, 1.0]
-r2 = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 90.0)
+with open("data/simRobot2.yml", 'r') as file:
+    robot2 = yaml.full_load(file)
+r2 = camis.CamisModel(robot2)
 env2.computeVecCostMap(r2)
 r2.showCAMIS()
 
 # ROBOT 3
-cdRoots =  [0.0, 0.20, 1.0]
-caRoots =  [0.0, 0.20, 1.0]
-cl1Roots = [0.0, 0.30, 1.0]
-cl2Roots = [0.0, 0.10, 1.0]
-r3 = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 90.0)
+with open("data/simRobot3.yml", 'r') as file:
+    robot3 = yaml.full_load(file)
+r3 = camis.CamisModel(robot3)
 env3.computeVecCostMap(r3)
 r3.showCAMIS()
 
 # ROBOT 4
-cdRoots =  [0.0, 0.20, 1.0]
-caRoots =  [0.0, 0.20, 1.0]
-cl1Roots = [0.0, 0.10, 1.0]
-cl2Roots = [0.0, 0.30, 1.0]
-r4 = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 90.0)
+with open("data/simRobot4.yml", 'r') as file:
+    robot4 = yaml.full_load(file)
+r4 = camis.CamisModel(robot4)
 env4.computeVecCostMap(r4)
 r4.showCAMIS()
 
@@ -88,8 +93,8 @@ r4.showCAMIS()
 ## PATH PLANNING
 # =============================================================================
 
-start = np.asarray([10,10])
-goal = np.asarray([40,40])
+goal = np.asarray([10,10])
+start = np.asarray([40,40])
 
 #env1.executeBiPlanning(goal,start)
 #env2.executeBiPlanning(goal,start)
@@ -108,6 +113,9 @@ env4.executePlanning(goal,start)
 
 fig, axes = plt.subplots(constrained_layout=True)
 env1.showMap('elevation',fig,axes)
+
+fig, axes = plt.subplots(constrained_layout=True)
+env1.showMap('standard-deviation',fig,axes)
 env1.showPath(fig,axes,'r','solid')
 env2.showPath(fig,axes,'b','solid')
 env3.showPath(fig,axes,'g','solid')

@@ -16,22 +16,22 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 
-fittingMode = 'DEM'
-#fittingMode = 'IMU'
+#fittingMode = 'DEM'
+fittingMode = 'IMU'
 
 
 #if fittingMode == 'DEM':
     
-hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMARescueArea_10cmDEM.csv",\
-                                         "rb"), delimiter=" ", skiprows=0)
-hiRes_posX = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosX.csv",\
-                                         "rb"), delimiter=" ", skiprows=0)
-hiRes_posY = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosY.csv",\
-                                         "rb"), delimiter=" ", skiprows=0)
-    
-hiRes = hiRes_posX[0,1] - hiRes_posX[0,0]
-env = camis.PDEM(hiRes_elevationMap, hiRes, .5, (hiRes_posX[0,0],hiRes_posY[0,0]))
-env.smoothMap(1.0) #Tracking error is not considered here
+#hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMARescueArea_10cmDEM.csv",\
+#                                         "rb"), delimiter=" ", skiprows=0)
+#hiRes_posX = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosX.csv",\
+#                                         "rb"), delimiter=" ", skiprows=0)
+#hiRes_posY = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosY.csv",\
+#                                         "rb"), delimiter=" ", skiprows=0)
+#    
+#hiRes = hiRes_posX[0,1] - hiRes_posX[0,0]
+#env = camis.PDEM(hiRes_elevationMap, hiRes, .5, (hiRes_posX[0,0],hiRes_posY[0,0]))
+#env.smoothMap(1.0) #Tracking error is not considered here
 
 
 
@@ -54,11 +54,11 @@ beta = []
 cost = []
 gradient = []
 
-fig1, axes1 = plt.subplots(constrained_layout=True)
-env.showMap('old-elevation',fig1,axes1)
-axes1.set_xlim(10, 55)
-axes1.set_ylim(60, 110)
-axes1.tick_params(axis='both', which='major', labelsize=12)
+#fig1, axes1 = plt.subplots(constrained_layout=True)
+#env.showMap('old-elevation',fig1,axes1)
+#axes1.set_xlim(10, 55)
+#axes1.set_ylim(60, 110)
+#axes1.tick_params(axis='both', which='major', labelsize=12)
 
 fig2 = plt.figure()
 ax1 = fig2.add_subplot(311)
@@ -100,6 +100,7 @@ for index,file in enumerate(csvFiles):
         currentCost = np.divide(Current,Speed)
         cost = cost + currentCost.tolist()
         gradient = gradient + G
+        
     if fittingMode == 'DEM':
         G, B = env.getBeta(posX - hiRes_posX[0,0], posY - hiRes_posY[0,0], heading)
         betaX = np.cos(B)
@@ -110,7 +111,7 @@ for index,file in enumerate(csvFiles):
         cost = cost + currentCost.tolist()
         G = np.abs(G)*180/np.pi
         gradient = gradient + G.tolist()
-    axes1.plot(posX - hiRes_posX[0,0], posY - hiRes_posY[0,0])
+#    axes1.plot(posX - hiRes_posX[0,0], posY - hiRes_posY[0,0])
     ax1.plot(Distance,currentCost)
     ax2.plot(Distance,Roll)
     ax3.plot(Distance,Pitch)
@@ -120,26 +121,34 @@ fig2.tight_layout()
 
 if fittingMode == 'DEM':
     maxCost = 40.0
-    gradient_threshold = 20.0
+    gradient_threshold = np.max(gradient)
 if fittingMode == 'IMU':
     maxCost = 40.0
-    gradient_threshold = 20.0
-    
+    gradient_threshold = np.max(gradient)
+   
 
-beta.append(np.pi)
-cost.append(maxCost)
-gradient.append(gradient_threshold)
-beta.append(0)
-cost.append(maxCost)
-gradient.append(gradient_threshold)
-beta.append(np.pi/2)
-cost.append(maxCost)
-gradient.append(gradient_threshold)
-beta.append(-np.pi)
-cost.append(maxCost)
-gradient.append(gradient_threshold)
+#beta.append(np.pi)
+#cost.append(maxCost)
+#gradient.append(gradient_threshold)
+#beta.append(0)
+#cost.append(maxCost)
+#gradient.append(gradient_threshold)
+
+#beta.append(np.pi/2)
+#cost.append(maxCost*0.75)
+#gradient.append(gradient_threshold/2)
+#beta.append(-np.pi/2)
+#cost.append(maxCost*0.75)
+#gradient.append(gradient_threshold/2)
+#beta.append(np.pi/2)
+#cost.append(40.0)
+#gradient.append(gradient_threshold)
+#beta.append(-np.pi/2)
+#cost.append(40.0)
+#gradient.append(gradient_threshold)
+
 sigma = np.ones_like(gradient)
-sigma[[-4,-3,-2,-1]] = 0.01
+#sigma[[-2,-1]] = 0.01
 
 
 
@@ -148,6 +157,10 @@ beta = [0 if np.isnan(x) else x for x in beta]
 
 CdRoots, CaRoots, Cl1Roots, Cl2Roots = \
 camis.computeDirCosts(gradient,beta,cost,sigma)
+
+#drivingRoots = camis.computeDrivingDirCosts(gradient,beta,cost,sigma)
+
+
 r1 = camis.CamisModel.fromRoots(CdRoots,CaRoots,Cl1Roots,Cl2Roots, gradient_threshold)
 
 isoRoots = (np.asarray(CaRoots) + np.asarray(CdRoots) + np.asarray(Cl1Roots) + np.asarray(Cl2Roots))/4
@@ -178,6 +191,13 @@ if fittingMode == 'IMU':
                 rIsoMed.anicoLUT)
     camis.saveCamis('data/camisRoots/cuadriga_camis_imu_iso_asc.csv',CaRoots,CaRoots,CaRoots,CaRoots,\
                 rIsoAsc.anicoLUT)
+    
+
+#rDriving = camis.CamisDrivingModel(25.0)
+#
+#rDriving.fitCAMIS(gradient,beta,cost,sigma)
+#
+#rDriving.showCAMIS()
 
 
 

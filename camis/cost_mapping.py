@@ -7,21 +7,41 @@ Created on Mon Sep 23 16:56:51 2019
 
 import numpy as np
 import math
-import matplotlib.pyplot as plt
+try:
+    import matplotlib
+    import matplotlib.pyplot as plt
+    from matplotlib import cbook
+    from matplotlib import cm
+    from matplotlib.colors import LightSource
+    from mpl_toolkits.mplot3d import Axes3D
+except:
+    raise ImportError('ERROR: matplotlib module could not be imported')
+
+try:
+    import scipy.interpolate as interp
+    from scipy import signal
+    from scipy import ndimage
+except:
+    raise ImportError('ERROR: scipy module could not be imported')
+  
+    
 from .cost_function import getVectorialCostMap
-import scipy.interpolate as interp
+
 import camis.anisotropic_path_planning as ap
-import matplotlib
 
-from mayavi import mlab
 
-from scipy import signal
-from scipy import ndimage
+try:
+    from mayavi import mlab
+    isMayavi = True
+except:
+    isMayavi = False
+    print(\
+        'WARNING: Mayavi module is not found, some functions cannot be used')
+    
+
+
 from time import time
-from matplotlib import cbook
-from matplotlib import cm
-from matplotlib.colors import LightSource
-from mpl_toolkits.mplot3d import Axes3D
+
 
 rad2deg = 180/np.pi
 
@@ -44,11 +64,13 @@ class PDEM:
         self.maxSlope = np.max(self.slopeMap)
         self.xMin = self.xMap[0][0]
         self.yMin = self.yMap[0][0]
+        self.proximityMap = np.ones_like(xMap)*np.inf
         
     def smoothMap(self, radius):
         self.oldElevationMap = self.elevationMap
         self.oldSlopeMap = self.slopeMap
         self.computeRoughness(radius)
+        self.radius = radius
         r = int(radius/self.demRes)
         r = r + 1 - r%2
         y,x = np.ogrid[-r: r+1, -r: r+1]
@@ -70,13 +92,7 @@ class PDEM:
         self.elevationMap = signal.convolve2d(self.elevationMap, convMatrix/convMatrix.sum(), \
                                       mode='same', boundary='symm')
         self.computeSlope()
-    
-    def processSlope(self, sdThreshold):
-#        self.computeLaplacian()
-        AA = np.ones_like(self.maxSlopeMap)*30.0*np.pi/180.0
-        self.slopeMap[np.where(self.sdMap > sdThreshold)] = \
-                        np.maximum(AA[np.where(self.sdMap > sdThreshold)],\
-                        self.maxSlopeMap[np.where(self.sdMap > sdThreshold)])
+        
     
     def computeSlope(self):
         self.gradientY, self.gradientX = np.gradient(self.elevationMap,\
@@ -123,6 +139,46 @@ class PDEM:
                                                      self.demRes,\
                                                      self.demRes)
         self.laplacianMap = self.laplacianX + self.laplacianY
+    def computeObstacles(self, sdThreshold, slopeThreshold):
+        
+        r = int(self.radius/self.demRes)
+        r = r + 1 - r%2
+        y,x = np.ogrid[-r: r+1, -r: r+1]
+        convMatrix = x**2+y**2 <= r**2
+        convMatrix = convMatrix.astype(float)
+        
+        AA = np.ones_like(self.maxSlopeMap)*90.0*np.pi/180.0   
+                        
+                # We define the forbidden areas
+        obstacleMap = np.zeros_like(self.slopeMap)
+        obstacleMap[0,:] = 1
+        obstacleMap[-1,:] = 1
+        obstacleMap[:,0] = 1
+        obstacleMap[:,-1] = 1
+        
+#        self.slopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)] = self.maxSlopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)]
+        obstacleMap[np.where(self.slopeMap > slopeThreshold*np.pi/180.0)] = 1
+        obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, structure = convMatrix).astype(obstacleMap.dtype)
+        
+        obstacleMap2 = np.zeros_like(obstacleMap)
+        
+        r = int(self.planRes/self.demRes)
+        r = r + 1 - r%2
+        y,x = np.ogrid[-r: r+1, -r: r+1]
+        convMatrix = x**2+y**2 <= r**2
+        convMatrix = convMatrix.astype(float)
+        
+        obstacleMap2[np.where(self.sdMap > sdThreshold)] = 1
+#        obstacleMap2 = ndimage.morphology.binary_dilation(obstacleMap2, structure = convMatrix).astype(obstacleMap2.dtype)
+        
+        obstacleMap[np.where(obstacleMap2 == 1)] = 1
+        
+        proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
+        proximityMap = proximityMap*self.demRes
+#        proximityMap[np.where(proximityMap[:]<0.0)] = 0               
+        
+        self.obstacleMap = obstacleMap
+        self.proximityMap = proximityMap
     def getBeta(self, xPos, yPos, heading):
         slope = []
         beta = []
@@ -143,39 +199,12 @@ class PDEM:
         return slope,beta
         
     def show3dDEM(self):
-#        fig, ax = plt.subplots(subplot_kw=dict(projection='3d'), constrained_layout=True)
-#        ls = LightSource(270, 45)
-#        # To use a custom hillshading mode, override the built-in shading and pass
-#        # in the rgb colors of the shaded surface calculated from "shade".
-#        slopeMap = rad2deg*self.slopeMap
-#        vmin=slopeMap.min().min()
-#        vmax=slopeMap.max().max()
-#        zRange = max(-self.xMap[0][0]+self.xMap[-1][-1],-self.yMap[0][0]+self.yMap[-1][-1])
-#        rgb = ls.shade(self.elevationMap, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
-#        ax.plot_surface(self.xMap, self.yMap, self.elevationMap, rstride=1, cstride=1, facecolors=rgb,
-#                               linewidth=0, antialiased=False, shade=False)
-#        cset = ax.contourf(self.xMap, self.yMap, slopeMap, zdir='z', offset=self.elevationMap.max().max()-zRange, cmap=cm.gist_rainbow)
-#        ax.view_init(elev=35., azim=-120.)
-#        
-##        norm = matplotlib.colors.Normalize(vmin, vmax)
-##        m = cm.ScalarMappable(cmap=plt.cm.gist_earth, norm=norm)
-##        m.set_array([])
-##        plt.colorbar(m)
-#        cbar = fig.colorbar(cset,orientation='horizontal',shrink=0.5)
-#        cbar.set_label('Slope (deg)')
-##        ax.autoscale()
-##        ax.auto_scale_xyz([self.xMap[0][0], self.xMap[-1][-1]], \
-##                          [self.yMap[0][0], self.yMap[-1][-1]], \
-##                          [self.elevationMap.min().min(), self.elevationMap.max().max()])
-#        ax.set_aspect('equal')
-#        ax.set_xlim(self.xMap[0][0], self.xMap[-1][-1])
-#        ax.set_ylim(self.yMap[0][0], self.yMap[-1][-1])
-#        ax.set_zlim(self.elevationMap.max().max()-zRange, self.elevationMap.max().max())
-#        
-#        plt.show()
-        mlab.figure(size=(640, 800))
-        mlab.surf(np.flipud(self.oldElevationMap), colormap='gist_earth', warp_scale=10.0)
-        mlab.view(-59, 58, 1773, [-.5, -.5, 512])
+        if isMayavi:
+            mlab.figure(size=(640, 800))
+            mlab.surf(np.flipud(self.elevationMap), colormap='gist_earth', warp_scale=10.0)
+            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
+        else:
+            raise ImportError('show3dDEM: Mayavi is not available')
     def showMap(self, opt, fig, axes):
         if   opt == 'elevation':
             cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
@@ -192,18 +221,32 @@ class PDEM:
             axes.contour(self.xMap, self.yMap, self.elevationMap, 100, colors = 'k', alpha=.3)
         elif opt == 'slope-rad':
             cc = axes.contourf(self.xMap, self.yMap, self.slopeMap, 100, cmap = 'plasma')
+        elif opt == 'slope-cos':
+            levels = np.linspace(0.0,0.5,46)
+            cc = axes.contourf(self.xMap, self.yMap, 1-np.cos(self.slopeMap), levels=levels, cmap = 'nipy_spectral', extend='both')
+            cbar = fig.colorbar(cc)
+            cbar.set_label('1 - cos(slope)')
         elif opt == 'slope-deg':
-            cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.slopeMap, 100, cmap = 'nipy_spectral')
+            levels = np.linspace(0.0,45,46.0)
+            cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.slopeMap, levels=levels, cmap = 'nipy_spectral', extend='both')
 #            axes.quiver(self.xMap, self.yMap,self.aspectX, self.aspectY,scale = 40)
 #            cc.set_clim(0,45.0)
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Slope (deg)')
         elif opt == 'roughness':
             cc = axes.contourf(self.xMap, self.yMap, self.roughnessMap, 100, cmap = 'nipy_spectral')
         elif opt == 'standard-deviation':
-            cc = axes.contourf(self.xMap, self.yMap, self.sdMap, 100, cmap = 'nipy_spectral')
+            levels = np.linspace(0.0,45,46.0)
+            cc = axes.contourf(self.xMap, self.yMap, self.sdMap, levels=levels, cmap = 'nipy_spectral', extend='both')
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Standard Deviation (degrees)')
         elif opt == 'dispersion':
             cc = axes.contourf(self.xMap, self.yMap, self.dispersionMap, 100, cmap = 'nipy_spectral')
         elif opt == 'old-slope-deg':
             cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.oldSlopeMap, 100, cmap = 'nipy_spectral')
+            cc.set_clim(0,45.0)
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Steepness (degrees)')
 #            axes.quiver(self.xMap, self.yMap,self.normalX, self.normalY,scale = 40)
         elif opt == 'aspect-rad':
             cc = axes.contourf(self.xMap, self.yMap, self.aspectMap, 20,cmap = 'hsv')
@@ -216,6 +259,11 @@ class PDEM:
         elif opt == 'laplacian-abs':
             cc = axes.contourf(self.xMap, self.yMap, np.abs(self.laplacianMap), 100, cmap = 'nipy_spectral')
             cc.set_clim(0,5.0)
+        elif opt == 'proximity':
+            cc = axes.contourf(self.xMap, self.yMap, self.proximityMap, 100, cmap = 'nipy_spectral')
+            cc.set_clim(0,5.0)
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Proximity to obstacles (m)')
         axes.set_aspect('equal')
         plt.show()
 
@@ -223,9 +271,9 @@ class PDEM:
 
 class AnisotropicMap(PDEM):
     @classmethod
-    def from_pdem(cls, parentPdem, camis):
+    def from_pdem(cls, parentPdem, costModel):
         return cls(parentPdem.elevationMap, parentPdem.demRes,\
-                   parentPdem.planRes, parentPdem.offset, camis)
+                   parentPdem.planRes, parentPdem.offset, costModel)
     
     def __init__(self, DEM, demRes, planRes, offset):
         init = time()
@@ -245,23 +293,13 @@ class AnisotropicMap(PDEM):
         self.xy2J = 2*YY/(np.sqrt(3)*self.planRes)
         self.xy2I = (DY/np.sqrt(3)+ XX)/self.planRes-0.5*self.xy2J
     
-    def computeVecCostMap(self, camis):
-        self.camis = camis
+    def computeVecCostMap(self, costModel):
+        self.costModel = costModel
         
-        # We define the forbidden areas
-        obstacleMap = np.zeros_like(self.slopeMap)
-        obstacleMap[0,:] = 1
-        obstacleMap[-1,:] = 1
-        obstacleMap[:,0] = 1
-        obstacleMap[:,-1] = 1
-#        self.slopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)] = self.maxSlopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)]
-#        obstacleMap[np.where(self.slopeMap > np.pi/180.0*1.5*camis.slopeThreshold)] = 1
-        proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
-        proximityMap[np.where(proximityMap[:]<0)] = 0
+        self.smoothMap(costModel.occupancy_radius + costModel.tracking_error)
+        self.computeObstacles(costModel.sdThreshold,costModel.slopeThreshold)
         
         
-        self.obstacleMap = obstacleMap
-        self.proximityMap = proximityMap
         
         points = np.zeros((self.xMap.size,2))
         points[:,0] = self.xMap.flatten()
@@ -277,13 +315,18 @@ class AnisotropicMap(PDEM):
         init = time()
 
 
-        cdRoots = self.camis.cdRoots
-        caRoots = self.camis.caRoots
-        cl1Roots = self.camis.cl1Roots
-        cl2Roots = self.camis.cl2Roots
-        anicoLUT = self.camis.anicoLUT
-        vectorialData = getVectorialCostMap(rad2deg*hexSlopeMap,cdRoots,caRoots,cl1Roots,\
-                                          cl2Roots,anicoLUT)
+#        cdRoots = self.camis.cdRoots
+#        caRoots = self.camis.caRoots
+#        cl1Roots = self.camis.cl1Roots
+#        cl2Roots = self.camis.cl2Roots
+#        anicoLUT = self.camis.anicoLUT
+#        vectorialData = getVectorialCostMap(rad2deg*hexSlopeMap,cdRoots,caRoots,cl1Roots,\
+#                                          cl2Roots,anicoLUT)
+        vectorialData = costModel.getVectorialCostMap(rad2deg*hexSlopeMap)
+
+#        self.slopeMap[np.where(proximityMap[:]<self.radius)] = \
+#                        np.maximum(AA[np.where(proximityMap[:]<self.radius)],\
+#                        self.maxSlopeMap[np.where(proximityMap[:]<self.radius)])
         
         
         AspectMap = np.zeros([2,hexSlopeMap.shape[0],hexSlopeMap.shape[1]])
@@ -296,7 +339,7 @@ class AnisotropicMap(PDEM):
         AspectMap[0][np.where(np.isnan(hexSlopeMap))] = np.nan
         AspectMap[1][np.where(np.isnan(hexSlopeMap))] = np.nan
         ProximityMap[np.where(np.isnan(hexSlopeMap))] = np.nan
-        obstacleMask = ProximityMap == 0
+        obstacleMask = ProximityMap == 0.0
         
         AnisotropyMap = vectorialData[0][:][:]
         AnisotropyMap[obstacleMask] = np.inf
@@ -304,12 +347,16 @@ class AnisotropicMap(PDEM):
         VCMap = np.zeros([4,AnisotropyMap.shape[0],AnisotropyMap.shape[1]])
         
         Q1 = vectorialData[1][:][:]
+        Q1[np.where(ProximityMap[:]<self.radius)] = 2*self.costModel.getMaxCost()**2
         Q1[obstacleMask] = np.inf
         Q2 = vectorialData[2][:][:]
+        Q2[np.where(ProximityMap[:]<self.radius)] = 2*self.costModel.getMaxCost()**2
         Q2[obstacleMask] = np.inf
         D1 = vectorialData[3][:][:]
+        D1[np.where(ProximityMap[:]<self.radius)] = 0
         D1[obstacleMask] = 0
         D2 = vectorialData[4][:][:]
+        D2[np.where(ProximityMap[:]<self.radius)] = 0
         D2[obstacleMask] = 0
         
         VCMap[0] = Q1
@@ -432,7 +479,7 @@ class AnisotropicMap(PDEM):
                 A = self.path[index+1] - self.path[index]
                 pathSegment.append(np.linalg.norm(A))
                 pathHeading.append(np.arctan2(A[1],A[0]))
-            pathCost.append(self.camis.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
+            pathCost.append(self.costModel.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
 #        N = 5
 #        pathPitch = np.convolve(pathPitch, np.ones((N,))/N, mode='same')
         for index, waypoint in enumerate(self.path):
@@ -463,11 +510,21 @@ class AnisotropicMap(PDEM):
         
     def showVecCostMap(self, index):
         fig, ax = plt.subplots()
-        cc = ax.contourf(self.hexXmap, self.hexYmap, self.VCMap[index], 100, cmap = 'plasma')
-        fig.colorbar(cc)
+        chosenVCmap = self.VCMap[index]
+        chosenVCmap[np.where(chosenVCmap == np.inf)] = np.nan 
+        cc = ax.contourf(self.hexXmap, self.hexYmap, chosenVCmap, 100, cmap = 'nipy_spectral')
+#        cc.set_clim(0,200.0)
+        cbar = fig.colorbar(cc)
         ax.set_aspect('equal')
         plt.show()
         
+    def showHexAnisotropyMap(self):
+        fig, ax = plt.subplots()
+        cc = ax.contourf(self.hexXmap, self.hexYmap, self.hexAnisotropyMap, 100, cmap = 'nipy_spectral')
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Anisotropy')
+        ax.set_aspect('equal')
+        plt.show()
     def showHexSlopeMap(self):
         fig, ax = plt.subplots()
         cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, 100, cmap = 'nipy_spectral')
