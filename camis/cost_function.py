@@ -465,13 +465,21 @@ class CamisDrivingModel:
     def __init__(self, robot_data):
         self.slopeThreshold = robot_data['slope_threshold']
         self.sdThreshold = robot_data['sd_threshold']
-        self.friction_parallel = robot_data['friction_parallel']
-        self.friction_perp = robot_data['friction_perp']
-        self.mg = robot_data['mg']
-        self.slip_roots = robot_data['slip_coeff']
         self.occupancy_radius = robot_data['occupancy_radius']
         self.tracking_error = robot_data['tracking_error']
+        self.camis_type = robot_data['camis_type']
+        if self.camis_type == 'DrivingModel':
+            self.friction_parallel = robot_data['friction_parallel']
+            self.friction_perp = robot_data['friction_perp']
+            self.mg = robot_data['mg']
+            self.slip_roots = robot_data['slip_coeff']
+        if self.camis_type == 'PolynomialRoots':
+            self.cdRoots = robot_data['cdRoots']
+            self.caRoots = robot_data['caRoots']
+            self.cl1Roots = robot_data['cl1Roots']
+            self.cl2Roots = robot_data['cl2Roots']
         self.computeAniCoLUT()
+        
     def fitCAMIS(self, gradient,beta,cost,sigma):
         bounds = ([0.01,0.01,0.01,0.0],[1.0,1.0,np.inf,self.slopeThreshold/45.0])
         popt,_ = curve_fit(self.fittingDrivingCAMIS, (gradient,beta), cost, sigma=sigma, bounds = bounds,method='dogbox')
@@ -516,20 +524,41 @@ class CamisDrivingModel:
                 else:
                     Cd = self.getCd(slope)
                     Ca = self.getCa(slope)
-                    Cl1 = self.getCl(slope)
-                    Cl2 = self.getCl(slope)
+                    Cl1 = self.getCl1(slope)
+                    Cl2 = self.getCl2(slope)
                     vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
                     vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
                     vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
                     vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
                     vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
         return vectorialCostMap
+    
     def getCd(self,slope):
-        return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope) - np.sin(deg2rad*slope))
+        if self.camis_type == 'DrivingModel':
+            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*\
+                  (self.friction_parallel*np.cos(deg2rad*slope) - \
+                   np.sin(deg2rad*slope))
+        if self.camis_type == 'PolynomialRoots':
+            return np.polyval(self.cdRoots, slope)
+        
     def getCa(self,slope):
-        return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope) + np.sin(deg2rad*slope))
-    def getCl(self,slope):
-        return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope))
+        if self.camis_type == 'DrivingModel':
+            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope) + np.sin(deg2rad*slope))
+        if self.camis_type == 'PolynomialRoots':
+            return np.polyval(self.caRoots, slope)
+        
+    def getCl1(self,slope):
+        if self.camis_type == 'DrivingModel':
+            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope))
+        if self.camis_type == 'PolynomialRoots':
+            return np.polyval(self.cl1Roots, slope)
+    
+    def getCl2(self,slope):
+        if self.camis_type == 'DrivingModel':
+            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope))
+        if self.camis_type == 'PolynomialRoots':
+            return np.polyval(self.cl2Roots, slope)
+    
     def computeAniCoLUT(self):
         linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
         heading = np.arange(0, 2*np.pi, 0.01)
@@ -540,15 +569,13 @@ class CamisDrivingModel:
         Ca = np.zeros_like(linearGradient)
         Cl1 = np.zeros_like(linearGradient)
         Cl2 = np.zeros_like(linearGradient)
-        slip_parallel = np.zeros_like(linearGradient)
-        slip_perp = np.zeros_like(linearGradient)
         anicoLUT = np.zeros((2,linearGradient.size))
         Anisotropy = np.zeros_like(linearGradient)
         for i,g in enumerate(linearGradient):
             Cd[i] = self.getCd(linearGradient[i])
             Ca[i] = self.getCa(linearGradient[i])
-            Cl1[i] = self.getCl(linearGradient[i])
-            Cl2[i] = self.getCl(linearGradient[i])
+            Cl1[i] = self.getCl1(linearGradient[i])
+            Cl2[i] = self.getCl2(linearGradient[i])
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
@@ -560,6 +587,7 @@ class CamisDrivingModel:
         anicoLUT[:][1] = Anisotropy
     
         self.anicoLUT = anicoLUT
+        
     def getAnisotropy(self,slope):
         if slope <= self.anicoLUT[0][0]:
             return self.anicoLUT[1][0]
@@ -574,8 +602,8 @@ class CamisDrivingModel:
         beta = computeBeta(aspect,heading)
         Cd = self.getCd(slope)
         Ca = self.getCa(slope)
-        Cl1 = self.getCl(slope)
-        Cl2 = self.getCl(slope)
+        Cl1 = self.getCl1(slope)
+        Cl2 = self.getCl2(slope)
         Q1 = ((Ca+Cd)/2)**2
         Q2 = ((Cl1+Cl2)/2)**2
         D1 =  (Ca-Cd)/2
@@ -585,7 +613,8 @@ class CamisDrivingModel:
     def getMaxCost(self):
         return np.max((self.getCd(self.slopeThreshold),\
                        self.getCa(self.slopeThreshold),\
-                       self.getCl(self.slopeThreshold)))
+                       self.getCl1(self.slopeThreshold),\
+                       self.getCl2(self.slopeThreshold)))
 
     def showCAMIS(self):
         
@@ -603,20 +632,12 @@ class CamisDrivingModel:
         Ca = np.zeros_like(linearGradient)
         Cl1 = np.zeros_like(linearGradient)
         Cl2 = np.zeros_like(linearGradient)
-        slip_parallel = np.zeros_like(linearGradient)
-        slip_perp = np.zeros_like(linearGradient)
          
         for i,g in enumerate(linearGradient):
-#            slip_parallel[i] = np.sin(deg2rad*linearGradient[i]*2)
-#            slip_perp[i] = np.sin(deg2rad*linearGradient[i]*2)
-#            Cd[i] = self.mg*(1/(1-slip_parallel[i]))*(self.friction_parallel*np.cos(deg2rad*linearGradient[i]) - np.sin(deg2rad*linearGradient[i]))
-#            Ca[i] = self.mg*(1/(1-slip_parallel[i]))*(self.friction_parallel*np.cos(deg2rad*linearGradient[i]) + np.sin(deg2rad*linearGradient[i]))
-#            Cl1[i] = self.mg*(1/(1-slip_perp[i]))*(self.friction_perp*np.cos(deg2rad*linearGradient[i]))
-#            Cl2[i] = self.mg*(1/(1-slip_perp[i]))*(self.friction_perp*np.cos(deg2rad*linearGradient[i]))
             Cd[i] = self.getCd(linearGradient[i])
             Ca[i] = self.getCa(linearGradient[i])
-            Cl1[i] = self.getCl(linearGradient[i])
-            Cl2[i] = self.getCl(linearGradient[i])
+            Cl1[i] = self.getCl1(linearGradient[i])
+            Cl2[i] = self.getCl2(linearGradient[i])
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])

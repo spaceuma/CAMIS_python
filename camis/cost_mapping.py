@@ -10,10 +10,7 @@ import math
 try:
     import matplotlib
     import matplotlib.pyplot as plt
-    from matplotlib import cbook
     from matplotlib import cm
-    from matplotlib.colors import LightSource
-    from mpl_toolkits.mplot3d import Axes3D
 except:
     raise ImportError('ERROR: matplotlib module could not be imported')
 
@@ -23,9 +20,7 @@ try:
     from scipy import ndimage
 except:
     raise ImportError('ERROR: scipy module could not be imported')
-  
-    
-from .cost_function import getVectorialCostMap
+
 
 import camis.anisotropic_path_planning as ap
 
@@ -65,34 +60,8 @@ class PDEM:
         self.xMin = self.xMap[0][0]
         self.yMin = self.yMap[0][0]
         self.proximityMap = np.ones_like(xMap)*np.inf
-        
-    def smoothMap(self, radius):
-        self.oldElevationMap = self.elevationMap
-        self.oldSlopeMap = self.slopeMap
-        self.computeRoughness(radius)
-        self.radius = radius
-        r = int(radius/self.demRes)
-        r = r + 1 - r%2
-        y,x = np.ogrid[-r: r+1, -r: r+1]
-        convMatrix = x**2+y**2 <= r**2
-        convMatrix = convMatrix.astype(float)
-#        convMatrix = convMatrix/convMatrix.sum()
-#        smoothDEM = signal.medfilt2d(self.elevationMap,r)
-        medDEM = ndimage.median_filter(self.elevationMap, footprint=convMatrix, mode='nearest')
-#        smoothDEM = signal.convolve2d(smoothDEM, convMatrix, \
-#                                      mode='same', boundary='symm')
-#        self.computeSlope()
-        self.maxSlopeMap = ndimage.maximum_filter(self.slopeMap, footprint=convMatrix, mode='nearest')
-        
-#        smoothDEM = signal.convolve2d(self.elevationMap, convMatrix/convMatrix.sum(), \
-#                                      mode='same', boundary='symm')
-#        self.elevationMap = medDEM + (medDEM - smoothDEM)
-        
-        
-        self.elevationMap = signal.convolve2d(self.elevationMap, convMatrix/convMatrix.sum(), \
-                                      mode='same', boundary='symm')
-        self.computeSlope()
-        
+        self.rawElevationMap = self.elevationMap
+        self.rawSlopeMap = self.slopeMap
     
     def computeSlope(self):
         self.gradientY, self.gradientX = np.gradient(self.elevationMap,\
@@ -103,82 +72,13 @@ class PDEM:
         self.aspectMap = np.arctan2(self.gradientY,self.gradientX)+np.pi
         self.aspectX = np.cos(self.aspectMap)
         self.aspectY = np.sin(self.aspectMap)
-    
-    def computeRoughness(self,radius):
-#        self.normalX = self.aspectX/(1+(1/np.tan(self.slopeMap))**2)
-#        self.normalY = self.aspectY/(1+(1/np.tan(self.slopeMap))**2)
-#        self.normalZ = 1/(1+np.tan(self.slopeMap)**2)
-        
-        self.normalX = np.cos(self.aspectMap)*np.sin(self.slopeMap)
-        self.normalY = np.sin(self.aspectMap)*np.sin(self.slopeMap)
-        self.normalZ = np.cos(self.slopeMap)
-        
-        r = int(radius/self.demRes)
-        r = r + 1 - r%2
-        y,x = np.ogrid[-r: r+1, -r: r+1]
-        convMatrix = x**2+y**2 <= r**2
-        convMatrix = convMatrix.astype(float)
-        
-        
-        sumNormalX = signal.convolve2d(self.normalX, convMatrix, \
-                                      mode='same', boundary='symm')
-        sumNormalY = signal.convolve2d(self.normalY, convMatrix, \
-                                      mode='same', boundary='symm')
-        sumNormalZ = signal.convolve2d(self.normalZ, convMatrix, \
-                                      mode='same', boundary='symm')
-        
-        self.roughnessMap = np.sqrt( sumNormalX**2 + sumNormalY**2 + sumNormalZ**2 )
-        #Standard Deviation
-        self.sdMap = np.sqrt( -2*np.log(self.roughnessMap/convMatrix.sum()))*180/np.pi
-        
-        #Dispersion
-        self.dispersionMap = (convMatrix.sum()-self.roughnessMap)/(convMatrix.sum()-1)
         
     def computeLaplacian(self):
         self.laplacianY, self.laplacianX = np.gradient(self.gradientMap,\
                                                      self.demRes,\
                                                      self.demRes)
         self.laplacianMap = self.laplacianX + self.laplacianY
-    def computeObstacles(self, sdThreshold, slopeThreshold):
-        
-        r = int(self.radius/self.demRes)
-        r = r + 1 - r%2
-        y,x = np.ogrid[-r: r+1, -r: r+1]
-        convMatrix = x**2+y**2 <= r**2
-        convMatrix = convMatrix.astype(float)
-        
-        AA = np.ones_like(self.maxSlopeMap)*90.0*np.pi/180.0   
-                        
-                # We define the forbidden areas
-        obstacleMap = np.zeros_like(self.slopeMap)
-        obstacleMap[0,:] = 1
-        obstacleMap[-1,:] = 1
-        obstacleMap[:,0] = 1
-        obstacleMap[:,-1] = 1
-        
-#        self.slopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)] = self.maxSlopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)]
-        obstacleMap[np.where(self.slopeMap > slopeThreshold*np.pi/180.0)] = 1
-        obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, structure = convMatrix).astype(obstacleMap.dtype)
-        
-        obstacleMap2 = np.zeros_like(obstacleMap)
-        
-        r = int(self.planRes/self.demRes)
-        r = r + 1 - r%2
-        y,x = np.ogrid[-r: r+1, -r: r+1]
-        convMatrix = x**2+y**2 <= r**2
-        convMatrix = convMatrix.astype(float)
-        
-        obstacleMap2[np.where(self.sdMap > sdThreshold)] = 1
-#        obstacleMap2 = ndimage.morphology.binary_dilation(obstacleMap2, structure = convMatrix).astype(obstacleMap2.dtype)
-        
-        obstacleMap[np.where(obstacleMap2 == 1)] = 1
-        
-        proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
-        proximityMap = proximityMap*self.demRes
-#        proximityMap[np.where(proximityMap[:]<0.0)] = 0               
-        
-        self.obstacleMap = obstacleMap
-        self.proximityMap = proximityMap
+    
     def getBeta(self, xPos, yPos, heading):
         slope = []
         beta = []
@@ -207,12 +107,15 @@ class PDEM:
             raise ImportError('show3dDEM: Mayavi is not available')
     def showMap(self, opt, fig, axes):
         if   opt == 'elevation':
-            cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
-        if   opt == 'old-elevation':
+            cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 50, cmap = cm.gist_earth, extend='both')
+            axes.contour(self.xMap, self.yMap, self.elevationMap, 10, colors = 'k', alpha=.3)
+            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
+            cbar.set_label('Elevation (m)')
+        if   opt == 'raw-elevation':
 #            levels = np.linspace(47.0,55.0,25)
 #            cc = axes.contourf(self.xMap, self.yMap, self.oldElevationMap, levels=levels, cmap = cm.gist_earth, extend='both')
-            cc = axes.contourf(self.xMap, self.yMap, self.oldElevationMap, 50, cmap = cm.gist_earth, extend='both')
-            axes.contour(self.xMap, self.yMap, self.oldElevationMap, 50, colors = 'k', alpha=.3)
+            cc = axes.contourf(self.xMap, self.yMap, self.rawElevationMap, 50, cmap = cm.gist_earth, extend='both')
+            axes.contour(self.xMap, self.yMap, self.rawElevationMap, 50, colors = 'k', alpha=.3)
 #            cc.set_clim(47.0,55.0)
             cbar = fig.colorbar(cc)
             cbar.set_label('Height (m)')
@@ -280,7 +183,74 @@ class AnisotropicMap(PDEM):
         super().__init__(DEM, demRes, planRes, offset)
         self.computeHexGrid()
         print('Hexagonal Grid created in ' + str(time()-init))
-    
+        
+    def computeOccupancyMatrix(self):
+        radius = self.costModel.occupancy_radius + \
+                 self.costModel.tracking_error
+        r = int(radius/self.demRes)
+        r = r + 1 - r%2
+        y,x = np.ogrid[-r: r+1, -r: r+1]
+        convMatrix = x**2+y**2 <= r**2
+        convMatrix = convMatrix.astype(float)
+        self.occupancyMatrix = convMatrix
+        self.occupancyMatrixNorm = convMatrix/convMatrix.sum()
+        self.radius = radius
+        
+    def smoothMap(self):
+        self.elevationMap = signal.convolve2d(self.elevationMap, self.occupancyMatrixNorm, \
+                                      mode='same', boundary='symm')
+        self.computeSlope()
+        
+    def computeRoughness(self):
+        
+        self.normalX = np.cos(self.aspectMap)*np.sin(self.slopeMap)
+        self.normalY = np.sin(self.aspectMap)*np.sin(self.slopeMap)
+        self.normalZ = np.cos(self.slopeMap)
+        
+        
+        sumNormalX = signal.convolve2d(self.normalX, self.occupancyMatrix, \
+                                      mode='same', boundary='symm')
+        sumNormalY = signal.convolve2d(self.normalY, self.occupancyMatrix, \
+                                      mode='same', boundary='symm')
+        sumNormalZ = signal.convolve2d(self.normalZ, self.occupancyMatrix, \
+                                      mode='same', boundary='symm')
+        
+        #Roughness
+        self.roughnessMap = np.sqrt( sumNormalX**2 + sumNormalY**2 + sumNormalZ**2 )
+        
+        #Standard Deviation
+        self.sdMap = np.sqrt( -2*np.log(self.roughnessMap/self.occupancyMatrix.sum()))*180/np.pi
+        
+        #Dispersion
+        self.dispersionMap = (self.occupancyMatrix.sum()-self.roughnessMap)/(self.occupancyMatrix.sum()-1)
+        
+    def computeObstacles(self):
+                        
+        # We define the forbidden areas
+        obstacleMap = np.zeros_like(self.slopeMap)
+        obstacleMap[0,:] = 1
+        obstacleMap[-1,:] = 1
+        obstacleMap[:,0] = 1
+        obstacleMap[:,-1] = 1
+        
+#        self.slopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)] = self.maxSlopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)]
+        obstacleMap[np.where(self.slopeMap > self.costModel.slopeThreshold*np.pi/180.0)] = 1
+        obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, structure = self.occupancyMatrix).astype(obstacleMap.dtype)
+        
+        obstacleMap2 = np.zeros_like(obstacleMap)
+        
+        obstacleMap2[np.where(self.sdMap > self.costModel.sdThreshold)] = 1
+#        obstacleMap2 = ndimage.morphology.binary_dilation(obstacleMap2, structure = convMatrix).astype(obstacleMap2.dtype)
+        
+        obstacleMap[np.where(obstacleMap2 == 1)] = 1
+        
+        proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
+        proximityMap = proximityMap*self.demRes
+#        proximityMap[np.where(proximityMap[:]<0.0)] = 0               
+        
+        self.obstacleMap = obstacleMap
+        self.proximityMap = proximityMap
+        
     def computeHexGrid(self):
         DX = self.xMap[-1,-1] - self.xMap[0,0]
         DY = self.yMap[-1,-1] - self.yMap[0,0]
@@ -295,11 +265,10 @@ class AnisotropicMap(PDEM):
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel
-        
-        self.smoothMap(costModel.occupancy_radius + costModel.tracking_error)
-        self.computeObstacles(costModel.sdThreshold,costModel.slopeThreshold)
-        
-        
+        self.computeOccupancyMatrix()
+        self.computeRoughness()
+        self.smoothMap()
+        self.computeObstacles()
         
         points = np.zeros((self.xMap.size,2))
         points[:,0] = self.xMap.flatten()
