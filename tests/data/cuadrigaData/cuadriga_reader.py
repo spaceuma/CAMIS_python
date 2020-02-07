@@ -68,7 +68,7 @@ def readCuadrigaData(file, show=0):
     
     # Adjustments
     initTime = Time[0]
-    Time[:] = [t - initTime for t in Time]
+    Time[:] = [ti - initTime for ti in Time]
     dX = np.append(0,np.diff(utmPoseX))
     dY = np.append(0,np.diff(utmPoseY))
     segmentPath = np.sqrt(dX**2+dY**2)
@@ -133,8 +133,15 @@ def readCuadrigaData(file, show=0):
     traversedDist = np.cumsum(segmentPath)
     dT = dT[5:]
     Curvature = Curvature[5:]
-    
-    
+    Speed = Speed[5:]
+    Current = Current[5:]
+    GPSspeed = GPSspeed[5:]
+    Roll = Roll[5:]
+    Pitch = Pitch[5:]
+    Yaw = Yaw[5:]
+    utmPoseX = utmPoseX[5:]
+    utmPoseY = utmPoseY[5:]
+    heading = heading[5:]
     
     if show == 1:
         fig, ax = plt.subplots()
@@ -182,7 +189,7 @@ def readCuadrigaData(file, show=0):
         ax.grid(True)
         ax.legend(labels = ['Curvature'])
             
-    return utmPoseX[5:], utmPoseY[5:], heading[5:], Roll[5:], Pitch[5:], Yaw[5:], Current[5:], Speed[5:], traversedDist
+    return utmPoseX, utmPoseY, heading, Roll, Pitch, Yaw, Current, Speed, traversedDist, segmentPath, GPSspeed, dT
 
 
 def getData(file):

@@ -9,20 +9,70 @@ from context import camis
 import copy
 import yaml
 import matplotlib.gridspec as gridspec
+try:
+    from scipy import signal
+except:
+    raise ImportError('ERROR: scipy module could not be imported')
 
 # USER - Choose Simulation Map
-nSimMap =1
+nSimMap = 1
 
 # =============================================================================
 ## ENVIRONMENTS CREATION ##
 # =============================================================================
-x = np.linspace(0,49,50)
-y = np.linspace(0,49,50)
-XX,YY = np.meshgrid(x,y)
 
 if nSimMap == 0:
-    DEM = 2*(np.cos(XX/4)**2 + np.sin(YY/4)**2)
+    x = np.linspace(0,79,80)
+    y = np.linspace(0,79,80)
+    XX,YY = np.meshgrid(x,y)
+    DEM = 0*YY
+    DEM[np.where(YY>15)] = (YY[np.where(YY>15)] - 15)
+    DEM[np.where(YY>25)] = 10
+    DEM[np.where(YY>45)] = 10 + (45-YY[np.where(YY>45)])
+    DEM[np.where(YY>65)] = -10
+    r = 2
+    r = r + 1 - r%2
+    y,x = np.ogrid[-r: r+1, -r: r+1]
+    convMatrix = x**2+y**2 <= r**2
+    convMatrix = convMatrix.astype(float)
+    DEM = 0.5*signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
+                                      mode='same', boundary='symm')
+    goal = np.asarray([5,5])
+    start = np.asarray([75,75])
+    
 if nSimMap == 1:
+    x = np.linspace(0,49,50)
+    y = np.linspace(0,99,100)
+    XX,YY = np.meshgrid(x,y)
+    tXX = np.abs(XX)
+    tYY = np.abs(YY - 60)
+    dist2center = np.sqrt(tXX**2 + tYY**2)
+    DEM1 = np.zeros_like(dist2center)
+    DEM1[:] = dist2center   
+#    DEM1[np.where(dist2center>30)] = 30
+    DEM1 = .5*(DEM1 - 30) + 1.25
+    DEM0 = np.ones_like(dist2center)*1.25
+    DEM1 = np.maximum(DEM0,DEM1)
+#    DEM1 = DEM1 - 30
+#    DEM1 = .125*DEM1
+    DEM2 = (100-YY)*0.125
+#    DEM2[:] = .125*YY - 70/8
+    DEM = np.minimum(DEM1,DEM2)
+#    DEM[np.where(DEM>0)] = 0
+    r = 2
+    r = r + 1 - r%2
+    y,x = np.ogrid[-r: r+1, -r: r+1]
+    convMatrix = x**2+y**2 <= r**2
+    convMatrix = convMatrix.astype(float)
+    DEM = DEM*(1 + (50-XX)/50*0.2)
+    DEM = signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
+                                      mode='same', boundary='symm')
+    goal = np.asarray([10,50])
+    start = np.asarray([5,5])
+
+if nSimMap == 7:
+    DEM = 2*(np.cos(XX/4)**2 + np.sin(YY/4)**2)
+if nSimMap == 8:
     DEM = 4*(np.cos(XX/4)**2 + np.cos(YY/4)**2)
 if nSimMap == 2:
     DEM = 2*np.sin(np.sqrt((XX/5)**2+(YY/5)**2)/2)**2
@@ -30,14 +80,14 @@ if nSimMap == 3:
     DEM = 2*(np.sin(XX/4)+1.0)
 if nSimMap == 4:
     DEM = YY/5
-#    DEM[np.where(YY>35)] = 35/5
-#    DEM[np.where(YY<15)] = 15/5
+    DEM[np.where(YY>35)] = 35/5
+    DEM[np.where(YY<15)] = 15/5
 if nSimMap == 5:
     DEM = YY/5 + (np.cos(XX/4)**2 + np.sin(YY/4)**2)
 
 if nSimMap == 6:
     DEM = 2*(np.sin(XX/10+np.pi/4)**2 + np.sin(YY/10+np.pi/4)**2)
-
+    
 
 
 # DEM resolution
@@ -55,8 +105,14 @@ env1 = camis.AnisotropicMap(DEM, demRes, planRes, (0,0))
 env2 = copy.deepcopy(env1)
 env3 = copy.deepcopy(env1)
 env4 = copy.deepcopy(env1)
+env5 = copy.deepcopy(env1)
+env6 = copy.deepcopy(env1)
 
 env1.show3dDEM()
+
+
+fig, axes = plt.subplots(constrained_layout=True)
+env1.showMap('slope-deg',fig,axes)
 
 # =============================================================================
 ## DIFFERENT CUSTOM CAMIS CREATION ##
@@ -89,13 +145,25 @@ r4 = camis.CamisDrivingModel(robot4)
 env4.computeVecCostMap(r4)
 r4.showCAMIS()
 
+# ROBOT 5
+with open("data/simRobot5.yml", 'r') as file:
+    robot5 = yaml.full_load(file)
+r5 = camis.CamisDrivingModel(robot5)
+env5.computeVecCostMap(r5)
+r5.showCAMIS()
+
+# ROBOT 6
+with open("data/simRobot6.yml", 'r') as file:
+    robot6 = yaml.full_load(file)
+r6 = camis.CamisDrivingModel(robot6)
+env6.computeVecCostMap(r6)
+r6.showCAMIS()
 
 # =============================================================================
 ## PATH PLANNING
 # =============================================================================
 
-goal = np.asarray([10,10])
-start = np.asarray([40,40])
+
 
 #env1.executeBiPlanning(goal,start)
 #env2.executeBiPlanning(goal,start)
@@ -106,54 +174,48 @@ env1.executePlanning(goal,start)
 env2.executePlanning(goal,start)
 env3.executePlanning(goal,start)
 env4.executePlanning(goal,start)
+env5.executePlanning(goal,start)
+env6.executePlanning(goal,start)
 
 
 # =============================================================================
 ## SHOWING RESULTS
 # =============================================================================
 
-fig = plt.figure(constrained_layout=True)
-widths = [1]
-heights = [1,1,4]
-gs = fig.add_gridspec(ncols=1,nrows=3,width_ratios=widths,
-                          height_ratios=heights)
-ax2 = fig.add_subplot(gs[0, :])
-ax3 = fig.add_subplot(gs[1, :])
-ax1 = fig.add_subplot(gs[2, :])
+fig, axes = plt.subplots(constrained_layout=True)
+env1.showMap('elevation',fig,axes)
+env1.showPath(fig,axes,'r','solid')
+env2.showPath(fig,axes,'b','solid')
+env3.showPath(fig,axes,'g','solid')
+env4.showPath(fig,axes,'y','solid')
+env5.showPath(fig,axes,'c','solid')
+env6.showPath(fig,axes,'m','solid')
 
-env1.showMap('elevation',fig,ax1)
-env1.showPath(fig,ax1,'r','solid')
-env2.showPath(fig,ax1,'b','solid')
-env3.showPath(fig,ax1,'g','solid')
-env4.showPath(fig,ax1,'y','solid')
-ax1.legend(('CAMIS A', 'CAMIS B', 'CAMIS C', 'CAMIS D'))
-ax1.set_xlabel('X-axis (m)')
-ax1.set_ylabel('Y-axis (m)')
 
-env1.showPathData('cost',fig,ax2,'r')
-env2.showPathData('cost',fig,ax2,'b')
-env3.showPathData('cost',fig,ax2,'g')
-env4.showPathData('cost',fig,ax2,'y')
-#axes[1].legend(('A Cost', 'B Cost', 'C Cost', 'D Cost'),\
-#                shadow=True,bbox_to_anchor=(1.05, 1), loc='upper left', \
-#                borderaxespad=0.,fontsize='x-small')
-#axes[0].set_xlabel('X-axis (m)')
-ax2.set_ylabel('C')
-ax2.grid(True)
+axes.legend(('CAMIS A', 'CAMIS B', 'CAMIS C', 'CAMIS D', 'CAMIS E', 'CAMIS F'))
+axes.set_xlabel('X-axis (m)')
+axes.set_ylabel('Y-axis (m)')
 
-env1.showPathData('total-cost',fig,ax3,'r')
-env2.showPathData('total-cost',fig,ax3,'b')
-env3.showPathData('total-cost',fig,ax3,'g')
-env4.showPathData('total-cost',fig,ax3,'y')
-#axes[2].legend(('A Total Cost', 'B Total Cost', 'C Total Cost', \
-#                'D Total Cost'),shadow=True,bbox_to_anchor=(1.05, 1), \
-#                loc='upper left', borderaxespad=0.,fontsize='x-small')
-#axes[1].set_xlabel('X-axis (m)')
-ax3.set_ylabel('T')
-ax2.get_shared_x_axes().join(ax2, ax3)
-ax2.set_xticklabels([])
-ax3.set_xlabel('Traversed Distance (m)')
-ax3.grid(True)
+#env1.showPathData('cost',fig,ax2,'r')
+#env2.showPathData('cost',fig,ax2,'b')
+#env3.showPathData('cost',fig,ax2,'g')
+#env4.showPathData('cost',fig,ax2,'y')
+#ax2.set_ylabel('C')
+#ax2.grid(True)
+#
+#env1.showPathData('total-cost',fig,ax3,'r')
+#env2.showPathData('total-cost',fig,ax3,'b')
+#env3.showPathData('total-cost',fig,ax3,'g')
+#env4.showPathData('total-cost',fig,ax3,'y')
+##axes[2].legend(('A Total Cost', 'B Total Cost', 'C Total Cost', \
+##                'D Total Cost'),shadow=True,bbox_to_anchor=(1.05, 1), \
+##                loc='upper left', borderaxespad=0.,fontsize='x-small')
+##axes[1].set_xlabel('X-axis (m)')
+#ax3.set_ylabel('T')
+#ax2.get_shared_x_axes().join(ax2, ax3)
+#ax2.set_xticklabels([])
+#ax3.set_xlabel('Traversed Distance (m)')
+#ax3.grid(True)
 
 
 

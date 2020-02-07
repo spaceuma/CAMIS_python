@@ -468,11 +468,17 @@ class CamisDrivingModel:
         self.occupancy_radius = robot_data['occupancy_radius']
         self.tracking_error = robot_data['tracking_error']
         self.camis_type = robot_data['camis_type']
+        self.mode = robot_data['mode']
         if self.camis_type == 'DrivingModel':
             self.friction_parallel = robot_data['friction_parallel']
             self.friction_perp = robot_data['friction_perp']
-            self.mg = robot_data['mg']
-            self.slip_roots = robot_data['slip_coeff']
+            self.kmg = robot_data['kmg']
+            self.slip_parallel_ascent = robot_data['slip_parallel_ascent']
+            self.slip_parallel_descent = robot_data['slip_parallel_descent']
+            self.slip_perp = robot_data['slip_perp']
+            self.risk_roll = robot_data['risk_roll']
+            self.risk_pitch_ascent = robot_data['risk_pitch_ascent']
+            self.risk_pitch_descent = robot_data['risk_pitch_descent']
         if self.camis_type == 'PolynomialRoots':
             self.cdRoots = robot_data['cdRoots']
             self.caRoots = robot_data['caRoots']
@@ -481,13 +487,13 @@ class CamisDrivingModel:
         self.computeAniCoLUT()
         
     def fitCAMIS(self, gradient,beta,cost,sigma):
-        bounds = ([0.01,0.01,0.01,0.0],[1.0,1.0,np.inf,self.slopeThreshold/45.0])
+        bounds = ([0.01,0.01,0.01,0.0,0.0],[1.0,1.0,np.inf,self.slopeThreshold/45.0,self.slopeThreshold/45.0])
         popt,_ = curve_fit(self.fittingDrivingCAMIS, (gradient,beta), cost, sigma=sigma, bounds = bounds,method='dogbox')
         self.friction_parallel = popt[0]
         self.friction_perp = popt[1]
-        self.mg = popt[2]
-        self.slip_roots = popt[3]
-        
+        self.kmg = popt[2]
+        self.slip_parallel = popt[3]
+        self.slip_perp = popt[4]
 #        self.fmg_parallel = popt[0]
 #        self.fmg_perp = popt[1]
 #        self.mg = popt[2]
@@ -495,14 +501,14 @@ class CamisDrivingModel:
 #        self.friction_perp = self.fmg_perp/self.mg
         self.computeAniCoLUT() 
         
-    def fittingDrivingCAMIS(self,x,x1,x2,x3,x4):
+    def fittingDrivingCAMIS(self,x,x1,x2,x3,x4,x5):
         alpha, beta = x
         cBeta = np.cos(beta)
         sBeta = np.sin(beta)
         K1 = x1*x3*np.cos(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x4))
         K2 = x2*x3*np.cos(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x4))
-        D1 = x3*np.sin(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x4))
-        D2 = x3*np.sin(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x4))
+        D1 = x3*np.sin(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x5))
+        D2 = x3*np.sin(deg2rad*alpha)/(1-np.sin(deg2rad*alpha*x5))
         Q1 = np.power(K1,2)
         Q2 = np.power(K2,2)
         return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
@@ -514,50 +520,72 @@ class CamisDrivingModel:
             for j in range(slopeMap.shape[0]):
                 slope = slopeMap[j][i]
                 if (slope > self.slopeThreshold):
-                    Cobs = np.max((self.getCa(slope),\
-                                   self.getCl(slope)))
+                    Cobs = np.max((self.getCd(slope),\
+                                   self.getCa(slope),\
+                                   self.getCl1(slope),\
+                                   self.getCl2(slope)))
                     vectorialCostMap[0][j][i] = 1.0
                     vectorialCostMap[1][j][i] = Cobs**2 # Q1
                     vectorialCostMap[2][j][i] = Cobs**2# Q2
                     vectorialCostMap[3][j][i] = 0.0 # D1
                     vectorialCostMap[4][j][i] = 0.0 # D2
                 else:
-                    Cd = self.getCd(slope)
-                    Ca = self.getCa(slope)
-                    Cl1 = self.getCl1(slope)
-                    Cl2 = self.getCl2(slope)
-                    vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
-                    vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
-                    vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
-                    vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
-                    vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
+                    if (self.mode == 'isotropic'):
+                        Cn = self.getCn(slope)
+                        vectorialCostMap[0][j][i] = 1
+                        vectorialCostMap[1][j][i] = Cn**2 # Q1
+                        vectorialCostMap[2][j][i] = Cn**2# Q2
+                        vectorialCostMap[3][j][i] =  0
+                        vectorialCostMap[4][j][i] = 0
+                    else:
+                        Cd = self.getCd(slope)
+                        Ca = self.getCa(slope)
+                        Cl1 = self.getCl1(slope)
+                        Cl2 = self.getCl2(slope)
+                        vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
+                        vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
+                        vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
+                        vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
+                        vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
         return vectorialCostMap
     
     def getCd(self,slope):
         if self.camis_type == 'DrivingModel':
-            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*\
-                  (self.friction_parallel*np.cos(deg2rad*slope) - \
-                   np.sin(deg2rad*slope))
+            return self.kmg*(1/(1-slope/self.slopeThreshold*self.slip_parallel_descent))*\
+                  (self.friction_parallel - np.tan(deg2rad*slope))/(np.cos(deg2rad*slope)**self.risk_pitch_descent)
+#            return self.kmg*(1/(1-np.sin(deg2rad*slope*self.slip_parallel_descend)))*\
+#                  (self.friction_parallel - np.tan(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.cdRoots, slope)
         
     def getCa(self,slope):
         if self.camis_type == 'DrivingModel':
-            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope) + np.sin(deg2rad*slope))
+            return self.kmg*(1/(1-slope/self.slopeThreshold*self.slip_parallel_ascent))*\
+                  (self.friction_parallel + np.tan(deg2rad*slope))/(np.cos(deg2rad*slope)**self.risk_pitch_ascent)
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.caRoots, slope)
         
     def getCl1(self,slope):
         if self.camis_type == 'DrivingModel':
-            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope))
+            return np.sqrt(self.getCd(slope)*self.getCa(slope))/(np.cos(deg2rad*slope)**self.risk_roll)
+#            return self.kmg*(1/(1-slope/30.0*self.slip_perp))*\
+#                  (self.friction_parallel*np.cos(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.cl1Roots, slope)
     
     def getCl2(self,slope):
         if self.camis_type == 'DrivingModel':
-            return self.mg*(1/(1-np.sin(deg2rad*slope*self.slip_roots)))*(self.friction_parallel*np.cos(deg2rad*slope))
+            return np.sqrt(self.getCd(slope)*self.getCa(slope))/(np.cos(deg2rad*slope)**self.risk_roll)
+#            return self.kmg*(1/(1-slope/30.0*self.slip_perp))*\
+#                  (self.friction_parallel*np.cos(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.cl2Roots, slope)
+    
+    def getCn(self,slope):
+        cd = self.getCd(slope)
+        ca = self.getCa(slope)
+        cl = self.getCl1(slope)
+        return (ca + cd)/2*np.sqrt(cl/np.sqrt(ca*cd))
     
     def computeAniCoLUT(self):
         linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
@@ -703,11 +731,11 @@ class CamisDrivingModel:
         l1 = ax3.plot(linearGradient,sqrtQ1,color='b', label = '$K_∥$')
         l2 = ax3.plot(linearGradient,sqrtQ2,color='g', label = '$K_⊥$')
         l3 = ax3.plot(linearGradient,D1,color='m', label = '$D_∥$')
-        l4 = ax3.plot(linearGradient,D2,color='y', label = '$D_⊥$')
+        #l4 = ax3.plot(linearGradient,D2,color='y', label = '$D_⊥$')
         l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C_a$')
         l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C_d$')
-        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C_{l1}$')
-        l8 = ax3.plot(linearGradient,Cl2,color='y', linestyle='dashed', label = '$C_{l2}$')
+        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C_{l}$')
+        #l8 = ax3.plot(linearGradient,Cl2,color='y', linestyle='dashed', label = '$C_{l2}$')
 #        box = ax3.get_position()
 #        ax3.set_position([box.x0, box.y0, box.width * 0.5, box.height])
         
@@ -725,7 +753,7 @@ class CamisDrivingModel:
                 Cs.append(preCost)
             Anisotropy[i] = max(Cs)/min(Cs)
 #            Cn[i] = math.sqrt((Ca[i]+Cd[i])*(Cl1[i]+Cl2[i])/4)/Cd[0]
-            Cn[i] = math.sqrt(Ca[i]*Cd[i]*Cl1[i]*Cl2[i])/math.sqrt(Ca[0]*Cd[0]*Cl1[0]*Cl2[0])
+            Cn[i] = .5*math.sqrt((Ca[i]*Cd[i]*(Cl1[i]**2+Cl2[i]**2)+Cl1[i]*Cl2[i]*(Ca[i]**2+Cd[i]**2))/math.sqrt(Cd[i]*Ca[i]*Cl1[i]*Cl2[i]))/Cd[0]
             Cs = []
             Bs = []
         ax3b = ax3.twinx()
@@ -734,7 +762,7 @@ class CamisDrivingModel:
         ax3b.set_ylabel('Ratio', color='r')
         ax3b.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax3b.tick_params('y', colors='r')
-        lns = l1+l2+l3+l4+l5+l6 + l7 + l8 + l9 + l10
+        lns = l1+l2+l3+l5+l6 + l7 + l9 + l10
         labs = [l.get_label() for l in lns]
         ax3.legend(lns, labs, fontsize='small',\
             loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
@@ -864,7 +892,7 @@ class CamisModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
             Anisotropy[i] = max(Cs)/min(Cs)
-            Cn[i] = math.sqrt((Ca[i]+Cd[i])*(Cl1[i]+Cl2[i])/4)/Cd[0]
+            Cn[i] = .5*math.sqrt((Ca[i]*Cd[i]*(Cl1[i]**2+Cl2[i]**2)+Cl1[i]*Cl2[i]*(Ca[i]**2+Cd[i]**2))/math.sqrt(Cd[i]*Ca[i]*Cl1[i]*Cl2[i]))/Cd[0]
             Cs = []
             Bs = []
         ax3b = ax3.twinx()

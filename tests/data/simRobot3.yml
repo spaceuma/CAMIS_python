@@ -1,10 +1,16 @@
-name: simRobot1
-slope_threshold: 90.0
+name: simRobot3
+mode: isotropic
+slope_threshold: 30.0
 sd_threshold: 90.0
 occupancy_radius: 0.5
 tracking_error: 0.5
-camis_type: PolynomialRoots
-cdRoots: [0.0, 0.20, 1.0]
-caRoots: [0.0, 0.20, 1.0]
-cl1Roots: [0.0, 0.3, 1.0]
-cl2Roots: [0.0, 0.1, 1.0]
+camis_type: DrivingModel
+friction_parallel: 1.0
+friction_perp: 1.0
+kmg: 1.0
+slip_parallel_ascent: 0.8
+slip_parallel_descent: 0.4
+slip_perp: 0.7
+risk_roll: 4.0
+risk_pitch_ascent: 0.0
+risk_pitch_descent: 0.0

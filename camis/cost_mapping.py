@@ -97,7 +97,14 @@ class PDEM:
             else:
                 beta.append(-b)
         return slope,beta
-        
+    def getSD(self, xPos, yPos):
+        sd = []
+        for index, waypoint in enumerate(xPos):
+            try:
+                sd.append(ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.sdMap))
+            except:
+                print('ERROR')
+        return sd    
     def show3dDEM(self):
         if isMayavi:
             mlab.figure(size=(640, 800))
@@ -137,14 +144,18 @@ class PDEM:
             cbar = fig.colorbar(cc)
             cbar.set_label('Slope (deg)')
         elif opt == 'roughness':
-            cc = axes.contourf(self.xMap, self.yMap, self.roughnessMap, 100, cmap = 'nipy_spectral')
+            cc = axes.contourf(self.xMap, self.yMap, 1-self.roughnessMap/self.occupancyMatrix.sum(), 100, cmap = 'nipy_spectral')
+            cbar = fig.colorbar(cc)
         elif opt == 'standard-deviation':
             levels = np.linspace(0.0,45,46.0)
             cc = axes.contourf(self.xMap, self.yMap, self.sdMap, levels=levels, cmap = 'nipy_spectral', extend='both')
             cbar = fig.colorbar(cc)
             cbar.set_label('Standard Deviation (degrees)')
         elif opt == 'dispersion':
-            cc = axes.contourf(self.xMap, self.yMap, self.dispersionMap, 100, cmap = 'nipy_spectral')
+            levels = np.linspace(0.0,2-2*np.cos(np.pi/8),46)
+            cc = axes.contourf(self.xMap, self.yMap, self.dispersionMap, levels=levels, cmap = 'nipy_spectral', extend='both')
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Vector Dispersion')
         elif opt == 'old-slope-deg':
             cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.oldSlopeMap, 100, cmap = 'nipy_spectral')
             cc.set_clim(0,45.0)
@@ -215,7 +226,7 @@ class AnisotropicMap(PDEM):
         sumNormalZ = signal.convolve2d(self.normalZ, self.occupancyMatrix, \
                                       mode='same', boundary='symm')
         
-        #Roughness
+        #Roughness TODO: this is not roughness!! This is vector length!!
         self.roughnessMap = np.sqrt( sumNormalX**2 + sumNormalY**2 + sumNormalZ**2 )
         
         #Standard Deviation

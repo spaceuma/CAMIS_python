@@ -144,7 +144,8 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
 #            if anisotropyMap[nodeTargetS[1],nodeTargetS[0]] <= 1.2:
                 nodeLink = nodeTargetS
                 break
-        
+#    if (TmapG[start[0],start[1]] == np.inf)or(TmapS[goal[0],goal[1]] == np.inf):
+#        raise ValueError('Unreachable Goal')
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
     
 
@@ -217,7 +218,10 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         if len(startingNode)!= 0:
             nfPairs = np.concatenate((startingNode,startingNode))
         else:
-            R = int(np.ceil(anisotropy*1.1547005383792517) + 1)#2/sqrt(3)
+            if anisotropy < 1.1:
+                R = int(2)
+            else:
+                R = int(np.ceil(anisotropy*1.1547005383792517) + 1)#2/sqrt(3)
             afList = []
             for j in range(-R,R+1):
                 for k in range(-R,R+1):
@@ -248,7 +252,7 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
         D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
-        T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap)
+        T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap,anisotropy,res)
         nIndex = bisect.bisect_left(nbT,T)
         nbT.insert(nIndex,T)
         nbNodes.insert(nIndex, nodeTarget)
@@ -341,7 +345,7 @@ def computeDistance(nodeA, nodeB, res):
 #    dy = Ymap[nodeA[1],nodeA[0]] - Ymap[nodeB[1],nodeB[0]]
 #    return np.sqrt(dx**2+dy**2)
 
-def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap):
+def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap,anisotropy,res):
     if np.isnan(aspect[0]) or np.isnan(aspect[1]):
         aspect = [1,0]
     T = np.inf
@@ -362,7 +366,10 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
             xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],Ymap[nfPairs[i][3],nfPairs[i][2]]])
             Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
             Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
-            preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect)
+            if ((anisotropy < 1.1)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
+                preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
+            else:
+                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect)
             if preT < T:
                 T = preT
                 direc = preDir
@@ -564,6 +571,24 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
     minDir = np.arctan2(minDirVector[1],minDirVector[0])
     return minT,minDir
 
+def getEikonalCost(x,xj,xk,Tj,Tk,Q):
+    # We assume it is an irregular grid!!
+    h = np.linalg.norm(x - xj)
+    if (np.linalg.norm(xj-xk) < 0.01*h): #It is the same node
+        T = Tj + h*np.sqrt(Q)
+        cdir = x - xj
+    else:
+        # Be careful, here Q is cost**2
+        T = (Tj + Tk + np.sqrt((Tj+Tk)**2 + 3*h**2*Q - 4*(Tj**2+Tk**2-Tj*Tk)))/2
+        P = np.array([(x - xj)/h,
+                      (x - xk)/h])
+        cdir = (np.linalg.inv(P)).dot(np.array([(T - Tj)/h,
+                                              (T - Tk)/h]))
+    dirCharacteristic = np.arctan2(cdir[1],cdir[0])
+    return T,dirCharacteristic
+
+
+
     
 def getMinNB(nbT,nbNodes):
     nodeTarget = nbNodes.pop(0)
@@ -578,6 +603,8 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
     while 1:
         waypoint = path[-1]
         uij = np.zeros_like(waypoint,int)
+        if (uij[0] == np.inf)or(uij[1]==np.inf):
+            raise ValueError('Waypoint with infinite Total Cost')
         try:
             uij[0] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[0])))
             uij[1] = int(np.round(interpolatePoint(waypoint-[Xmin,Ymin],XY2IJ[1])))
@@ -613,15 +640,15 @@ def interpolatedControl(waypoint,dirMap,uij,IJ2XY,res):
     xc = IJ2XY[:,uij[1],uij[0]]
     u,v,w,vij,wij = findSimplex(waypoint,xc,uij,IJ2XY,res)
     e1,e2,e3 = interpolationCoefficients(waypoint,u,v,w,res)
-    if np.isnan(dirMap[uij[1],uij[0]]):
+    if np.isnan(dirMap[uij[1],uij[0]])or(np.isinf(dirMap[uij[1],uij[0]])):
         d1 = [0,0]
     else:
         d1 = [np.cos(dirMap[uij[1],uij[0]]), np.sin(dirMap[uij[1],uij[0]])]
-    if np.isnan(dirMap[vij[1],vij[0]]):
+    if np.isnan(dirMap[vij[1],vij[0]])or(np.isinf(dirMap[vij[1],vij[0]])):
         d2 = [0,0]
     else:
         d2 = [np.cos(dirMap[vij[1],vij[0]]), np.sin(dirMap[vij[1],vij[0]])]
-    if np.isnan(dirMap[wij[1],wij[0]]):
+    if (np.isnan(dirMap[wij[1],wij[0]]))or(np.isinf(dirMap[wij[1],wij[0]])):
         d3 = [0,0]
     else:
         d3 = [np.cos(dirMap[wij[1],wij[0]]), np.sin(dirMap[wij[1],wij[0]])]
@@ -629,6 +656,9 @@ def interpolatedControl(waypoint,dirMap,uij,IJ2XY,res):
     control = [0,0]
     control[0] = e1*d1[0] + e2*d2[0] + e3*d3[0]
     control[1] = e1*d1[1] + e2*d2[1] + e3*d3[1]
+    
+    if (np.isnan(control[0]))or(np.isnan(control[1])):
+        print()
     
     return control/np.linalg.norm(control)
 

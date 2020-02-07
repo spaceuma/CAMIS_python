@@ -1,5 +1,5 @@
 name: Cuadriga
-mode: anisotropic
+mode: isotropic
 slope_threshold: 25.0
 sd_threshold: 90.0
 #sd_threshold: 11.286
