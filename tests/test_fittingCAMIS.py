@@ -35,10 +35,10 @@ hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMATerrain_10cmDEM.csv",\
     
 hiRes = 0.1
 
-offset = np.loadtxt(\
-                        open("data/terrainData/UMATerrain_10cmOffset.csv",\
-                             "rb"), delimiter=" ", skiprows=0)
-
+#offset = np.loadtxt(\
+#                        open("data/terrainData/UMATerrain_10cmOffset.csv",\
+#                             "rb"), delimiter=" ", skiprows=0)
+#
 #with open("data/cuadriga.yml", 'r') as file:
 #    cuadriga_data = yaml.full_load(file)
 #r1 = camis.CamisDrivingModel(cuadriga_data)
@@ -146,7 +146,6 @@ for index,file in enumerate(csvFiles):
         G = np.abs(G)*180/np.pi
         gradient = gradient + G.tolist()
     axes1.plot(posX - offset[0], posY - offset[1])
-    ax1.plot(Distance,imuG)
     
     ax3.plot(Distance,np.convolve(Current, np.ones((10,))/10, mode='same'))
 #    Speed = np.convolve(Speed, np.ones((10,))/10, mode='same')
@@ -154,7 +153,8 @@ for index,file in enumerate(csvFiles):
     Speed = Speed[5:-5]
     ax2.plot(Distance[5:-5],Speed)
     speedList = speedList + Speed.tolist()
-    imuG = np.convolve(imuG, np.ones((10,))/10, mode='same')
+    pitch = camis.ab2pitch(G,B)
+    imuG = np.convolve(pitch, np.ones((10,))/10, mode='same')
     imuG = imuG[5:-5]
     imuGradientList = imuGradientList + imuG.tolist()
     B = B[5:-5]
@@ -162,6 +162,7 @@ for index,file in enumerate(csvFiles):
     sdList = sdList + sd
     currentCost = currentCost[5:-5]
     costList = costList + currentCost.tolist()
+    ax1.plot(Distance[5:-5],imuG)
 
 fig2.tight_layout()
 
@@ -172,32 +173,116 @@ for i,b in enumerate(betaList):
         signedGradient[i] = -imuGradientList[i]
     else:
         signedGradient[i] = imuGradientList[i]
+        
+speedCommand = 0.5
 
 def fittingSlip(x,x1,x2):
     return np.piecewise(x, 
                         [x < 0, x >= 0],
-                        [lambda x: x2 * x + 0.5, lambda x: x1 * x + 0.5])
+                        [lambda x: - x2 * x, lambda x: x1 * x])
 
 
-def fittingCost(x,Kmg,rho):
-    return Kmg*(rho - np.tan(np.pi/180*x))
+
 #    return np.piecewise(x, 
 #                        [x < 0, x >= 0],
 #                        [lambda x: x2 * x + Co, lambda x: x1 * x + Co])
  
-#bounds = ([0.0,0.0],[np.inf,1.0])
-poptSlip,_ = curve_fit(fittingSlip, (signedGradient), speedList)
+bounds = ([0.0,0.0],[1.0,1.0])
+slipArray = 1.0 - 1.0/speedCommand*np.asarray(speedList)
+poptSlip,_ = curve_fit(fittingSlip, (signedGradient), slipArray, bounds = bounds)
 
+def fittingCost(x,Kmg,rho):
+    return np.piecewise(x, 
+                        [x < 0, x >= 0],
+                        [lambda x: Kmg*(rho - np.tan(np.pi/180*x))/(1 - poptSlip[1]*x),\
+                         lambda x: Kmg*(rho - np.tan(np.pi/180*x))/(1 - poptSlip[0]*x)])
           
 bounds = ([0.0,0.0],[np.inf,1.0])
 popt,_ = curve_fit(fittingCost, (signedGradient), costList, bounds = bounds)
 
 
-fig3, axes3 = plt.subplots()
-axes3.scatter(signedGradient, costList)
-axes3.plot(signedGradient, popt[0]*(popt[1] - np.tan(np.pi/180*signedGradient)),'r')
+fig2 = plt.figure(figsize=(4, 4))
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+left, width = 0.12, 0.65
+bottom, height = 0.12, 0.65
+spacing = 0.01
+rect_scatter = [left, bottom, width, height]
+rect_histx = [left, bottom + height + spacing, width, 0.2]
+rect_histy = [left + width + spacing, bottom, 0.2, height]
+ax2 = plt.axes(rect_scatter)
+ax2.set_facecolor('xkcd:pale grey')
+#ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$',y = -0.13)
+plt.grid('True')
+ax2.scatter(signedGradient, costList, color='r', s=1)
+ax2.set_ylim(0,np.max(costList))
+ax2.set_xlim(-signedGradient.max(),signedGradient.max())
+ax2.plot(np.arange(-0.0, 16.0), fittingCost(np.arange(-0.0, 16.0), popt[0], popt[1]),'b')
+ax2.plot(np.arange(-16.0, 1.0), fittingCost(np.arange(-16.0, 1.0), popt[0], popt[1]),'g')
+ax2.legend(['$\mathbb{C}_d$', '$\mathbb{C}_a$','Cost Samples'], fontsize='small')
+plt.xlabel('Pitch θ [degrees]')
+plt.ylabel('Motors Current Consumption [A]')
+ax_histx = plt.axes(rect_histx)
+ax_histx.tick_params(direction='in', labelbottom=False)
+ax_histy = plt.axes(rect_histy)
+ax_histy.tick_params(direction='in', labelleft=False)
+    
+binwidth = 0.25
+binsX = np.arange(-signedGradient.max(), signedGradient.max() + binwidth, binwidth)
+binsY = np.arange(0, np.max(costList) + binwidth, binwidth)
+ax_histx.hist(signedGradient, bins=binsX, color = "m")
+ax_histy.hist(costList, bins=binsY, orientation='horizontal', color = "m")
+    
+ax_histx.set_xlim(ax2.get_xlim())
+ax_histy.set_ylim(ax2.get_ylim())
+fig2.tight_layout()
+
+
+fig2 = plt.figure(figsize=(4, 4))
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+left, width = 0.15, 0.62
+bottom, height = 0.12, 0.65
+spacing = 0.01
+rect_scatter = [left, bottom, width, height]
+rect_histx = [left, bottom + height + spacing, width, 0.2]
+rect_histy = [left + width + spacing, bottom, 0.2, height]
+ax2 = plt.axes(rect_scatter)
+ax2.set_facecolor('xkcd:pale grey')
+#ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$',y = -0.13)
+plt.grid('True')
+ax2.scatter(signedGradient, slipArray, color='r', s=1)
+ax2.set_ylim(np.min(slipArray),np.max(slipArray))
+ax2.set_xlim(-signedGradient.max(),signedGradient.max())
+ax2.plot(np.arange(-0.0, 16.0), fittingSlip(np.arange(-0.0, 16.0), poptSlip[0], poptSlip[1]),'b')
+ax2.plot(np.arange(-16.0, 1.0), fittingSlip(np.arange(-16.0, 1.0), poptSlip[0], poptSlip[1]),'g')
+ax2.legend(['$s_d |α|$', '$s_a |α|$','Slip Ratio Samples'], fontsize='small')
+plt.xlabel('Pitch θ [degrees]')
+plt.ylabel('Slip Ratio')
+ax_histx = plt.axes(rect_histx)
+ax_histx.tick_params(direction='in', labelbottom=False)
+ax_histy = plt.axes(rect_histy)
+ax_histy.tick_params(direction='in', labelleft=False)
+    
+binwidth = 0.25
+binsX = np.arange(-signedGradient.max(), signedGradient.max() + binwidth, binwidth)
+binsY = np.arange(np.min(slipArray), np.max(slipArray) + 0.0025, 0.0025)
+ax_histx.hist(signedGradient, bins=binsX, color = "m")
+ax_histy.hist(slipArray, bins=binsY, orientation='horizontal', color = "m")
+    
+ax_histx.set_xlim(ax2.get_xlim())
+ax_histy.set_ylim(ax2.get_ylim())
+fig2.tight_layout()
+
+
+
+
+
 fig4, axes4 = plt.subplots()
 axes4.scatter(signedGradient, speedList)
+axes4.plot(np.arange(-15.0, 16.0), fittingSlip(np.arange(-15.0, 16.0), poptSlip[0], poptSlip[1]),'r')
 
 #fig4 = plt.figure()
 #axes4 = fig4.add_subplot(111,projection='3d')

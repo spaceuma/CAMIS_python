@@ -62,6 +62,10 @@ def rpy2ab(Roll,Pitch,Yaw):
         
     return Gradient, BetaX, BetaY
 
+def ab2pitch(alpha,beta):
+    return rad2deg*np.arccos(np.cos(deg2rad*alpha)/np.sqrt(np.cos(beta)**2+np.cos(deg2rad*alpha)**2*np.sin(beta)**2))
+
+
 # =============================================================================
 #    CAMIS cost function
 # =============================================================================
@@ -471,14 +475,10 @@ class CamisDrivingModel:
         self.mode = robot_data['mode']
         if self.camis_type == 'DrivingModel':
             self.friction_parallel = robot_data['friction_parallel']
-            self.friction_perp = robot_data['friction_perp']
             self.kmg = robot_data['kmg']
             self.slip_parallel_ascent = robot_data['slip_parallel_ascent']
             self.slip_parallel_descent = robot_data['slip_parallel_descent']
-            self.slip_perp = robot_data['slip_perp']
             self.risk_roll = robot_data['risk_roll']
-            self.risk_pitch_ascent = robot_data['risk_pitch_ascent']
-            self.risk_pitch_descent = robot_data['risk_pitch_descent']
         if self.camis_type == 'PolynomialRoots':
             self.cdRoots = robot_data['cdRoots']
             self.caRoots = robot_data['caRoots']
@@ -523,7 +523,7 @@ class CamisDrivingModel:
                     Cobs = np.max((self.getCd(slope),\
                                    self.getCa(slope),\
                                    self.getCl1(slope),\
-                                   self.getCl2(slope)))
+                                   self.getCl2(slope)))*self.getAnisotropy(slope)
                     vectorialCostMap[0][j][i] = 1.0
                     vectorialCostMap[1][j][i] = Cobs**2 # Q1
                     vectorialCostMap[2][j][i] = Cobs**2# Q2
@@ -552,7 +552,7 @@ class CamisDrivingModel:
     def getCd(self,slope):
         if self.camis_type == 'DrivingModel':
             return self.kmg*(1/(1-slope/self.slopeThreshold*self.slip_parallel_descent))*\
-                  (self.friction_parallel - np.tan(deg2rad*slope))/(np.cos(deg2rad*slope)**self.risk_pitch_descent)
+                  (self.friction_parallel - np.tan(deg2rad*slope))/(np.cos(deg2rad*slope))
 #            return self.kmg*(1/(1-np.sin(deg2rad*slope*self.slip_parallel_descend)))*\
 #                  (self.friction_parallel - np.tan(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
@@ -561,13 +561,13 @@ class CamisDrivingModel:
     def getCa(self,slope):
         if self.camis_type == 'DrivingModel':
             return self.kmg*(1/(1-slope/self.slopeThreshold*self.slip_parallel_ascent))*\
-                  (self.friction_parallel + np.tan(deg2rad*slope))/(np.cos(deg2rad*slope)**self.risk_pitch_ascent)
+                  (self.friction_parallel + np.tan(deg2rad*slope))/(np.cos(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.caRoots, slope)
         
     def getCl1(self,slope):
         if self.camis_type == 'DrivingModel':
-            return np.sqrt(self.getCd(slope)*self.getCa(slope))/(np.cos(deg2rad*slope)**self.risk_roll)
+            return np.sqrt(self.getCd(slope)*self.getCa(slope))/self.getRisk(slope)
 #            return self.kmg*(1/(1-slope/30.0*self.slip_perp))*\
 #                  (self.friction_parallel*np.cos(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
@@ -575,11 +575,15 @@ class CamisDrivingModel:
     
     def getCl2(self,slope):
         if self.camis_type == 'DrivingModel':
-            return np.sqrt(self.getCd(slope)*self.getCa(slope))/(np.cos(deg2rad*slope)**self.risk_roll)
+            return np.sqrt(self.getCd(slope)*self.getCa(slope))/self.getRisk(slope)
 #            return self.kmg*(1/(1-slope/30.0*self.slip_perp))*\
 #                  (self.friction_parallel*np.cos(deg2rad*slope))
         if self.camis_type == 'PolynomialRoots':
             return np.polyval(self.cl2Roots, slope)
+        
+    def getRisk(self, slope):
+#        return np.cos(slope/(self.slopeThreshold+1)*np.pi/2)**self.risk_roll
+        return np.cos(deg2rad*slope*np.pi/2)**self.risk_roll
     
     def getCn(self,slope):
         cd = self.getCd(slope)
@@ -638,6 +642,45 @@ class CamisDrivingModel:
         D2 = (Cl2-Cl1)/2
         return getCAMIScost(beta,Q1,Q2,D1,D2)
     
+    def showAnisotropy(self):
+        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
+        heading = np.arange(0, 2*np.pi, 0.01)
+        aspect = [1,0]
+        Cd = np.zeros_like(linearGradient)
+        Ca = np.zeros_like(linearGradient)
+        Cl1 = np.zeros_like(linearGradient)
+        Cl2 = np.zeros_like(linearGradient)
+        for i,g in enumerate(linearGradient):
+            Cd[i] = self.getCd(linearGradient[i])
+            Ca[i] = self.getCa(linearGradient[i])
+            Cl1[i] = self.getCl1(linearGradient[i])
+            Cl2[i] = self.getCl2(linearGradient[i])
+            
+        Bs = []
+        Cs = []
+        Anisotropy = np.zeros_like(linearGradient)
+        AnisotropyAD = np.zeros_like(linearGradient)
+        AnisotropyAL = np.zeros_like(linearGradient)
+        AnisotropyDL = np.zeros_like(linearGradient)
+        for i,g in enumerate(linearGradient):
+            for theta in heading:
+                B = computeBeta(aspect,theta)
+                Bs.append(np.arctan2(B[1],B[0]))
+                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                Cs.append(preCost)
+            Anisotropy[i] = max(Cs)/min(Cs)
+            AnisotropyAD[i] = Ca[i]/Cd[i]
+            AnisotropyAL[i] = Ca[i]/Cl1[i]
+            AnisotropyDL[i] = Cd[i]/Cl1[i]
+            
+        fig, axes = plt.subplots()
+        l1 = axes.plot(linearGradient,Anisotropy,color='b', linestyle='dashed', label = '$Anisotropy$')
+        l2 = axes.plot(linearGradient,AnisotropyAD,color='r', linestyle='dashed', label = '$Ascent-Descent Anisotropy$')
+        l3 = axes.plot(linearGradient,AnisotropyAL,color='g', linestyle='dashed', label = '$Ascent-Lateral Anisotropy$')
+        l4 = axes.plot(linearGradient,AnisotropyDL,color='m', linestyle='dashed', label = '$Descent-Lateral Anisotropy$')
+        lns = l1+l2+l3+l4
+        labs = [l.get_label() for l in lns]
+        axes.legend(lns, labs, fontsize='small')
     def getMaxCost(self):
         return np.max((self.getCd(self.slopeThreshold),\
                        self.getCa(self.slopeThreshold),\
