@@ -39,7 +39,7 @@ hiRes = 0.1
 #                        open("data/terrainData/UMATerrain_10cmOffset.csv",\
 #                             "rb"), delimiter=" ", skiprows=0)
 #
-#with open("data/cuadriga.yml", 'r') as file:
+#with open("data/cuadriga_aniso_norisk.yml", 'r') as file:
 #    cuadriga_data = yaml.full_load(file)
 #r1 = camis.CamisDrivingModel(cuadriga_data)
 #
@@ -59,11 +59,11 @@ csvFiles = ['data/cuadrigaData/20190129/2019_01_29_10_53_36.txt',
             'data/cuadrigaData/20190129/2019_01_29_11_05_32.txt',
             'data/cuadrigaData/20190129/2019_01_29_11_08_35.txt',
             'data/cuadrigaData/20190129/2019_01_29_11_16_00.txt',
-            'data/cuadrigaData/20190129/2019_01_29_11_20_23.txt',
+#            'data/cuadrigaData/20190129/2019_01_29_11_20_23.txt',
             'data/cuadrigaData/20190129/2019_01_29_11_24_09.txt',
-#            'data/cuadrigaData/20190531/JornadasRescate01.txt',
-#            'data/cuadrigaData/20190531/JornadasRescate02.txt',
-#            'data/cuadrigaData/20190531/JornadasRescate03.txt',
+            'data/cuadrigaData/20190531/JornadasRescate01.txt',
+            'data/cuadrigaData/20190531/JornadasRescate02.txt',
+            'data/cuadrigaData/20190531/JornadasRescate03.txt',
             'data/cuadrigaData/20190624/2019_06_24_11_17_55.txt',
             'data/cuadrigaData/20190624/2019_06_24_11_22_21.txt',
             'data/cuadrigaData/20190624/2019_06_24_11_32_17.txt',
@@ -87,9 +87,21 @@ sdList = []
 costList = []
 
 fig1, axes1 = plt.subplots(constrained_layout=True)
-env.showMap('slope-deg',fig1,axes1)
-#axes1.set_xlim(10, 55)
-#axes1.set_ylim(60, 110)
+levels = np.linspace(46.0,58.0,25)
+cc = axes1.contourf(env.xMap+offset[0], env.yMap+offset[1], env.elevationMap, levels=levels, cmap = cm.gist_earth, extend='both')
+axes1.contour(env.xMap+offset[0], env.yMap+offset[1], env.elevationMap, 40, colors = 'k', alpha=.3)
+cbar = fig1.colorbar(cc, orientation="vertical",fraction=0.046, pad=0.04)
+cbar.set_label('Elevation (m)')
+axes1.set_aspect('equal')
+axes1.set_xlim(40+offset[0], 150+offset[0])
+axes1.set_ylim(100+offset[1], 250+offset[1])
+axes1.set_xlabel('X-axis [m]')
+axes1.set_xlabel('Y-axis [m]')
+plt.show()
+
+
+#env.showMap('elevation',fig1,axes1)
+
 #axes1.tick_params(axis='both', which='major', labelsize=12)
 
 fig2 = plt.figure()
@@ -145,7 +157,7 @@ for index,file in enumerate(csvFiles):
         cost = cost + currentCost.tolist()
         G = np.abs(G)*180/np.pi
         gradient = gradient + G.tolist()
-    axes1.plot(posX - offset[0], posY - offset[1])
+    axes1.plot(posX, posY)
     
     ax3.plot(Distance,np.convolve(Current, np.ones((10,))/10, mode='same'))
 #    Speed = np.convolve(Speed, np.ones((10,))/10, mode='same')
@@ -200,7 +212,7 @@ def fittingCost(x,Kmg,rho):
 bounds = ([0.0,0.0],[np.inf,1.0])
 popt,_ = curve_fit(fittingCost, (signedGradient), costList, bounds = bounds)
 
-
+plt.style.use('default')
 fig2 = plt.figure(figsize=(4, 4))
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
@@ -212,21 +224,23 @@ rect_scatter = [left, bottom, width, height]
 rect_histx = [left, bottom + height + spacing, width, 0.2]
 rect_histy = [left + width + spacing, bottom, 0.2, height]
 ax2 = plt.axes(rect_scatter)
-ax2.set_facecolor('xkcd:pale grey')
+ax2.set_facecolor('xkcd:light blue grey')
 #ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$',y = -0.13)
 plt.grid('True')
 ax2.scatter(signedGradient, costList, color='r', s=1)
 ax2.set_ylim(0,np.max(costList))
 ax2.set_xlim(-signedGradient.max(),signedGradient.max())
-ax2.plot(np.arange(-0.0, 16.0), fittingCost(np.arange(-0.0, 16.0), popt[0], popt[1]),'b')
-ax2.plot(np.arange(-16.0, 1.0), fittingCost(np.arange(-16.0, 1.0), popt[0], popt[1]),'g')
-ax2.legend(['$\mathbb{C}_d$', '$\mathbb{C}_a$','Cost Samples'], fontsize='small')
+ax2.plot(np.arange(-0.0, 16.0), fittingCost(np.arange(-0.0, 16.0), popt[0], popt[1]),'b', linestyle = 'solid')
+ax2.plot(np.arange(-16.0, 1.0), fittingCost(np.arange(-16.0, 1.0), popt[0], popt[1]),'b', linestyle = 'dashed')
+ax2.legend(['$\mathbb{C}_d$', '$\mathbb{C}_a$','Cost Samples'], fontsize='small', facecolor = 'xkcd:pale grey', frameon = True)
 plt.xlabel('Pitch θ [degrees]')
 plt.ylabel('Motors Current Consumption [A]')
 ax_histx = plt.axes(rect_histx)
 ax_histx.tick_params(direction='in', labelbottom=False)
+#ax_histx.set_facecolor('xkcd:light grey blue')
 ax_histy = plt.axes(rect_histy)
 ax_histy.tick_params(direction='in', labelleft=False)
+#ax_histy.set_facecolor('xkcd:light grey blue')
     
 binwidth = 0.25
 binsX = np.arange(-signedGradient.max(), signedGradient.max() + binwidth, binwidth)
@@ -250,15 +264,15 @@ rect_scatter = [left, bottom, width, height]
 rect_histx = [left, bottom + height + spacing, width, 0.2]
 rect_histy = [left + width + spacing, bottom, 0.2, height]
 ax2 = plt.axes(rect_scatter)
-ax2.set_facecolor('xkcd:pale grey')
+ax2.set_facecolor('xkcd:light grey blue')
 #ax2.set_title('$\longleftarrow$ Ascent Direction      Descent Direction $\longrightarrow$',y = -0.13)
 plt.grid('True')
 ax2.scatter(signedGradient, slipArray, color='r', s=1)
 ax2.set_ylim(np.min(slipArray),np.max(slipArray))
 ax2.set_xlim(-signedGradient.max(),signedGradient.max())
-ax2.plot(np.arange(-0.0, 16.0), fittingSlip(np.arange(-0.0, 16.0), poptSlip[0], poptSlip[1]),'b')
-ax2.plot(np.arange(-16.0, 1.0), fittingSlip(np.arange(-16.0, 1.0), poptSlip[0], poptSlip[1]),'g')
-ax2.legend(['$s_d |α|$', '$s_a |α|$','Slip Ratio Samples'], fontsize='small')
+ax2.plot(np.arange(-0.0, 16.0), fittingSlip(np.arange(-0.0, 16.0), poptSlip[0], poptSlip[1]),'g', linestyle = 'solid')
+ax2.plot(np.arange(-16.0, 1.0), fittingSlip(np.arange(-16.0, 1.0), poptSlip[0], poptSlip[1]),'g', linestyle = 'dashed')
+ax2.legend(['$s_d |α|$', '$s_a |α|$','Slip Ratio Samples'], fontsize='small', facecolor = 'xkcd:pale grey', frameon = True)
 plt.xlabel('Pitch θ [degrees]')
 plt.ylabel('Slip Ratio')
 ax_histx = plt.axes(rect_histx)

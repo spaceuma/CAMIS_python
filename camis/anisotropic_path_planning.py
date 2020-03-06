@@ -124,6 +124,8 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)
             stateMapG = updateStateMap(nodeTargetG,stateMapG)
             TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res)
+            
+            
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
@@ -147,7 +149,6 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
 #    if (TmapG[start[0],start[1]] == np.inf)or(TmapS[goal[0],goal[1]] == np.inf):
 #        raise ValueError('Unreachable Goal')
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
-    
 
 def updateStateMap(nodeTarget,stateMap):
     NN = getNeighbours(nodeTarget)
@@ -218,7 +219,7 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         if len(startingNode)!= 0:
             nfPairs = np.concatenate((startingNode,startingNode))
         else:
-            if anisotropy < 1.1:
+            if anisotropy == 1.0:
                 R = int(2)
             else:
                 R = int(np.ceil(anisotropy*1.1547005383792517) + 1)#2/sqrt(3)
@@ -244,7 +245,7 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
             for j in localAFPairs:
                 if checkNF(j,nodeTarget,anisotropy,res):
                     nfPairs.append(j)
-            nfPairs = checkNFPairs(nodeTarget, nfPairs,Xmap,Ymap)
+#            nfPairs = checkNFPairs(nodeTarget, nfPairs,Xmap,Ymap)
             if len(nfPairs) == 0:
                 for j in afList:
                     nfPairs.append(np.concatenate((j,j)))
@@ -260,6 +261,7 @@ def updateNode(NClist, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, a
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
     return Tmap, nbT, nbNodes
 
+#Not right!! Must be removed!
 def checkNFPairs(nodeTarget, nfPairs,Xmap,Ymap):
     validNFPairs = []
     SS= []
@@ -356,7 +358,7 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
         xk = np.asarray([Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]])
         Tj = Tmap[nfPairs[1],nfPairs[0]]
         Tk = Tmap[nfPairs[3],nfPairs[2]]
-        preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect)
+        preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
         if preT < T:
             T = preT
             direc = preDir
@@ -366,10 +368,10 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
             xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],Ymap[nfPairs[i][3],nfPairs[i][2]]])
             Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
             Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
-            if ((anisotropy < 1.1)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
+            if ((anisotropy == 1.0)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
                 preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
             else:
-                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect)
+                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
             if preT < T:
                 T = preT
                 direc = preDir
@@ -521,7 +523,7 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
 #    return minT,minDir
 # 
 ##@jit(nopython=True, parallel=True)          
-def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
+def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
     a = 0
     b = 1
     nIter = 500
@@ -540,7 +542,10 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect):
     beta2 = np.dot(R,np.transpose(heading2))
     f_x2 = np.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) + \
            (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
-    accuracy = 0.001
+    accuracy = 0.0001
+    if (anisotropy > 10):
+        nIter = 500/anisotropy
+        accuracy = 0.0001/anisotropy
     k = 0
     while np.abs(b-a)>accuracy and k<nIter:
         k = k+1

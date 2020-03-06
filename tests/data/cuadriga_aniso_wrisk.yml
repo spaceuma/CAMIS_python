@@ -10,4 +10,4 @@ friction_parallel: 0.44866
 kmg: 47.704
 slip_parallel_ascent: 0.000614
 slip_parallel_descent: 0.0
-risk_roll: 15.0
+risk_roll: 10.0

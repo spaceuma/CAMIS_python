@@ -1,0 +1,13 @@
+name: Cuadriga
+mode: anisotropic
+slope_threshold: 20.0
+sd_threshold: 90.0
+#sd_threshold: 11.286
+occupancy_radius: 0.5
+tracking_error: 0.5
+camis_type: DrivingModel
+friction_parallel: 0.44866
+kmg: 47.704
+slip_parallel_ascent: 0.000614
+slip_parallel_descent: 0.0
+risk_roll: 0.0

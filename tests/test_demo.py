@@ -45,64 +45,45 @@ offset = np.loadtxt(\
                              "rb"), delimiter=" ", skiprows=0)
 print('TEST_DEMO: DEM is loaded')
 
+
 # =============================================================================
 ## LOADING DIFFERENT CAMIS
 # =============================================================================
 
-#cdRoots =  [0.0, 0.1, 1.0]
-#caRoots =  [0.0, 0.3, 1.0]
-#cl1Roots = [0.0, 0.8, 1.0]
-#cl2Roots = [0.0, 0.8, 1.0]
-#aniso_imu = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 25.0)
-#
-#cdRoots =  [0.0, 0.40, 1.0]
-#caRoots =  [0.0, 0.40, 1.0]
-#cl1Roots = [0.0, 0.40, 1.0]
-#cl2Roots = [0.0, 0.40, 1.0]
-#iso_average = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 25.0)
-#
-#cdRoots =  [0.0, 0.08, 1.0]
-#caRoots =  [0.0, 0.08, 1.0]
-#cl1Roots = [0.0, 0.08, 1.0]
-#cl2Roots = [0.0, 0.08, 1.0]
-#iso_maximum = camis.CamisModel.fromRoots(cdRoots,caRoots,cl1Roots,cl2Roots, 25.0)
-
-#aniso_imu = camis.CamisDrivingModel(25.0, 13.04883169, 14.36578031,  9.6977448)
-
-#aniso_imu = camis.CamisDrivingModel(25.0, .7, .7,  9.8 * 50)
-with open("data/cuadriga.yml", 'r') as file:
+with open("data/cuadriga_aniso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_imu = camis.CamisDrivingModel(cuadriga_data)
+aniso_norisk = camis.CamisDrivingModel(cuadriga_data)
 
-aniso_imu.showAnisotropy()
-
-with open("data/cuadriga_iso_nominal.yml", 'r') as file:
+with open("data/cuadriga_iso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_nominal = camis.CamisDrivingModel(cuadriga_data)
+iso_norisk = camis.CamisDrivingModel(cuadriga_data)
 
-#aniso_imu = camis.CamisModel.fromFile('data/camisRoots/cuadriga_camis_imu.csv') 
-#iso_average = camis.CamisModel.fromFile('data/camisRoots/cuadriga_camis_imu_iso_med.csv')
-#iso_maximum = camis.CamisModel.fromFile('data/camisRoots/cuadriga_camis_imu_iso_asc.csv')
+with open("data/cuadriga_aniso_wrisk.yml", 'r') as file:
+    cuadriga_data = yaml.full_load(file)
+aniso_wrisk = camis.CamisDrivingModel(cuadriga_data)
+
+with open("data/cuadriga_iso_wrisk.yml", 'r') as file:
+    cuadriga_data = yaml.full_load(file)
+iso_wrisk = camis.CamisDrivingModel(cuadriga_data)
+
 print('TEST_DEMO: all CAMIS are loaded')
+
 
 # =============================================================================
 ## CREATING THE ENVIRONMENT
 # =============================================================================
 
 if terrain == 'A':
-#    newMap = np.zeros_like(hiRes_elevationMap)
-#    newMap[:] = hiRes_elevationMap
-#    newMap[1600:1800,700:850] = 60.0
-#    env = camis.AnisotropicMap(newMap[1000:2600,400:1200], hiRes, 0.5,\
-#                               offset)
-#    posA = np.asarray([30,20])
-#    posB = np.asarray([50,150])
-    env = camis.AnisotropicMap(hiRes_elevationMap[1400:2000,1100:1500], hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap[1450:1750,1150:1450], hiRes, 0.4,\
                                offset)
-#    posA = np.asarray([5,60])
-#    posB = np.asarray([30,30])
-    posA = np.asarray([10,40])
-    posB = np.asarray([30,20])
+#    posA = np.asarray([5,25]) #Very good
+#    posB = np.asarray([25,5])
+    
+    posA = np.asarray([5,5])
+    posB = np.asarray([20,5])
+    
+#    posA = np.asarray([10,40])
+#    posB = np.asarray([30,20])
     
 if terrain == 'B':
     DEM = hiRes_elevationMap[1200:1600,550:950]
@@ -118,13 +99,13 @@ if terrain == 'B':
     posA = np.asarray([25,10])
     posB = np.asarray([25,35])
 if terrain == 'C':
-    env = camis.AnisotropicMap(hiRes_elevationMap[850:1150,1100:1450], hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap[850:1150,1150:1450], hiRes, 0.4,\
                                offset)
-    posA = np.asarray([10,25])
-    posB = np.asarray([30,5])
+#    posA = np.asarray([5,25]) #Very good
+#    posB = np.asarray([25,5])
     
-#    posA = np.asarray([10,10])
-#    posB = np.asarray([30,25])
+    posA = np.asarray([5,10])
+    posB = np.asarray([25,25])
     
 #    posA = np.asarray([10,40])
 #    posB = np.asarray([30,20])
@@ -134,32 +115,34 @@ print('TEST_DEMO: the environment is set up')
 ## SCENE PROCESSING
 # =============================================================================
 
-env_camis_go = copy.deepcopy(env)
-env_nom_go = copy.deepcopy(env)
-env_max_go = copy.deepcopy(env)
+env_aniso_norisk_go = copy.deepcopy(env)
+env_iso_norisk_go = copy.deepcopy(env)
+env_aniso_wrisk_go = copy.deepcopy(env)
+env_iso_wrisk_go = copy.deepcopy(env)
 
-env_camis_go.computeVecCostMap(aniso_imu)
-env_camis_back = copy.deepcopy(env_camis_go) 
-env_nom_go.computeVecCostMap(iso_nominal)
-env_nom_back = copy.deepcopy(env_nom_go)
+env_aniso_norisk_go.computeVecCostMap(aniso_norisk)
+env_aniso_norisk_back = copy.deepcopy(env_aniso_norisk_go) 
+env_iso_norisk_go.computeVecCostMap(iso_norisk)
+env_iso_norisk_back = copy.deepcopy(env_iso_norisk_go)
+env_aniso_wrisk_go.computeVecCostMap(aniso_wrisk)
+env_aniso_wrisk_back = copy.deepcopy(env_aniso_wrisk_go) 
+env_iso_wrisk_go.computeVecCostMap(iso_wrisk)
+env_iso_wrisk_back = copy.deepcopy(env_iso_wrisk_go)
 
-#env_max_go.computeVecCostMap(iso_maximum)
-#env_max_back = copy.deepcopy(env_max_go)
-print('TEST_DEMO: the environment is processed')
+print('TEST_DEMO: the environments are processed')
 
 # =============================================================================
 ## EXECUTING PATH PLANNING
 # =============================================================================
 
-env_camis_go.executePlanning(posB,posA)
-env_camis_back.executePlanning(posA,posB)
-env_nom_go.executePlanning(posB,posA)
-env_nom_back.executePlanning(posA,posB)
-#env_aver_go.executePlanning(posB,posA)
-#env_aver_back.executePlanning(posA,posB)
-#env_max_go.executePlanning(posB,posA)
-#env_max_back.executePlanning(posA,posB)
-
+env_aniso_norisk_go.executeBiPlanning(posB,posA)
+env_aniso_norisk_back.executeBiPlanning(posA,posB)
+env_iso_norisk_go.executeBiPlanning(posB,posA)
+env_iso_norisk_back.executeBiPlanning(posA,posB)
+env_aniso_wrisk_go.executeBiPlanning(posB,posA)
+env_aniso_wrisk_back.executeBiPlanning(posA,posB)
+env_iso_wrisk_go.executeBiPlanning(posB,posA)
+env_iso_wrisk_back.executeBiPlanning(posA,posB)
 
 # =============================================================================
 ## SHOWING RESULTS
@@ -168,22 +151,32 @@ env_nom_back.executePlanning(posA,posB)
 env.show3dDEM()
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_camis_go.showMap('standard-deviation',fig,axes)
+env_aniso_norisk_go.showMap('standard-deviation',fig,axes)
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_camis_go.showMap('slope-deg',fig,axes)
+env_aniso_norisk_go.showMap('aspect-deg',fig,axes)
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_camis_go.showMap('proximity',fig,axes)
+env_aniso_norisk_go.showMap('proximity',fig,axes)
 
-env_camis_go.showHexAnisotropyMap()
+env_aniso_norisk_go.showHexAnisotropyMap()
 
 fig, axes = plt.subplots(constrained_layout=True)
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
 env.showMap('elevation',fig,axes)
-env_camis_go.showPath(fig,axes,'b','solid')
-env_nom_go.showPath(fig,axes,'m','solid')
-env_camis_back.showPath(fig,axes,'b','dashed')
-env_nom_back.showPath(fig,axes,'m','dashed')
+env_aniso_norisk_go.showPath(fig,axes,'b','solid')
+env_aniso_norisk_back.showPath(fig,axes,'b','dashed')
+env_iso_norisk_go.showPath(fig,axes,'m','solid')
+env_iso_norisk_back.showPath(fig,axes,'m','dashed')
+env_aniso_wrisk_go.showPath(fig,axes,'c','solid')
+env_aniso_wrisk_back.showPath(fig,axes,'c','dashed')
+env_iso_wrisk_go.showPath(fig,axes,'r','solid')
+env_iso_wrisk_back.showPath(fig,axes,'r','dashed')
+axes.set_xlabel('X-axis [m]')
+axes.set_ylabel('Y-axis [m]')
+
 #env_max_go.showPath(fig,axes,'g','solid')
 #axes.legend(('aniso_imu (Go)', 'iso_average (Go)', \
 #             'iso_maximum (Go)'))
@@ -199,11 +192,17 @@ env.showMap('slope-deg',fig,axes)
 #      str(env_dem_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
 #      str(env_dem_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
 print('TEST_DEMO: total cost expected by aniso_imu is ' + \
-      str(env_camis_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
-      str(env_camis_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
+      str(env_aniso_norisk_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
+      str(env_aniso_norisk_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
 print('TEST_DEMO: total cost expected by iso_nom is ' + \
-      str(env_nom_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
-      str(env_nom_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
+      str(env_iso_norisk_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
+      str(env_iso_norisk_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
+print('TEST_DEMO: total cost expected by aniso_imu is ' + \
+      str(env_aniso_wrisk_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
+      str(env_aniso_wrisk_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
+print('TEST_DEMO: total cost expected by iso_nom is ' + \
+      str(env_iso_wrisk_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
+      str(env_iso_wrisk_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
 #print('TEST_DEMO: total cost expected by iso_average is ' + \
 #      str(env_aver_go.pathEstimatedTotalCost[0]/3600) + ' Ah and ' + \
 #      str(env_aver_back.pathEstimatedTotalCost[0]/3600)+ ' Ah')
@@ -219,8 +218,19 @@ print('TEST_DEMO: total cost expected by iso_nom is ' + \
 #axes.set_xlabel('2D-Path length (m)')
 #axes.set_ylabel('Cost (A)')
 #
-#fig, axes = plt.subplots(constrained_layout=True)
-#envGo_bidem.showPathData('total-cost-estimated',fig,axes,'r')
+plt.style.use('seaborn-darkgrid')
+fig, axes = plt.subplots(constrained_layout=True)
+env_aniso_norisk_go.showPathData('total-cost',fig,axes,'b','solid')
+env_aniso_norisk_back.showPathData('total-cost',fig,axes,'b','dashed')
+env_iso_norisk_go.showPathData('total-cost',fig,axes,'m','solid')
+env_iso_norisk_back.showPathData('total-cost',fig,axes,'m','dashed')
+env_aniso_wrisk_go.showPathData('total-cost',fig,axes,'c','solid')
+env_aniso_wrisk_back.showPathData('total-cost',fig,axes,'c','dashed')
+env_iso_wrisk_go.showPathData('total-cost',fig,axes,'r','solid')
+env_iso_wrisk_back.showPathData('total-cost',fig,axes,'r','dashed')
+plt.style.use('default')
+
+
 #envBack_bidem.showPathData('total-cost-estimated',fig,axes,'b')
 #envGo_biimu.showPathData('total-cost-estimated',fig,axes,'m')
 #envBack_biimu.showPathData('total-cost-estimated',fig,axes,'g')

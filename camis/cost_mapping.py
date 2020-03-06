@@ -10,7 +10,9 @@ import math
 try:
     import matplotlib
     import matplotlib.pyplot as plt
+    from matplotlib import cbook
     from matplotlib import cm
+    from matplotlib.colors import LightSource
 except:
     raise ImportError('ERROR: matplotlib module could not be imported')
 
@@ -33,7 +35,6 @@ except:
     print(\
         'WARNING: Mayavi module is not found, some functions cannot be used')
     
-
 
 from time import time
 
@@ -106,17 +107,37 @@ class PDEM:
                 print('ERROR')
         return sd    
     def show3dDEM(self):
+#        ls = LightSource(40, 60)
+#        rgb = ls.shade(self.elevationMap, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
+#        fig = plt.figure()
+#        ax = fig.add_subplot(111, projection='3d')
+#        ax.set_aspect('equal')
+#        ax.plot_surface(self.xMap, self.yMap, self.elevationMap, rstride=1, cstride=1, facecolors=rgb,
+#                       linewidth=0, antialiased=False, shade=False)
+#        max_range = np.array([self.xMap.max()-self.xMap.min(), 
+#                              self.yMap.max()-self.yMap.min(), 
+#                              self.elevationMap.max()-self.elevationMap.min()]).max() / 2.0
+#        mid_x = (self.xMap.max()+self.xMap.min()) * 0.5
+#        mid_y = (self.yMap.max()+self.yMap.min()) * 0.5
+#        mid_z = (self.elevationMap.max()+self.elevationMap.min()) * 0.5
+#        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+#        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+#        ax.set_zlim(self.elevationMap.min(),self.elevationMap.min()+ 2*max_range)
+#        ax.auto_scale_xyz([self.xMap.min(), self.xMap.max()], [self.yMap.min(), self.yMap.max()], [self.elevationMap.min(), self.elevationMap.max()])
         if isMayavi:
-            mlab.figure(size=(640, 800))
-            mlab.surf(np.flipud(self.elevationMap), colormap='gist_earth', warp_scale=10.0)
-            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
+            mlab.figure(size=(800, 640),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
+            mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.elevationMap), colormap='gist_earth')
+            mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
+                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,50,0,100,0,15))
+#            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
         else:
             raise ImportError('show3dDEM: Mayavi is not available')
     def showMap(self, opt, fig, axes):
         if   opt == 'elevation':
             cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 50, cmap = cm.gist_earth, extend='both')
             axes.contour(self.xMap, self.yMap, self.elevationMap, 10, colors = 'k', alpha=.3)
-            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
+#            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
+            cbar = fig.colorbar(cc)
             cbar.set_label('Elevation (m)')
         if   opt == 'raw-elevation':
 #            levels = np.linspace(47.0,55.0,25)
@@ -506,11 +527,17 @@ class AnisotropicMap(PDEM):
         ax.set_aspect('equal')
         plt.show()
     def showHexSlopeMap(self):
-        fig, ax = plt.subplots()
-        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, 100, cmap = 'nipy_spectral')
-        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 30)
-        fig.colorbar(cc)
+        levels = np.linspace(0.0,45,46.0)
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
+#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 30)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Slope (deg)')
         ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
         plt.show()
     def showHexBiTmaps(self):
         fig, ax = plt.subplots(constrained_layout=True)
@@ -541,7 +568,8 @@ class AnisotropicMap(PDEM):
         cc = ax.contourf(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral', alpha = .5)
         ax.contour(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral')
         ax.plot(self.path[:,0],self.path[:,1],'r')
-#        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapS), np.sin(self.dirMapS),scale = 40)
+        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapS), np.sin(self.dirMapS),scale = 40)
+        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapG), np.sin(self.dirMapG),scale = 40)
 #        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkS), np.sin(self.dirLinkS),scale = 40)
         cbar = fig.colorbar(cc)
         cbar.set_label('Total Cost from Start')
@@ -549,6 +577,12 @@ class AnisotropicMap(PDEM):
         ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_aspect('equal')
         plt.show()   
+    
+    
+    
+    
+    
+        
     def showResults(self):
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.contourf(self.hexXmap, self.hexYmap, self.Tmap, 100, cmap = 'nipy_spectral', alpha = .5)
@@ -577,13 +611,23 @@ class AnisotropicMap(PDEM):
         ax.legend(('Computed', 'Estimated'))
         plt.show()
         
+#        fig, ax = plt.subplots()
+#        xx = self.hexXmap.flatten()
+#        yy = self.hexYmap.flatten()
+#        tt = self.TmapG.flatten()
+#        cc = np.cos(self.dirMapG).flatten()
+#        ss = np.sin(self.dirMapG).flatten()
+#        strm = ax.streamplot(xx, yy, cc, ss, linewidth=2, cmap='autumn')
+#        fig.colorbar(strm.lines)
+#        ax.set_title('T Map G')
+#        
         
     def showPath(self, fig, axes, color, style):
         axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style)
 #        axes.scatter(self.linkPos[0], self.linkPos[1], c=color)
         plt.show()
         
-    def showPathData(self, opt, fig, axes, color):
+    def showPathData(self, opt, fig, axes, color, style):
         if   opt == 'elevation':
             axes.plot(self.pathTravDist, self.pathElevation, color)
         elif opt == 'slope':
@@ -596,7 +640,7 @@ class AnisotropicMap(PDEM):
             axes.plot(self.pathTravDist, self.pathCost, color, linewidth = 2)
             axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]])
         elif opt == 'total-cost':
-            axes.plot(self.pathTravDist, self.pathComputedTotalCost, color, linewidth = 2)
+            axes.plot(self.pathTravDist, self.pathComputedTotalCost, color, linestyle=style, linewidth = 2)
             axes.set_xlim([self.pathTravDist[0], self.pathTravDist[-1]])
         elif opt == 'total-cost-estimated':
             axes.plot(self.pathTravDist, [self.pathEstimatedTotalCost[0]-x for x in self.pathEstimatedTotalCost], color, linewidth = 2, linestyle='dotted')
