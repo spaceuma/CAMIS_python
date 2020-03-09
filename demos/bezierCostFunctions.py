@@ -146,10 +146,15 @@ blockRiskFunction = (steepnessArray - blockRiskMin)/(blockRiskMax - blockRiskMin
 
 ax.plot(steepnessArray*rad2deg, ascentFunction, linestyle = 'dashed', color = 'b')
 for i,steepness in enumerate(steepnessArray):
+    
     if steepness < initialPoint[0]:
         ascentCAMIS[i] = rho + np.tan(steepnessArray[i])
     else:
-        ascentCAMIS[i] = bezierCost(steepnessArray[i], initialPoint, ascentIntersection, riskPoint)
+        if steepness > riskPoint[0]:
+            ascentCAMIS[i] = (steepness - blockRiskMin)/(blockRiskMax - blockRiskMin)*riskGain
+        else:
+            ascentCAMIS[i] = bezierCost(steepnessArray[i], initialPoint, ascentIntersection, riskPoint)
+        
     if steepness < initial2Point[0]:
         descentCAMIS[i] = np.abs(rho - np.tan(steepnessArray[i])) #TODO: take care of braking!!
     else:
@@ -160,6 +165,7 @@ for i,steepness in enumerate(steepnessArray):
                 descentCAMIS[i] = bezierCost(steepnessArray[i], initial2Point, descentIntersection, riskPoint2)
             else:
                 descentCAMIS[i] = bezierCubicCost(steepnessArray[i], initial2Point, brakePoint,descentIntersection, riskPoint2)
+                
     if steepness < initial3Point[0]:
         lateralCAMIS[i] = np.sqrt(rho**2  - np.tan(steepnessArray[i])**2)
     else:
@@ -170,6 +176,7 @@ for i,steepness in enumerate(steepnessArray):
                 lateralCAMIS[i] = bezierCost(steepnessArray[i], initial3Point, lateralIntersection, riskPoint3)
             else:
                 lateralCAMIS[i] = bezierCost(steepnessArray[i], initial3Point, lateralIntersection, riskPoint3)
+                
 ax.plot(steepnessArray*rad2deg, ascentCAMIS, color = 'b')
 ax.plot(intersectionX*rad2deg, intersectionY, '*', color = 'b')
 

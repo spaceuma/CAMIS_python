@@ -229,6 +229,7 @@ class AnisotropicMap(PDEM):
         self.radius = radius
         
     def smoothMap(self):
+        self.elevationMap = ndimage.median_filter(self.elevationMap, footprint=self.occupancyMatrixNorm, mode='nearest')
         self.elevationMap = signal.convolve2d(self.elevationMap, self.occupancyMatrixNorm, \
                                       mode='same', boundary='symm')
         self.computeSlope()

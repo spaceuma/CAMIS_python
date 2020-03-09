@@ -9,4 +9,9 @@ friction_parallel: 1.0
 kmg: 1.0
 slip_parallel_ascent: 0.85
 slip_parallel_descent: 0.0
-risk_roll: 0.0
+risk_roll: 20.0
+risk_pitch: 22.0
+risk_block: 25.0
+risk_gain: 5.0
+risk_margin: 5.0
+bezier_coeff: 0.5

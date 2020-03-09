@@ -5,8 +5,13 @@ sd_threshold: 90.0
 occupancy_radius: 0.5
 tracking_error: 0.5
 camis_type: DrivingModel
-friction_parallel: 1.0
+friction: 1.0
 kmg: 1.0
 slip_parallel_ascent: 0.75
 slip_parallel_descent: 0.25
-risk_roll: 1.0
+risk_roll: 30.0
+risk_pitch: 30.0
+risk_block: 40.0
+risk_gain: 5.0
+risk_margin: 5.0
+bezier_coeff: 0.5

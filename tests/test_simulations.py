@@ -15,7 +15,7 @@ except:
     raise ImportError('ERROR: scipy module could not be imported')
 
 # USER - Choose Simulation Map
-nSimMap = 0
+nSimMap = 1
 
 # =============================================================================
 ## ENVIRONMENTS CREATION ##
@@ -137,6 +137,7 @@ if nSimMap == 0:
     r1 = camis.CamisDrivingModel(robot1) 
     env1.computeVecCostMap(r1)
     env7 = copy.deepcopy(env1)
+    r1.showDirCosts()
     r1.showCAMIS()
     
     # ROBOT 2

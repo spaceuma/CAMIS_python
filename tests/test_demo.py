@@ -53,6 +53,8 @@ print('TEST_DEMO: DEM is loaded')
 with open("data/cuadriga_aniso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_norisk = camis.CamisDrivingModel(cuadriga_data)
+aniso_norisk.showDirCosts()
+aniso_norisk.showCAMIS()
 
 with open("data/cuadriga_iso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
@@ -99,12 +101,12 @@ if terrain == 'B':
     posA = np.asarray([25,10])
     posB = np.asarray([25,35])
 if terrain == 'C':
-    env = camis.AnisotropicMap(hiRes_elevationMap[850:1150,1150:1450], hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap[850:1250,1150:1450], hiRes, 0.4,\
                                offset)
-#    posA = np.asarray([5,25]) #Very good
+    posA = np.asarray([5,25]) #Very good
 #    posB = np.asarray([25,5])
     
-    posA = np.asarray([5,10])
+#    posA = np.asarray([5,10])
     posB = np.asarray([25,25])
     
 #    posA = np.asarray([10,40])
@@ -157,7 +159,7 @@ fig, axes = plt.subplots(constrained_layout=True)
 env_aniso_norisk_go.showMap('aspect-deg',fig,axes)
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_aniso_norisk_go.showMap('proximity',fig,axes)
+env_iso_norisk_go.showMap('slope-deg',fig,axes)
 
 env_aniso_norisk_go.showHexAnisotropyMap()
 
