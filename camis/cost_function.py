@@ -468,7 +468,7 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
 # =============================================================================
     
 class CamisDrivingModel:
-    def __init__(self, robot_data):
+    def __init__(self, robot_data, bezier_coeff):
         self.slopeThreshold = robot_data['slope_threshold']
         self.sdThreshold = robot_data['sd_threshold']
         self.occupancy_radius = robot_data['occupancy_radius']
@@ -485,7 +485,7 @@ class CamisDrivingModel:
             self.risk_block = robot_data['risk_block']*deg2rad
             self.risk_gain = robot_data['risk_gain']
             self.risk_margin = robot_data['risk_margin']*deg2rad
-            self.bezier_coeff = np.maximum(robot_data['bezier_coeff'], 0.15)
+            self.bezier_coeff = np.maximum(bezier_coeff, 0.15)
         if self.camis_type == 'PolynomialRoots':
             self.cdRoots = robot_data['cdRoots']
             self.caRoots = robot_data['caRoots']
@@ -523,20 +523,19 @@ class CamisDrivingModel:
                (cBeta*D1 + sBeta*D2)
            
     def getVectorialCostMap(self,slopeMap):
-        vectorialCostMap = np.zeros([5,slopeMap.shape[0],slopeMap.shape[1]])
+        vectorialCostMap = np.ones([5,slopeMap.shape[0],slopeMap.shape[1]])
+        Cobs = np.max((self.getCd(self.slopeThreshold),\
+                                   self.getCa(self.slopeThreshold),\
+                                   self.getCl(self.slopeThreshold)))*self.getAnisotropy(self.slopeThreshold)
+        vectorialCostMap[1] = vectorialCostMap[1]*Cobs**2
+        vectorialCostMap[2] = vectorialCostMap[2]*Cobs**2
+        vectorialCostMap[3] = vectorialCostMap[3]*0.0
+        vectorialCostMap[4] = vectorialCostMap[4]*0.0
+        
         for i in range(slopeMap.shape[1]):
             for j in range(slopeMap.shape[0]):
                 slope = slopeMap[j][i]
-                if (slope > self.slopeThreshold) or (np.isnan(slope)):
-                    Cobs = np.max((self.getCd(self.slopeThreshold),\
-                                   self.getCa(self.slopeThreshold),\
-                                   self.getCl(self.slopeThreshold)))*self.getAnisotropy(self.slopeThreshold)
-                    vectorialCostMap[0][j][i] = 1.0
-                    vectorialCostMap[1][j][i] = Cobs**2 # Q1
-                    vectorialCostMap[2][j][i] = Cobs**2# Q2
-                    vectorialCostMap[3][j][i] = 0.0 # D1
-                    vectorialCostMap[4][j][i] = 0.0 # D2
-                else:
+                if (slope < self.slopeThreshold):
                     if (self.mode == 'isotropic'):
                         Cn = self.getCn(slope)
                         vectorialCostMap[0][j][i] = 1

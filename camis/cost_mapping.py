@@ -266,20 +266,17 @@ class AnisotropicMap(PDEM):
         obstacleMap[:,0] = 1
         obstacleMap[:,-1] = 1
         
-#        self.slopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)] = self.maxSlopeMap[np.where(self.maxSlopeMap > np.pi/180.0*camis.slopeThreshold)]
-        obstacleMap[np.where(self.slopeMap > self.costModel.slopeThreshold*np.pi/180.0)] = 1
+#        obstacleMap[np.where(self.slopeMap > self.costModel.slopeThreshold*np.pi/180.0)] = 1
         obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, structure = self.occupancyMatrix).astype(obstacleMap.dtype)
         
-        obstacleMap2 = np.zeros_like(obstacleMap)
-        
-        obstacleMap2[np.where(self.sdMap > self.costModel.sdThreshold)] = 1
-#        obstacleMap2 = ndimage.morphology.binary_dilation(obstacleMap2, structure = convMatrix).astype(obstacleMap2.dtype)
-        
-        obstacleMap[np.where(obstacleMap2 == 1)] = 1
+#        obstacleMap2 = np.zeros_like(obstacleMap)
+#        
+#        obstacleMap2[np.where(self.sdMap > self.costModel.sdThreshold)] = 1
+#        
+#        obstacleMap[np.where(obstacleMap2 == 1)] = 1
         
         proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
-        proximityMap = proximityMap*self.demRes
-#        proximityMap[np.where(proximityMap[:]<0.0)] = 0               
+        proximityMap = proximityMap*self.demRes              
         
         self.obstacleMap = obstacleMap
         self.proximityMap = proximityMap
@@ -316,20 +313,10 @@ class AnisotropicMap(PDEM):
         
         init = time()
 
-
-#        cdRoots = self.camis.cdRoots
-#        caRoots = self.camis.caRoots
-#        cl1Roots = self.camis.cl1Roots
-#        cl2Roots = self.camis.cl2Roots
-#        anicoLUT = self.camis.anicoLUT
-#        vectorialData = getVectorialCostMap(rad2deg*hexSlopeMap,cdRoots,caRoots,cl1Roots,\
-#                                          cl2Roots,anicoLUT)
         vectorialData = costModel.getVectorialCostMap(rad2deg*hexSlopeMap)
-
-#        self.slopeMap[np.where(proximityMap[:]<self.radius)] = \
-#                        np.maximum(AA[np.where(proximityMap[:]<self.radius)],\
-#                        self.maxSlopeMap[np.where(proximityMap[:]<self.radius)])
         
+        print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
+        init = time()
         
         AspectMap = np.zeros([2,hexSlopeMap.shape[0],hexSlopeMap.shape[1]])
         AspectMap[0] = interp.griddata(points, self.aspectX.flatten(),\
@@ -530,13 +517,17 @@ class AnisotropicMap(PDEM):
     def showHexSlopeMap(self):
         levels = np.linspace(0.0,45,46.0)
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
-#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 30)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap,vmin = 0.0, vmax = 45.0, cmap="nipy_spectral",s=50)
+        ax.set_aspect('equal')
+        
+#        fig, ax = plt.subplots(constrained_layout=True)
+#        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
+        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 20)
         cbar = fig.colorbar(cc)
         cbar.set_label('Slope (deg)')
         ax.set_aspect('equal')
-        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
-        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+#        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+#        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
         plt.show()
@@ -544,9 +535,10 @@ class AnisotropicMap(PDEM):
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.contourf(self.hexXmap, self.hexYmap, self.TmapG, 100, cmap = 'nipy_spectral', alpha = .5)
         ax.contour(self.hexXmap, self.hexYmap, self.TmapG, 100, cmap = 'nipy_spectral')
+        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapG), np.sin(self.dirMapG),scale = 40)
         ax.plot(self.path[:,0],self.path[:,1],'r')
 #        ax.quiver(self.hexXmap, self.hexYmap,np.cos(self.dirMapG), np.sin(self.dirMapG),scale = 40)
-        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkG), np.sin(self.dirLinkG),scale = 40)
+#        ax.quiver(self.linkPos[0], self.linkPos[1],np.cos(self.dirLinkG), np.sin(self.dirLinkG),scale = 40)
         cbar = fig.colorbar(cc)
         cbar.set_label('Total Cost To Goal')
         ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])

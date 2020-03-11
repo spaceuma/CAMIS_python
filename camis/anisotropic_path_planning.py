@@ -14,6 +14,7 @@ import bisect
 import sys
 from scipy.optimize import minimize_scalar
 from numba import jit, float64, int64
+from time import time
 
 
 # =============================================================================
@@ -605,7 +606,8 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
     path = []
     u = []
     path.append(initWaypoint)
-    while 1:
+    init = time()
+    while time() - init < 10:
         waypoint = path[-1]
         uij = np.zeros_like(waypoint,int)
         if (uij[0] == np.inf)or(uij[1]==np.inf):
@@ -638,7 +640,7 @@ def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):
             break
 #        if (np.abs((k1[0] + k2[0])) <= np.finfo(float).eps) and (np.abs((k1[1] + k2[1])) <= np.finfo(float).eps):
 #            return path, u
-    path.append(endWaypoint)
+#    path.append(endWaypoint)
     return path, u
 
 def interpolatedControl(waypoint,dirMap,uij,IJ2XY,res):

@@ -15,7 +15,8 @@ try:
     from scipy import signal
 except:
     raise ImportError('ERROR: scipy module could not be imported')
-
+        
+        
 # =============================================================================
 ## SCENE SELECTION
 # =============================================================================
@@ -30,43 +31,52 @@ if (terrain != 'A') and (terrain != 'B') and (terrain != 'C'):
 # =============================================================================
 ## LOADING DEM
 # =============================================================================
-zipRef = zipfile.ZipFile("data/terrainData/UMARescueArea_10cmDEM.zip","r")
-zipRef.extractall("data/terrainData/")
+#if terrain == 'A' or terrain == 'B':
 hiRes_elevationMap = np.loadtxt(\
-                        open("data/terrainData/UMATerrain_10cmDEM.csv",\
-                             "rb"), delimiter=" ", skiprows=0)
-#hiRes_posX = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosX.csv",\
-#                                     "rb"), delimiter=" ", skiprows=0)
-#hiRes_posY = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosY.csv",\
-#                                     "rb"), delimiter=" ", skiprows=0)
+                            open("data/terrainData/UMATerrainCuesta_10cmDEM.csv",\
+                                 "rb"), delimiter=" ", skiprows=0)
+    
 hiRes = 0.1
 offset = np.loadtxt(\
-                        open("data/terrainData/UMATerrain_10cmOffset.csv",\
-                             "rb"), delimiter=" ", skiprows=0)
+                            open("data/terrainData/UMATerrainCuesta_10cmOffset.csv",\
+                                 "rb"), delimiter=" ", skiprows=0)
+#if terrain == 'C':
+#    zipRef = zipfile.ZipFile("data/terrainData/UMARescueArea_10cmDEM.zip","r")
+#    zipRef.extractall("data/terrainData/")
+#    hiRes_elevationMap = np.loadtxt(\
+#                            open("data/terrainData/UMATerrain_10cmDEM.csv",\
+#                                 "rb"), delimiter=" ", skiprows=0)
+#    
+#    hiRes = 0.1
+#    offset = np.loadtxt(\
+#                            open("data/terrainData/UMATerrain_10cmOffset.csv",\
+#                                 "rb"), delimiter=" ", skiprows=0)
 print('TEST_DEMO: DEM is loaded')
 
 
 # =============================================================================
 ## LOADING DIFFERENT CAMIS
 # =============================================================================
-
+bezier_coeff = 1.0
 with open("data/cuadriga_aniso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_norisk = camis.CamisDrivingModel(cuadriga_data)
+aniso_norisk = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
 aniso_norisk.showDirCosts()
 aniso_norisk.showCAMIS()
 
 with open("data/cuadriga_iso_norisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_norisk = camis.CamisDrivingModel(cuadriga_data)
+iso_norisk = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
 
 with open("data/cuadriga_aniso_wrisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_wrisk = camis.CamisDrivingModel(cuadriga_data)
+aniso_wrisk = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+aniso_wrisk.showDirCosts()
+aniso_wrisk.showCAMIS()
 
 with open("data/cuadriga_iso_wrisk.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_wrisk = camis.CamisDrivingModel(cuadriga_data)
+iso_wrisk = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
 
 print('TEST_DEMO: all CAMIS are loaded')
 
@@ -76,41 +86,24 @@ print('TEST_DEMO: all CAMIS are loaded')
 # =============================================================================
 
 if terrain == 'A':
-    env = camis.AnisotropicMap(hiRes_elevationMap[1450:1750,1150:1450], hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap[0:500,:], hiRes, 0.4,\
                                offset)
-#    posA = np.asarray([5,25]) #Very good
-#    posB = np.asarray([25,5])
-    
-    posA = np.asarray([5,5])
-    posB = np.asarray([20,5])
-    
 #    posA = np.asarray([10,40])
 #    posB = np.asarray([30,20])
+    posA = np.asarray([5,35])
+    posB = np.asarray([30,40])
     
 if terrain == 'B':
-    DEM = hiRes_elevationMap[1200:1600,550:950]
-#    r = 4
-#    r = r + 1 - r%2
-#    y,x = np.ogrid[-r: r+1, -r: r+1]
-#    convMatrix = x**2+y**2 <= r**2
-#    convMatrix = convMatrix.astype(float)
-#    DEM = 0.5*signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
-#                                      mode='same', boundary='symm')
-    env = camis.AnisotropicMap(DEM, hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap[400:-1,:], hiRes, 0.4,\
                                offset)
-    posA = np.asarray([25,10])
-    posB = np.asarray([25,35])
+    posA = np.asarray([30,10])
+    posB = np.asarray([10,30])
 if terrain == 'C':
-    env = camis.AnisotropicMap(hiRes_elevationMap[850:1250,1150:1450], hiRes, 0.4,\
+    env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.4,\
                                offset)
-    posA = np.asarray([5,25]) #Very good
-#    posB = np.asarray([25,5])
-    
-#    posA = np.asarray([5,10])
-    posB = np.asarray([25,25])
-    
-#    posA = np.asarray([10,40])
-#    posB = np.asarray([30,20])
+    posA = np.asarray([5,36]) #Very good
+#    posB = np.asarray([30,60])
+    posB = np.asarray([30,20])
 print('TEST_DEMO: the environment is set up')
 
 # =============================================================================
@@ -153,13 +146,10 @@ env_iso_wrisk_back.executeBiPlanning(posA,posB)
 env.show3dDEM()
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_aniso_norisk_go.showMap('standard-deviation',fig,axes)
-
-fig, axes = plt.subplots(constrained_layout=True)
 env_aniso_norisk_go.showMap('aspect-deg',fig,axes)
 
 fig, axes = plt.subplots(constrained_layout=True)
-env_iso_norisk_go.showMap('slope-deg',fig,axes)
+env_aniso_norisk_go.showMap('slope-deg',fig,axes)
 
 env_aniso_norisk_go.showHexAnisotropyMap()
 
