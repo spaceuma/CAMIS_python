@@ -292,6 +292,55 @@ class AnisotropicMap(PDEM):
         XX,YY = np.meshgrid(np.linspace(0,np.ceil(DX),np.ceil(DX)+1),np.linspace(0,np.ceil(DY),np.ceil(DY)+1))
         self.xy2J = 2*YY/(np.sqrt(3)*self.planRes)
         self.xy2I = (DY/np.sqrt(3)+ XX)/self.planRes-0.5*self.xy2J
+        
+    def computeHexSlopeMap(self):
+        hexSlopeMap = np.ones([self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+        h = np.sqrt(3)/2.0
+        for i in range(self.hexElevationMap.shape[1]):
+            for j in range(self.hexElevationMap.shape[0]):
+                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
+                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
+                (self.hexYmap[j,i] > self.yMap[0,0]) and \
+                (self.hexYmap[j,i] < self.yMap[-1,-1]):
+#                    Z0 = self.hexElevationMap[j,i]
+                    Z1 = self.hexElevationMap[j,i+1]
+                    Z2 = self.hexElevationMap[j+1,i]
+                    Z3 = self.hexElevationMap[j-1,i-1]
+                    Z4 = self.hexElevationMap[j,i-1]
+                    Z5 = self.hexElevationMap[j-1,i]
+                    Z6 = self.hexElevationMap[j-1,i+1]
+                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
+                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
+                    nn1 = np.cross(n1,n2)
+                    nn1 = nn1/np.linalg.norm(nn1)
+                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
+                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
+                    nn2 = np.cross(n3,n4)
+                    nn2 = nn2/np.linalg.norm(nn2)
+                    
+                    nn = nn1 + nn2
+                    nn = nn/np.linalg.norm(nn)
+                    
+#                    n1 = np.asarray([1.0*self.planRes,0.0*self.planRes,(Z1-Z0)])
+#                    n1 = n1/np.linalg.norm(n1)
+#                    n2 = np.asarray([0.5*self.planRes,h*self.planRes,(Z2-Z0)])
+#                    n2 = n2/np.linalg.norm(n2)
+#                    n3 = np.asarray([-0.5*self.planRes,h*self.planRes,(Z3-Z0)])
+#                    n3 = n3/np.linalg.norm(n3)
+#                    n4 = np.asarray([-1.0*self.planRes,0.0*self.planRes,(Z4-Z0)])
+#                    n4 = n4/np.linalg.norm(n4)
+#                    n5 = np.asarray([-0.5*self.planRes,-h*self.planRes,(Z5-Z0)])
+#                    n5 = n5/np.linalg.norm(n5)
+#                    n6 = np.asarray([0.5*self.planRes,-h*self.planRes,(Z6-Z0)])
+#                    n6 = n6/np.linalg.norm(n6)
+#                    nn = (n1 + n2 + n3 + n4 + n5 + n6)/6.0
+                    aspect = np.arctan2(nn[1],nn[0])
+                    hexAspectMap[0,j,i] = np.cos(aspect)
+                    hexAspectMap[1,j,i] = np.sin(aspect)
+                    hexSlopeMap[j,i] = np.arccos(nn[2])#(nn[2],np.sqrt(nn[0]**2+nn[1]**2))
+        self.hexSlopeMap = np.abs(hexSlopeMap)
+        self.hexAspectMap = hexAspectMap
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel
@@ -303,31 +352,37 @@ class AnisotropicMap(PDEM):
         points = np.zeros((self.xMap.size,2))
         points[:,0] = self.xMap.flatten()
         points[:,1] = self.yMap.flatten()
-        hexSlopeMap = interp.griddata(points, self.slopeMap.flatten(),\
+        self.hexElevationMap = interp.griddata(points, self.elevationMap.flatten(),\
                                       (self.hexXmap, self.hexYmap), \
-                                      method='nearest')
-        hexSlopeMap[np.where(self.hexXmap < self.xMap[0,0])] = np.nan
-        hexSlopeMap[np.where(self.hexXmap > self.xMap[-1,-1])] = np.nan
-        hexSlopeMap[np.where(self.hexYmap < self.yMap[0,0])] = np.nan
-        hexSlopeMap[np.where(self.hexYmap > self.yMap[-1,-1])] = np.nan
+                                      method='cubic')
         
+        self.computeHexSlopeMap()
         init = time()
+#        hexSlopeMap = interp.griddata(points, self.slopeMap.flatten(),\
+#                                      (self.hexXmap, self.hexYmap), \
+#                                      method='nearest')
+#        hexSlopeMap[np.where(self.hexXmap < self.xMap[0,0])] = np.nan
+#        hexSlopeMap[np.where(self.hexXmap > self.xMap[-1,-1])] = np.nan
+#        hexSlopeMap[np.where(self.hexYmap < self.yMap[0,0])] = np.nan
+#        hexSlopeMap[np.where(self.hexYmap > self.yMap[-1,-1])] = np.nan
+        
+        
 
-        vectorialData = costModel.getVectorialCostMap(rad2deg*hexSlopeMap)
+        vectorialData = costModel.getVectorialCostMap(rad2deg*self.hexSlopeMap)
         
         print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
         init = time()
         
-        AspectMap = np.zeros([2,hexSlopeMap.shape[0],hexSlopeMap.shape[1]])
-        AspectMap[0] = interp.griddata(points, self.aspectX.flatten(),\
-                 (self.hexXmap, self.hexYmap), method='nearest')
-        AspectMap[1] = interp.griddata(points, self.aspectY.flatten(),\
-                 (self.hexXmap, self.hexYmap), method='nearest')
+#        AspectMap = np.zeros([2,self.hexSlopeMap.shape[0],self.hexSlopeMap.shape[1]])
+#        AspectMap[0] = interp.griddata(points, self.aspectX.flatten(),\
+#                 (self.hexXmap, self.hexYmap), method='nearest')
+#        AspectMap[1] = interp.griddata(points, self.aspectY.flatten(),\
+#                 (self.hexXmap, self.hexYmap), method='nearest')
         ProximityMap = interp.griddata(points, self.proximityMap.flatten(),\
                                        (self.hexXmap, self.hexYmap), method='nearest')
-        AspectMap[0][np.where(np.isnan(hexSlopeMap))] = np.nan
-        AspectMap[1][np.where(np.isnan(hexSlopeMap))] = np.nan
-        ProximityMap[np.where(np.isnan(hexSlopeMap))] = np.nan
+#        AspectMap[0][np.where(np.isnan(hexSlopeMap))] = np.nan
+#        AspectMap[1][np.where(np.isnan(hexSlopeMap))] = np.nan
+        ProximityMap[np.where(np.isnan(self.hexSlopeMap))] = np.nan
         obstacleMask = ProximityMap == 0.0
         
         AnisotropyMap = vectorialData[0][:][:]
@@ -354,8 +409,8 @@ class AnisotropicMap(PDEM):
         VCMap[3] = D2
         
         self.VCMap = VCMap
-        self.hexSlopeMap = hexSlopeMap
-        self.hexAspectMap = AspectMap
+#        self.hexSlopeMap = hexSlopeMap
+#        self.hexAspectMap = AspectMap
         self.hexAnisotropyMap = AnisotropyMap
         
         print('Elapsed time to compute the Vectorial Cost Map: '+str(time()-init))
@@ -514,15 +569,22 @@ class AnisotropicMap(PDEM):
         cbar.set_label('Anisotropy')
         ax.set_aspect('equal')
         plt.show()
+    def showHexElevationMap(self):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.hexElevationMap, cmap=cm.gist_earth,s=50)
+        cbar = fig.colorbar(cc)
+        ax.set_aspect('equal')
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
     def showHexSlopeMap(self):
         levels = np.linspace(0.0,45,46.0)
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap,vmin = 0.0, vmax = 45.0, cmap="nipy_spectral",s=50)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=50)
         ax.set_aspect('equal')
         
 #        fig, ax = plt.subplots(constrained_layout=True)
 #        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
-        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 20)
+        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
         cbar = fig.colorbar(cc)
         cbar.set_label('Slope (deg)')
         ax.set_aspect('equal')

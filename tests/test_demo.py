@@ -102,8 +102,8 @@ if terrain == 'C':
     env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.4,\
                                offset)
     posA = np.asarray([5,36]) #Very good
-#    posB = np.asarray([30,60])
-    posB = np.asarray([30,20])
+    posB = np.asarray([30,60])
+    posC = np.asarray([30,20])
 print('TEST_DEMO: the environment is set up')
 
 # =============================================================================
@@ -117,12 +117,16 @@ env_iso_wrisk_go = copy.deepcopy(env)
 
 env_aniso_norisk_go.computeVecCostMap(aniso_norisk)
 env_aniso_norisk_back = copy.deepcopy(env_aniso_norisk_go) 
+env_aniso_norisk_go2 = copy.deepcopy(env_aniso_norisk_go)
+env_aniso_norisk_back2 = copy.deepcopy(env_aniso_norisk_go) 
 env_iso_norisk_go.computeVecCostMap(iso_norisk)
-env_iso_norisk_back = copy.deepcopy(env_iso_norisk_go)
+env_iso_norisk_go2 = copy.deepcopy(env_iso_norisk_go)
 env_aniso_wrisk_go.computeVecCostMap(aniso_wrisk)
 env_aniso_wrisk_back = copy.deepcopy(env_aniso_wrisk_go) 
+env_aniso_wrisk_go2 = copy.deepcopy(env_aniso_wrisk_go) 
+env_aniso_wrisk_back2 = copy.deepcopy(env_aniso_wrisk_go) 
 env_iso_wrisk_go.computeVecCostMap(iso_wrisk)
-env_iso_wrisk_back = copy.deepcopy(env_iso_wrisk_go)
+env_iso_wrisk_go2 = copy.deepcopy(env_iso_wrisk_go)
 
 print('TEST_DEMO: the environments are processed')
 
@@ -132,12 +136,19 @@ print('TEST_DEMO: the environments are processed')
 
 env_aniso_norisk_go.executeBiPlanning(posB,posA)
 env_aniso_norisk_back.executeBiPlanning(posA,posB)
+env_aniso_norisk_go2.executeBiPlanning(posC,posA)
+env_aniso_norisk_back2.executeBiPlanning(posA,posC)
+
 env_iso_norisk_go.executeBiPlanning(posB,posA)
-env_iso_norisk_back.executeBiPlanning(posA,posB)
+env_iso_norisk_go2.executeBiPlanning(posC,posA)
+
 env_aniso_wrisk_go.executeBiPlanning(posB,posA)
 env_aniso_wrisk_back.executeBiPlanning(posA,posB)
+env_aniso_wrisk_go2.executeBiPlanning(posC,posA)
+env_aniso_wrisk_back2.executeBiPlanning(posA,posC)
+
 env_iso_wrisk_go.executeBiPlanning(posB,posA)
-env_iso_wrisk_back.executeBiPlanning(posA,posB)
+env_iso_wrisk_go2.executeBiPlanning(posC,posA)
 
 # =============================================================================
 ## SHOWING RESULTS
@@ -161,17 +172,24 @@ env.showMap('elevation',fig,axes)
 env_aniso_norisk_go.showPath(fig,axes,'b','solid')
 env_aniso_norisk_back.showPath(fig,axes,'b','dashed')
 env_iso_norisk_go.showPath(fig,axes,'m','solid')
-env_iso_norisk_back.showPath(fig,axes,'m','dashed')
 env_aniso_wrisk_go.showPath(fig,axes,'c','solid')
 env_aniso_wrisk_back.showPath(fig,axes,'c','dashed')
 env_iso_wrisk_go.showPath(fig,axes,'r','solid')
-env_iso_wrisk_back.showPath(fig,axes,'r','dashed')
+env_aniso_norisk_go2.showPath(fig,axes,'b','solid')
+env_aniso_norisk_back2.showPath(fig,axes,'b','dashed')
+env_iso_norisk_go2.showPath(fig,axes,'m','solid')
+env_aniso_wrisk_go2.showPath(fig,axes,'c','solid')
+env_aniso_wrisk_back2.showPath(fig,axes,'c','dashed')
+env_iso_wrisk_go2.showPath(fig,axes,'r','solid')
 axes.set_xlabel('X-axis [m]')
 axes.set_ylabel('Y-axis [m]')
 
+
 #env_max_go.showPath(fig,axes,'g','solid')
-#axes.legend(('aniso_imu (Go)', 'iso_average (Go)', \
-#             'iso_maximum (Go)'))
+axes.legend(('CAMIS A(Go)', 'CAMIS A (Return)',\
+             'Isotropic A', \
+             'CAMIS B(Go)', 'CAMIS B (Return)', \
+             'Isotropic B'))
 
 #env_max_back.showPath(fig,axes,'g','solid')
 #axes.legend(('aniso_imu (Back)', 'iso_average (Back)',\
