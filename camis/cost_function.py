@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-
 #============================CAMIS library=====================================
 #           Continuous Anisotropic Model for Inclined Surfaces
 #          Author: J. Ricardo Sanchez Ibanez (ricardosan@uma.es)
 # -----------------------------------------------------------------------------
+#                           cost_function.py
 #   This file contains a library of python functions dedicated to the 
 #==============================================================================
 
@@ -483,7 +482,7 @@ class CamisDrivingModel:
             self.risk_roll = robot_data['risk_roll']*deg2rad
             self.risk_pitch = robot_data['risk_pitch']*deg2rad
             self.risk_block = robot_data['risk_block']*deg2rad
-            self.risk_gain = robot_data['risk_gain']
+            self.risk_gain = robot_data['risk_gain']*self.friction
             self.risk_margin = robot_data['risk_margin']*deg2rad
             self.bezier_coeff = np.maximum(bezier_coeff, 0.15)
         if self.camis_type == 'PolynomialRoots':

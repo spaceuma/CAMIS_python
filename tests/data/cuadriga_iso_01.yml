@@ -1,0 +1,16 @@
+name: Cuadriga
+mode: isotropic
+slope_threshold: 45.0
+sd_threshold: 90.0
+occupancy_radius: 0.5
+tracking_error: 0.5
+camis_type: DrivingModel
+friction: 0.44866
+kmg: 47.704
+slip_parallel_ascent: 0.000614
+slip_parallel_descent: 0.0
+risk_roll: 15.0
+risk_pitch: 25.0
+risk_block: 20.0
+risk_gain: 5.0
+risk_margin: 5.0
