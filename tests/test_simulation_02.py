@@ -18,86 +18,34 @@ except:
 nSimMap = 1
 
 # =============================================================================
-## ENVIRONMENTS CREATION ##
+## ENVIRONMENT CREATION ##
 # =============================================================================
 
-if nSimMap == 0:
-#    x = np.linspace(0,79,80)
-#    y = np.linspace(0,79,80)
-#    XX,YY = np.meshgrid(x,y)
-#    DEM = 0*YY
-#    DEM[np.where(YY>15)] = (YY[np.where(YY>15)] - 15)
-#    DEM[np.where(YY>25)] = 10
-#    DEM[np.where(YY>45)] = 10 + (45-YY[np.where(YY>45)])
-#    DEM[np.where(YY>65)] = -10
- 
-    x = np.linspace(0,49,50)
-    y = np.linspace(0,99,100)
-    XX,YY = np.meshgrid(x,y)
-    DEM = XX
-    DEM[np.where(XX>35)] = 35
-    DEM[np.where(XX<15)] = 15
-    r = 2
-    r = r + 1 - r%2
-    y,x = np.ogrid[-r: r+1, -r: r+1]
-    convMatrix = x**2+y**2 <= r**2
-    convMatrix = convMatrix.astype(float)
-    DEM = 0.5*signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
-                                      mode='same', boundary='symm') 
-    goal = np.asarray([45,95])
-    start = np.asarray([5,5])
-    
-if nSimMap == 1:
-    x = np.linspace(0,49,50)
-    y = np.linspace(0,99,100)
-    XX,YY = np.meshgrid(x,y)
-    tXX = np.abs(XX)
-    tYY = np.abs(YY - 60)
-    dist2center = np.sqrt(tXX**2 + tYY**2)
-    DEM1 = np.zeros_like(dist2center)
-    DEM1[:] = dist2center   
-#    DEM1[np.where(dist2center>30)] = 30
-    DEM1 = .5*(DEM1 - 30) + 1.25
-    DEM0 = np.ones_like(dist2center)*1.25
-    DEM1 = np.maximum(DEM0,DEM1)
-#    DEM1 = DEM1 - 30
-#    DEM1 = .125*DEM1
-    DEM2 = (100-YY)*0.125
-#    DEM2[:] = .125*YY - 70/8
-    DEM = np.minimum(DEM1,DEM2)
-#    DEM[np.where(DEM>0)] = 0
-    r = 2
-    r = r + 1 - r%2
-    y,x = np.ogrid[-r: r+1, -r: r+1]
-    convMatrix = x**2+y**2 <= r**2
-    convMatrix = convMatrix.astype(float)
-    DEM = DEM*(1 + (50-XX)/50*0.2)
-    DEM = signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
+x = np.linspace(0,49,50)
+y = np.linspace(0,99,100)
+XX,YY = np.meshgrid(x,y)
+tXX = np.abs(XX)
+tYY = np.abs(YY - 60)
+dist2center = np.sqrt(tXX**2 + tYY**2)
+DEM1 = np.zeros_like(dist2center)
+DEM1[:] = dist2center   
+DEM1 = .5*(DEM1 - 30) + 1.25
+DEM0 = np.ones_like(dist2center)*1.25
+DEM1 = np.maximum(DEM0,DEM1)
+DEM2 = (100-YY)*0.125
+DEM = np.minimum(DEM1,DEM2)
+r = 2
+r = r + 1 - r%2
+y,x = np.ogrid[-r: r+1, -r: r+1]
+convMatrix = x**2+y**2 <= r**2
+convMatrix = convMatrix.astype(float)
+DEM = DEM*(1 + (50-XX)/50*0.2)
+DEM = signal.convolve2d(DEM, convMatrix/convMatrix.sum(), \
                                       mode='same', boundary='symm')
-    goal = np.asarray([10,50])
-    start = np.asarray([5,5])
-
-if nSimMap == 7:
-    DEM = 2*(np.cos(XX/4)**2 + np.sin(YY/4)**2)
-if nSimMap == 8:
-    DEM = 4*(np.cos(XX/4)**2 + np.cos(YY/4)**2)
-if nSimMap == 2:
-    DEM = 2*np.sin(np.sqrt((XX/5)**2+(YY/5)**2)/2)**2
-if nSimMap == 3:
-    DEM = 2*(np.sin(XX/4)+1.0)
-if nSimMap == 4:
-    DEM = YY/5
-    DEM[np.where(YY>35)] = 35/5
-    DEM[np.where(YY<15)] = 15/5
-if nSimMap == 5:
-    DEM = YY/5 + (np.cos(XX/4)**2 + np.sin(YY/4)**2)
-
-if nSimMap == 6:
-    x = np.linspace(0,49,50)
-    y = np.linspace(0,99,100)
-    XX,YY = np.meshgrid(x,y)
-    DEM = 5*(np.sin(XX/20)**2 + np.sin(YY/20+np.pi/2)**2)
-    
+goal = np.asarray([10,50])
+#start = np.asarray([5,5])
+start = np.asarray([45,35])
+ 
 
 
 # DEM resolution
@@ -108,10 +56,6 @@ planRes = 1.0
 
 # We create a new environment (offset is zero,zero) and 4 copies
 env1 = camis.AnisotropicMap(DEM, demRes, planRes, (0,0))
-#env1.smoothMap(2.0)
-#sdThreshold = 11.0
-#slopeThreshold = 24.0
-#env1.computeObstacles(sdThreshold,slopeThreshold)
 env2 = copy.deepcopy(env1)
 env3 = copy.deepcopy(env1)
 env4 = copy.deepcopy(env1)
@@ -122,113 +66,61 @@ env1.show3dDEM()
 
 
 fig, axes = plt.subplots(constrained_layout=True)
-env1.showMap('slope-deg',fig,axes)
+env1.showMap('elevation',fig,axes)
 axes.set_xlabel('X-axis (m)')
 axes.set_ylabel('Y-axis (m)')
 
 # =============================================================================
 ## DIFFERENT CUSTOM CAMIS CREATION ##
 # =============================================================================
-
-if nSimMap == 0:
-    # ROBOT 1
-    with open("data/sim02/simRobot1.yml", 'r') as file:
-        robot1 = yaml.full_load(file) 
-    r1 = camis.CamisDrivingModel(robot1) 
-    env1.computeVecCostMap(r1)
-    env7 = copy.deepcopy(env1)
-    r1.showDirCosts()
-    r1.showCAMIS()
     
-    # ROBOT 2
-    with open("data/sim02/simRobot2.yml", 'r') as file:
-        robot2 = yaml.full_load(file)
-    r2 = camis.CamisDrivingModel(robot2)
-    env2.computeVecCostMap(r2)
-    env8 = copy.deepcopy(env2)
-    r2.showCAMIS()
+# ROBOT 1
+with open("data/sim02/simRobot1.yml", 'r') as file:
+    robot1 = yaml.full_load(file) 
+r1 = camis.CamisDrivingModel(robot1) 
+env1.computeVecCostMap(r1)
+env7 = copy.deepcopy(env1)
+r1.showCAMIS()
+    
+# ROBOT 2
+with open("data/sim02/simRobot2.yml", 'r') as file:
+    robot2 = yaml.full_load(file)
+r2 = camis.CamisDrivingModel(robot2)
+env2.computeVecCostMap(r2)
+env8 = copy.deepcopy(env2)
+r2.showCAMIS()
     
     # ROBOT 3
-    with open("data/sim02/simRobot3.yml", 'r') as file:
-        robot3 = yaml.full_load(file)
-    r3 = camis.CamisDrivingModel(robot3)
-    env3.computeVecCostMap(r3)
-    env9 = copy.deepcopy(env3)
-    r3.showCAMIS()
+with open("data/sim02/simRobot3.yml", 'r') as file:
+    robot3 = yaml.full_load(file)
+r3 = camis.CamisDrivingModel(robot3)
+env3.computeVecCostMap(r3)
+env9 = copy.deepcopy(env3)
+r3.showCAMIS()
     
     # ROBOT 4
-    with open("data/sim02/simRobot4.yml", 'r') as file:
-        robot4 = yaml.full_load(file)
-    r4 = camis.CamisDrivingModel(robot4)
-    env4.computeVecCostMap(r4)
-    env10 = copy.deepcopy(env4)
-    r4.showCAMIS()
+with open("data/sim02/simRobot4.yml", 'r') as file:
+    robot4 = yaml.full_load(file)
+r4 = camis.CamisDrivingModel(robot4)
+env4.computeVecCostMap(r4)
+env10 = copy.deepcopy(env4)
+r4.showCAMIS()
     
     # ROBOT 5
-    with open("data/sim02/simRobot5.yml", 'r') as file:
-        robot5 = yaml.full_load(file)
-    r5 = camis.CamisDrivingModel(robot5)
-    env5.computeVecCostMap(r5)
-    env11 = copy.deepcopy(env5)
-    r5.showCAMIS()
+with open("data/sim02/simRobot5.yml", 'r') as file:
+    robot5 = yaml.full_load(file)
+r5 = camis.CamisDrivingModel(robot5)
+env5.computeVecCostMap(r5)
+env11 = copy.deepcopy(env5)
+r5.showCAMIS()
     
     # ROBOT 6
-    with open("data/sim02/simRobot6.yml", 'r') as file:
-        robot6 = yaml.full_load(file)
-    r6 = camis.CamisDrivingModel(robot6)
-    env6.computeVecCostMap(r6)
-    env12 = copy.deepcopy(env6)
-    r6.showCAMIS()
-    
-else:
-    
-    # ROBOT 1
-    with open("data/sim01/simRobot1.yml", 'r') as file:
-        robot1 = yaml.full_load(file) 
-    r1 = camis.CamisDrivingModel(robot1) 
-    env1.computeVecCostMap(r1)
-    env7 = copy.deepcopy(env1)
-    r1.showCAMIS()
-    
-    # ROBOT 2
-    with open("data/sim01/simRobot2.yml", 'r') as file:
-        robot2 = yaml.full_load(file)
-    r2 = camis.CamisDrivingModel(robot2)
-    env2.computeVecCostMap(r2)
-    env8 = copy.deepcopy(env2)
-    r2.showCAMIS()
-    
-    # ROBOT 3
-    with open("data/sim01/simRobot3.yml", 'r') as file:
-        robot3 = yaml.full_load(file)
-    r3 = camis.CamisDrivingModel(robot3)
-    env3.computeVecCostMap(r3)
-    env9 = copy.deepcopy(env3)
-    r3.showCAMIS()
-    
-    # ROBOT 4
-    with open("data/sim01/simRobot4.yml", 'r') as file:
-        robot4 = yaml.full_load(file)
-    r4 = camis.CamisDrivingModel(robot4)
-    env4.computeVecCostMap(r4)
-    env10 = copy.deepcopy(env4)
-    r4.showCAMIS()
-    
-    # ROBOT 5
-    with open("data/sim01/simRobot5.yml", 'r') as file:
-        robot5 = yaml.full_load(file)
-    r5 = camis.CamisDrivingModel(robot5)
-    env5.computeVecCostMap(r5)
-    env11 = copy.deepcopy(env5)
-    r5.showCAMIS()
-    
-    # ROBOT 6
-    with open("data/sim01/simRobot6.yml", 'r') as file:
-        robot6 = yaml.full_load(file)
-    r6 = camis.CamisDrivingModel(robot6)
-    env6.computeVecCostMap(r6)
-    env12 = copy.deepcopy(env6)
-    r6.showCAMIS()
+with open("data/sim02/simRobot6.yml", 'r') as file:
+    robot6 = yaml.full_load(file)
+r6 = camis.CamisDrivingModel(robot6)
+env6.computeVecCostMap(r6)
+env12 = copy.deepcopy(env6)
+r6.showCAMIS()
 
 # =============================================================================
 ## PATH PLANNING
@@ -260,9 +152,11 @@ env12.executeBiPlanning(start,goal)
 # =============================================================================
 ## SHOWING RESULTS
 # =============================================================================
+plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
+
 
 fig, axes = plt.subplots(constrained_layout=True)
 #fig.suptitle('Simulation 01 - First Run', fontsize=16)
@@ -277,8 +171,9 @@ axes.legend(('CAMIS A', 'CAMIS B', 'CAMIS C', 'CAMIS D', 'CAMIS E', 'CAMIS F'))
 axes.set_xlabel('X-axis (m)')
 axes.set_ylabel('Y-axis (m)')
 
+
 fig, axes = plt.subplots(constrained_layout=True)
-env1.showMap('slope-deg',fig,axes)
+env1.showMap('elevation',fig,axes)
 env7.showPath(fig,axes,'r','solid')
 env8.showPath(fig,axes,'b','solid')
 env9.showPath(fig,axes,'g','solid')
@@ -289,6 +184,83 @@ axes.legend(('CAMIS A', 'CAMIS B', 'CAMIS C', 'CAMIS D', 'CAMIS E', 'CAMIS F'))
 axes.set_xlabel('X-axis (m)')
 axes.set_ylabel('Y-axis (m)')
 
+# From https://matplotlib.org/3.2.1/gallery/lines_bars_and_markers/barchart.html#sphx-glr-gallery-lines-bars-and-markers-barchart-py
+def autolabel(rects):
+    """Attach a text label above each bar in *rects*, displaying its height."""
+    for rect in rects:
+        height = rect.get_height()
+        ax.annotate('{0:.2f}'.format(height),
+                    xy=(rect.get_x() + rect.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+slipCoeffsLabels = ['0.5','1.0','2.0']
+integratedTisoGo = [env1.pathComputedTotalCost[-1], env3.pathComputedTotalCost[-1], env5.pathComputedTotalCost[-1]]
+integratedTisoReturn = [env7.pathComputedTotalCost[-1], env9.pathComputedTotalCost[-1], env11.pathComputedTotalCost[-1]]
+integratedTisoSum = [env1.pathComputedTotalCost[-1] + env7.pathComputedTotalCost[-1],
+                     env3.pathComputedTotalCost[-1] + env9.pathComputedTotalCost[-1], 
+                     env5.pathComputedTotalCost[-1] + env11.pathComputedTotalCost[-1]]
+integratedTanisoGo = [env2.pathComputedTotalCost[-1], env4.pathComputedTotalCost[-1], env6.pathComputedTotalCost[-1]]
+integratedTanisoReturn = [env8.pathComputedTotalCost[-1], env10.pathComputedTotalCost[-1], env12.pathComputedTotalCost[-1]]
+integratedTanisoSum = [env2.pathComputedTotalCost[-1] + env8.pathComputedTotalCost[-1], 
+                       env4.pathComputedTotalCost[-1] + env10.pathComputedTotalCost[-1],
+                       env6.pathComputedTotalCost[-1] + env12.pathComputedTotalCost[-1]]
+x = np.arange(len(slipCoeffsLabels))  # the label locations
+width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, integratedTisoGo, width, label='Isotropic (ρ = 0.8)')
+rects1 = ax.bar(x - width/2, integratedTisoReturn, width, bottom = integratedTisoGo, label='Isotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, integratedTanisoGo, width, label='Anisotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, integratedTanisoReturn, width, bottom = integratedTanisoGo, label='Anisotropic (ρ = 0.8)')
+autolabel(rects1)
+autolabel(rects2)
+ax.set_ylabel('Total Cost [As]')
+ax.set_xlabel('Slip Coefficient')
+ax.set_xticks(x)
+ax.set_xticklabels(slipCoeffsLabels)
+ax.legend()
+plt.show()
+
+
+traversedDisoGo = [env1.pathTravDist[-1], env3.pathTravDist[-1], env5.pathTravDist[-1]]
+traversedDisoReturn = [env7.pathTravDist[-1], env9.pathTravDist[-1], env11.pathTravDist[-1]]
+traversedDanisoGo = [env2.pathTravDist[-1], env4.pathTravDist[-1], env6.pathTravDist[-1]]
+traversedDanisoReturn = [env8.pathTravDist[-1], env10.pathTravDist[-1], env12.pathTravDist[-1]]
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, traversedDisoGo, width, label='Isotropic (ρ = 0.8)')
+rects1 = ax.bar(x - width/2, traversedDisoReturn, width, bottom = integratedTisoGo, label='Isotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, traversedDanisoGo, width, label='Anisotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, traversedDanisoReturn, width, bottom = integratedTanisoGo, label='Anisotropic (ρ = 0.8)')
+autolabel(rects1)
+autolabel(rects2)
+ax.set_ylabel('Traversed distance [m]')
+ax.set_xlabel('Slip Coefficient')
+ax.set_xticks(x)
+ax.set_xticklabels(slipCoeffsLabels)
+ax.legend()
+plt.show()
+
+
+traversedTimeisoGo = [env1.pathTravDist[-1], env3.pathTravDist[-1], env5.pathTravDist[-1]]
+traversedTimeisoReturn = [env7.pathTravDist[-1], env9.pathTravDist[-1], env11.pathTravDist[-1]]
+traversedTimeanisoGo = [env2.pathTravDist[-1], env4.pathTravDist[-1], env6.pathTravDist[-1]]
+traversedTimeanisoReturn = [env8.pathTravDist[-1], env10.pathTravDist[-1], env12.pathTravDist[-1]]
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, traversedTimeisoGo, width, label='Isotropic (ρ = 0.8)')
+rects1 = ax.bar(x - width/2, traversedTimeisoReturn, width, bottom = integratedTisoGo, label='Isotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, traversedTimeanisoGo, width, label='Anisotropic (ρ = 0.8)')
+rects2 = ax.bar(x + width/2, traversedTimeanisoReturn, width, bottom = integratedTanisoGo, label='Anisotropic (ρ = 0.8)')
+autolabel(rects1)
+autolabel(rects2)
+ax.set_ylabel('Elapsed time [m]')
+ax.set_xlabel('Slip Coefficient')
+ax.set_xticks(x)
+ax.set_xticklabels(slipCoeffsLabels)
+ax.legend()
+plt.show()
 
 
 #env1.showPathData('cost',fig,ax2,'r')

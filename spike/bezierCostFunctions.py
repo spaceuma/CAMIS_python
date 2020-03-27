@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Mar  6 15:27:50 2020
-
-@author: rsanchez
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -56,17 +49,10 @@ else:
     intersection2Y = - rho + np.tan(intersection2X)
 descentIntersection = np.array([intersection2X,intersection2Y])
 
-#The intersection between risk function and lateral function is approximated
-if brakeSteepness >= rollRiskMin:
-    intersection3X = scipy.optimize.fsolve(lambda x : 
+intersection3X = scipy.optimize.fsolve(lambda x : 
         (x - rollRiskMin)/(rollRiskMax-rollRiskMin)*riskGain - 
-        np.sqrt(rho**2  - np.tan(x)**2),0)
-    intersection3Y = np.sqrt(rho**2  - np.tan(intersection3X)**2)
-else:
-    intersection3X = scipy.optimize.fsolve(lambda x : 
-        (x - rollRiskMin)/(rollRiskMax-rollRiskMin)*riskGain - 
-        np.sqrt(np.tan(x)**2 - rho**2 ),rollRiskMax)
-    intersection3Y = np.sqrt(np.tan(intersection3X)**2 - rho**2 )
+        rho*np.cos(x),0)
+intersection3Y = np.cos(intersection3X)*rho
 lateralIntersection = np.array([intersection3X,intersection3Y])
 
 #The first Bezier points
@@ -80,12 +66,9 @@ else:
     initial2Point = np.array([(1-Kr)*brakeSteepness,
                               rho - np.tan((1-Kr)*brakeSteepness)])
     
-if brakeSteepness >= rollRiskMin:
-    initial3Point = np.array([(1-Kr)*intersection3X,
-                              np.sqrt(rho**2  - np.tan((1-Kr)*intersection3X)**2)])
-else:
-    initial3Point = np.array([(1-Kr)*brakeSteepness, 
-                              np.sqrt(rho**2  - np.tan((1-Kr)*brakeSteepness)**2)])
+initial3Point = np.array([(1-Kr)*intersection3X,
+                          rho*np.cos((1-Kr)*intersection3X)])
+
 
 # The last Bezier points
 riskPoint = np.array([intersectionX + Kr*(blockRiskMax - intersectionX),
@@ -136,7 +119,8 @@ descentCAMIS = np.zeros_like(steepnessArray)
 lateralCAMIS = np.zeros_like(steepnessArray)
 
 
-lateralFunction = np.sqrt(ascentFunction*descentFunction)
+#lateralFunction = np.sqrt(ascentFunction*descentFunction)
+lateralFunction = rho*np.cos(steepnessArray)
 
 pitchRiskFunction = (steepnessArray - pitchRiskMin)/(pitchRiskMax - pitchRiskMin)*riskGain
 rollRiskFunction = (steepnessArray - rollRiskMin)/(rollRiskMax - rollRiskMin)*riskGain
@@ -167,15 +151,12 @@ for i,steepness in enumerate(steepnessArray):
                 descentCAMIS[i] = bezierCubicCost(steepnessArray[i], initial2Point, brakePoint,descentIntersection, riskPoint2)
                 
     if steepness < initial3Point[0]:
-        lateralCAMIS[i] = np.sqrt(rho**2  - np.tan(steepnessArray[i])**2)
+        lateralCAMIS[i] = rho*np.cos(steepnessArray[i])
     else:
         if steepness >= riskPoint3[0]:
             lateralCAMIS[i] = (steepness - rollRiskMin)/(rollRiskMax - rollRiskMin)*riskGain
         else:
-            if brakeSteepness >= rollRiskMin:
-                lateralCAMIS[i] = bezierCost(steepnessArray[i], initial3Point, lateralIntersection, riskPoint3)
-            else:
-                lateralCAMIS[i] = bezierCost(steepnessArray[i], initial3Point, lateralIntersection, riskPoint3)
+            lateralCAMIS[i] = bezierCost(steepnessArray[i], initial3Point, lateralIntersection, riskPoint3)
                 
 ax.plot(steepnessArray*rad2deg, ascentCAMIS, color = 'b')
 ax.plot(intersectionX*rad2deg, intersectionY, '*', color = 'b')
@@ -218,7 +199,7 @@ ax1.plot(riskPoint[0]*rad2deg, riskPoint[1], 'o', color = 'b')
 ax1.plot(brakePoint[0]*rad2deg, brakePoint[1], 'o', color = 'g')
 ax1.plot(riskPoint2[0]*rad2deg, riskPoint2[1], 'o', color = 'g')
 ax1.plot(riskPoint3[0]*rad2deg, riskPoint3[1], 'o', color = 'orange')
-ax1.legend(('ρ + tan α','|ρ - tan α|','((ρ + tan α)|ρ - tan α|)^.5','$R_a$','$R_d$','$R_l$','Block Risk Line', 
+ax1.legend(('ρ + tan α','|ρ - tan α|','ρ cos α','$R_a$','$R_d$','$R_l$','Block Risk Line', 
             'Pitch Risk Line','Roll Risk Line','Ascent Bezier points', 'Descent Bezier points', 'Lateral Bezier points'))
 ax1.set_xlim([0.0, 30.0])
 ax1.set_ylim([0.0, 3.0])

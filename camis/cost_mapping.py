@@ -223,7 +223,7 @@ class AnisotropicMap:
         
         VCMap = np.zeros([4,AnisotropyMap.shape[0],AnisotropyMap.shape[1]])
         
-        Cmax = self.costModel.getMaxCost()
+        Cmax = self.costModel.Cmax
         
         Q1 = vectorialData[1][:][:]
         Q1[np.where(self.hexProximityMap[:]<self.radius)] = 2*Cmax**2
@@ -435,25 +435,45 @@ class AnisotropicMap:
         plt.show()
     def showHexElevationMap(self):
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.hexElevationMap, cmap=cm.gist_earth,s=50)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.hexElevationMap, cmap=cm.gist_earth,s=20)
         cbar = fig.colorbar(cc)
+        cbar.set_label('Elevation (m)')
         ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
     def showHexSlopeMap(self):
         levels = np.linspace(0.0,45,46.0)
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=50)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=20)
         ax.set_aspect('equal')
         
 #        fig, ax = plt.subplots(constrained_layout=True)
 #        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
-        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
+#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
         cbar = fig.colorbar(cc)
         cbar.set_label('Slope (deg)')
         ax.set_aspect('equal')
-#        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
-#        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
+        plt.show()
+    def showHexAspectMap(self):
+        levels = np.linspace(0.0,45,46.0)
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*np.arctan2(self.hexAspectMap[1],self.hexAspectMap[0]), cmap="hsv",s=20)
+        ax.set_aspect('equal')
+        
+#        fig, ax = plt.subplots(constrained_layout=True)
+#        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
+#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Aspect (deg)')
+        ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
         plt.show()

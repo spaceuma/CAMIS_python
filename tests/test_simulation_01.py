@@ -30,7 +30,7 @@ hiRes_elevationMap = np.loadtxt(\
 hiRes = 0.1
 offset = np.loadtxt(open("data/terrainData/UMATerrainCuesta_10cmOffset.csv",\
                                  "rb"), delimiter=" ", skiprows=0)
-env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.4,\
+env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.3,\
                                offset)
 posA = np.asarray([5,36]) #Very good
 posB = np.asarray([30,60])
@@ -41,33 +41,32 @@ print('TEST_DEMO: DEM is loaded')
 # =============================================================================
 ## LOADING DIFFERENT CAMIS
 # =============================================================================
-bezier_coeff = 1.0
-with open("data/cuadriga_aniso_01.yml", 'r') as file:
+with open("data/sim01/cuadriga_aniso_01.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_01 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+aniso_01 = camis.CamisDrivingModel(cuadriga_data)
 aniso_01.showDirCosts()
 aniso_01.showCAMIS()
-with open("data/cuadriga_iso_01.yml", 'r') as file:
+with open("data/sim01/cuadriga_iso_01.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_01 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+iso_01 = camis.CamisDrivingModel(cuadriga_data)
 
-with open("data/cuadriga_aniso_02.yml", 'r') as file:
+with open("data/sim01/cuadriga_aniso_02.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_02 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+aniso_02 = camis.CamisDrivingModel(cuadriga_data)
 aniso_02.showDirCosts()
 aniso_02.showCAMIS()
-with open("data/cuadriga_iso_02.yml", 'r') as file:
+with open("data/sim01/cuadriga_iso_02.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_02 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+iso_02 = camis.CamisDrivingModel(cuadriga_data)
 
-with open("data/cuadriga_aniso_03.yml", 'r') as file:
+with open("data/sim01/cuadriga_aniso_03.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-aniso_03 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+aniso_03 = camis.CamisDrivingModel(cuadriga_data)
 aniso_03.showDirCosts()
 aniso_03.showCAMIS()
-with open("data/cuadriga_iso_03.yml", 'r') as file:
+with open("data/sim01/cuadriga_iso_03.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
-iso_03 = camis.CamisDrivingModel(cuadriga_data, bezier_coeff)
+iso_03 = camis.CamisDrivingModel(cuadriga_data)
 
 print('TEST_DEMO: all CAMIS are loaded')
 

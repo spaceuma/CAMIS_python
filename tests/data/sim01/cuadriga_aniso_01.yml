@@ -1,16 +1,20 @@
 name: Cuadriga
 mode: anisotropic
 slope_threshold: 45.0
-sd_threshold: 90.0
 occupancy_radius: 0.5
 tracking_error: 0.5
-camis_type: DrivingModel
+speed: 0.5
+rolling_resistance_mode: nominal
 friction: 0.44866
 kmg: 47.704
-slip_parallel_ascent: 0.000614
-slip_parallel_descent: 0.0
+steepness_brake_margin: 15.0
+slip_mode: none
+slip: 2.0
 risk_roll: 15.0
 risk_pitch: 25.0
 risk_block: 20.0
-risk_gain: 5.0
-risk_margin: 5.0
+risk_init: 10.0
+
+risk_mult: 10.0
+risk_margin: 15.0
+bezier_coeff: 0.8
