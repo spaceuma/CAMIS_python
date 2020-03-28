@@ -30,9 +30,9 @@ hiRes_elevationMap = np.loadtxt(\
 hiRes = 0.1
 offset = np.loadtxt(open("data/terrainData/UMATerrainCuesta_10cmOffset.csv",\
                                  "rb"), delimiter=" ", skiprows=0)
-env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.3,\
+env = camis.AnisotropicMap(hiRes_elevationMap, hiRes, 0.4,\
                                offset)
-posA = np.asarray([5,36]) #Very good
+posA = np.asarray([10,36]) #Very good
 posB = np.asarray([30,60])
 posC = np.asarray([30,20])
 print('TEST_DEMO: DEM is loaded')
@@ -45,7 +45,6 @@ with open("data/sim01/cuadriga_aniso_01.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_01 = camis.CamisDrivingModel(cuadriga_data)
 aniso_01.showDirCosts()
-aniso_01.showCAMIS()
 with open("data/sim01/cuadriga_iso_01.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 iso_01 = camis.CamisDrivingModel(cuadriga_data)
@@ -54,7 +53,6 @@ with open("data/sim01/cuadriga_aniso_02.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_02 = camis.CamisDrivingModel(cuadriga_data)
 aniso_02.showDirCosts()
-aniso_02.showCAMIS()
 with open("data/sim01/cuadriga_iso_02.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 iso_02 = camis.CamisDrivingModel(cuadriga_data)
@@ -63,7 +61,6 @@ with open("data/sim01/cuadriga_aniso_03.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_03 = camis.CamisDrivingModel(cuadriga_data)
 aniso_03.showDirCosts()
-aniso_03.showCAMIS()
 with open("data/sim01/cuadriga_iso_03.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 iso_03 = camis.CamisDrivingModel(cuadriga_data)
@@ -88,21 +85,27 @@ env_aniso_01_back = copy.deepcopy(env_aniso_01_go)
 env_aniso_01_go2 = copy.deepcopy(env_aniso_01_go)
 env_aniso_01_back2 = copy.deepcopy(env_aniso_01_go) 
 env_iso_01_go.computeVecCostMap(iso_01)
+env_iso_01_back = copy.deepcopy(env_iso_01_go)
 env_iso_01_go2 = copy.deepcopy(env_iso_01_go)
+env_iso_01_back2 = copy.deepcopy(env_iso_01_go)
 
 env_aniso_02_go.computeVecCostMap(aniso_02)
 env_aniso_02_back = copy.deepcopy(env_aniso_02_go) 
 env_aniso_02_go2 = copy.deepcopy(env_aniso_02_go) 
 env_aniso_02_back2 = copy.deepcopy(env_aniso_02_go) 
 env_iso_02_go.computeVecCostMap(iso_02)
+env_iso_02_back = copy.deepcopy(env_iso_02_go)
 env_iso_02_go2 = copy.deepcopy(env_iso_02_go)
+env_iso_02_back2 = copy.deepcopy(env_iso_02_go)
 
 env_aniso_03_go.computeVecCostMap(aniso_03)
 env_aniso_03_back = copy.deepcopy(env_aniso_03_go) 
 env_aniso_03_go2 = copy.deepcopy(env_aniso_03_go) 
 env_aniso_03_back2 = copy.deepcopy(env_aniso_03_go) 
 env_iso_03_go.computeVecCostMap(iso_03)
+env_iso_03_back = copy.deepcopy(env_iso_03_go)
 env_iso_03_go2 = copy.deepcopy(env_iso_03_go)
+env_iso_03_back2 = copy.deepcopy(env_iso_03_go)
 print('TEST_DEMO: the environments are processed')
 
 # =============================================================================
@@ -114,21 +117,27 @@ env_aniso_01_back.executeBiPlanning(posA,posB)
 env_aniso_01_go2.executeBiPlanning(posC,posA)
 env_aniso_01_back2.executeBiPlanning(posA,posC)
 env_iso_01_go.executeBiPlanning(posB,posA)
+env_iso_01_back.executeBiPlanning(posA,posB)
 env_iso_01_go2.executeBiPlanning(posC,posA)
+env_iso_01_back2.executeBiPlanning(posA,posC)
 
 env_aniso_02_go.executeBiPlanning(posB,posA)
 env_aniso_02_back.executeBiPlanning(posA,posB)
 env_aniso_02_go2.executeBiPlanning(posC,posA)
 env_aniso_02_back2.executeBiPlanning(posA,posC)
 env_iso_02_go.executeBiPlanning(posB,posA)
+env_iso_02_back.executeBiPlanning(posA,posB)
 env_iso_02_go2.executeBiPlanning(posC,posA)
+env_iso_02_back2.executeBiPlanning(posA,posC)
 
 env_aniso_03_go.executeBiPlanning(posB,posA)
 env_aniso_03_back.executeBiPlanning(posA,posB)
 env_aniso_03_go2.executeBiPlanning(posC,posA)
 env_aniso_03_back2.executeBiPlanning(posA,posC)
 env_iso_03_go.executeBiPlanning(posB,posA)
+env_iso_03_back.executeBiPlanning(posA,posB)
 env_iso_03_go2.executeBiPlanning(posC,posA)
+env_iso_03_back2.executeBiPlanning(posA,posC)
 
 # =============================================================================
 ## SHOWING RESULTS
@@ -225,15 +234,31 @@ plt.style.use('default')
 plt.style.use('seaborn-darkgrid')
 fig, axes = plt.subplots(constrained_layout=True)
 env_aniso_01_go.showPathData('pitch',fig,axes,'b','solid')
-env_aniso_01_back.showPathData('pitch',fig,axes,'b','dashed')
+#env_aniso_01_back.showPathData('pitch',fig,axes,'b','dashed')
 env_iso_01_go.showPathData('pitch',fig,axes,'m','solid')
 #env_iso_01_back.showPathData('pitch',fig,axes,'m','dashed')
 env_aniso_02_go.showPathData('pitch',fig,axes,'c','solid')
-env_aniso_02_back.showPathData('pitch',fig,axes,'c','dashed')
+#env_aniso_02_back.showPathData('pitch',fig,axes,'c','dashed')
 env_iso_02_go.showPathData('pitch',fig,axes,'r','solid')
 env_aniso_03_go.showPathData('pitch',fig,axes,'k','solid')
-env_aniso_03_back.showPathData('pitch',fig,axes,'k','dashed')
+#env_aniso_03_back.showPathData('pitch',fig,axes,'k','dashed')
 env_iso_03_go.showPathData('pitch',fig,axes,'y','solid')
+plt.style.use('default')
+axes.set_xlabel('Traversed distance [m]')
+axes.set_ylabel('Pitch [degrees]')
+
+plt.style.use('seaborn-darkgrid')
+fig, axes = plt.subplots(constrained_layout=True)
+#env_aniso_01_go.showPathData('pitch',fig,axes,'b','solid')
+env_aniso_01_back.showPathData('pitch',fig,axes,'b','dashed')
+#env_iso_01_go.showPathData('pitch',fig,axes,'m','solid')
+env_iso_01_back.showPathData('pitch',fig,axes,'m','dashed')
+#env_aniso_02_go.showPathData('pitch',fig,axes,'c','solid')
+env_aniso_02_back.showPathData('pitch',fig,axes,'c','dashed')
+#env_iso_02_go.showPathData('pitch',fig,axes,'r','solid')
+#env_aniso_03_go.showPathData('pitch',fig,axes,'k','solid')
+env_aniso_03_back.showPathData('pitch',fig,axes,'k','dashed')
+#env_iso_03_go.showPathData('pitch',fig,axes,'y','solid')
 plt.style.use('default')
 axes.set_xlabel('Traversed distance [m]')
 axes.set_ylabel('Pitch [degrees]')
@@ -247,12 +272,25 @@ axes.set_ylabel('Pitch [degrees]')
 plt.style.use('seaborn-darkgrid')
 fig, axes = plt.subplots(constrained_layout=True)
 env_aniso_01_go.showPathData('roll',fig,axes,'b','solid')
-env_aniso_01_back.showPathData('roll',fig,axes,'b','dashed')
 env_iso_01_go.showPathData('roll',fig,axes,'m','solid')
 env_aniso_02_go.showPathData('roll',fig,axes,'c','solid')
-env_aniso_02_back.showPathData('roll',fig,axes,'c','dashed')
 env_iso_02_go.showPathData('roll',fig,axes,'r','solid')
+env_aniso_03_go.showPathData('roll',fig,axes,'k','solid')
+env_iso_03_go.showPathData('roll',fig,axes,'y','solid')
 plt.style.use('default')
+axes.set_xlabel('Traversed distance [m]')
+axes.set_ylabel('Roll [degrees]')
+
+plt.style.use('seaborn-darkgrid')
+fig, axes = plt.subplots(constrained_layout=True)
+env_aniso_01_back.showPathData('roll',fig,axes,'b','dashed')
+#env_iso_01_back.showPathData('roll',fig,axes,'m','dashed')
+env_aniso_02_back.showPathData('roll',fig,axes,'c','dashed')
+env_aniso_03_back.showPathData('roll',fig,axes,'k','dashed')
+plt.style.use('default')
+axes.set_xlabel('Traversed distance [m]')
+axes.set_ylabel('Roll [degrees]')
+
 
 plt.style.use('seaborn-darkgrid')
 optList = ['segment', 'heading']
@@ -277,8 +315,62 @@ env_iso_02_go.showPathData('beta',fig,axes,'r','solid')
 plt.style.use('default')
 
 
-#envBack_bidem.showPathData('total-cost-estimated',fig,axes,'b')
-#envGo_biimu.showPathData('total-cost-estimated',fig,axes,'m')
-#envBack_biimu.showPathData('total-cost-estimated',fig,axes,'g')
+# From https://matplotlib.org/3.2.1/gallery/lines_bars_and_markers/barchart.html#sphx-glr-gallery-lines-bars-and-markers-barchart-py
+def autolabel(rects):
+    """Attach a text label above each bar in *rects*, displaying its height."""
+    for rect in rects:
+        height = rect.get_height()
+        ax.annotate('{0:.2f}'.format(height),
+                    xy=(rect.get_x() + rect.get_width() / 2, height),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='center', va='bottom')
+camisLabels = ['Energy','Roll Risk','Pitch Risk']
+integratedTisoGo = [env_iso_01_go.pathComputedTotalCost[-1], 
+                    env_iso_02_go.pathComputedTotalCost[-1], 
+                    env_iso_03_go.pathComputedTotalCost[-1]]
+integratedTisoGo2 = [env_iso_01_go2.pathComputedTotalCost[-1], 
+                     env_iso_02_go2.pathComputedTotalCost[-1], 
+                     env_iso_03_go2.pathComputedTotalCost[-1]]
+integratedTisoReturn = [env_iso_01_back.pathComputedTotalCost[-1], 
+                        env_iso_02_back.pathComputedTotalCost[-1], 
+                        env_iso_03_back.pathComputedTotalCost[-1]]
+integratedTisoReturn2 = [env_iso_01_back2.pathComputedTotalCost[-1], 
+                         env_iso_02_back2.pathComputedTotalCost[-1], 
+                         env_iso_03_back2.pathComputedTotalCost[-1]]
 
-#envGo.show3dDEM()
+integratedTanisoGo = [env_aniso_01_go.pathComputedTotalCost[-1], 
+                      env_aniso_02_go.pathComputedTotalCost[-1], 
+                      env_aniso_03_go.pathComputedTotalCost[-1]]
+integratedTanisoGo2 = [env_aniso_01_go2.pathComputedTotalCost[-1], 
+                       env_aniso_02_go2.pathComputedTotalCost[-1], 
+                       env_aniso_03_go2.pathComputedTotalCost[-1]]
+integratedTanisoReturn = [env_aniso_01_back.pathComputedTotalCost[-1], 
+                          env_aniso_02_back.pathComputedTotalCost[-1], 
+                          env_aniso_03_back.pathComputedTotalCost[-1]]
+integratedTanisoReturn2 = [env_aniso_01_back2.pathComputedTotalCost[-1], 
+                           env_aniso_02_back2.pathComputedTotalCost[-1], 
+                           env_aniso_03_back2.pathComputedTotalCost[-1]]
+
+x = np.arange(len(camisLabels))  # the label locations
+width = 0.2 # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - 3*width/2, integratedTisoGo, width, label='Isotropic A to B')
+rects1 = ax.bar(x - 3*width/2, integratedTisoReturn, width, bottom = integratedTisoGo, label='Isotropic B to A')
+rects2 = ax.bar(x - width/2, integratedTanisoGo, width, label='Anisotropic A to B')
+rects2 = ax.bar(x - width/2, integratedTanisoReturn, width, bottom = integratedTanisoGo, label='Anisotropic B to A')
+rects3 = ax.bar(x + width/2, integratedTisoGo2, width, label='Isotropic A to C')
+rects3 = ax.bar(x + width/2, integratedTisoReturn2, width, bottom = integratedTisoGo2, label='Isotropic C to A')
+rects4 = ax.bar(x + 3*width/2, integratedTanisoGo2, width, label='Anisotropic A to C')
+rects4 = ax.bar(x + 3*width/2, integratedTanisoReturn2, width, bottom = integratedTanisoGo2, label='Anisotropic C to A')
+#autolabel(rects1)
+#autolabel(rects2)
+#autolabel(rects3)
+#autolabel(rects4)
+ax.set_ylabel('Total Cost [As]')
+ax.set_xlabel('Optimization Focus')
+ax.set_xticks(x)
+ax.set_xticklabels(camisLabels)
+ax.legend()
+plt.show()

@@ -118,12 +118,18 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res,start)
      
     nodeLink = []
+    conditionMet = False
     while nbNodesG or nbNodesS:
         if nbNodesG:
             nodeTargetG, nbTG, nbNodesG = getMinNB(nbTG, nbNodesG)
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
             NClist, stateMapG = getNewConsidered(nodeTargetG,stateMapG)
             stateMapG = updateStateMap(nodeTargetG,stateMapG)
+#            stateMapG,conditionMet,nodeLink = updateStateMap(nodeTargetG,stateMapG,stateMapS)
+            if conditionMet:
+                d1 = dirMapS[nodeLink[1],nodeLink[0]]
+                d2 = dirMapG[nodeLink[1],nodeLink[0]] + np.pi
+                break
             TmapG, nbTG, nbNodesG = updateNode(NClist, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res)
             
             
@@ -132,23 +138,30 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
             NClist, stateMapS = getNewConsidered(nodeTargetS,stateMapS)
             stateMapS = updateStateMap(nodeTargetS,stateMapS)
+#            stateMapS,conditionMet,nodeLink = updateStateMap(nodeTargetS,stateMapS,stateMapG)
+            if conditionMet:
+                d1 = dirMapS[nodeLink[1],nodeLink[0]]
+                d2 = dirMapG[nodeLink[1],nodeLink[0]] + np.pi
+                break
             TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)
-        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
+            
+            
+        if stateMapS[nodeTargetG[1],nodeTargetG[0]] >= 1:
             d1 = dirMapS[nodeTargetG[1],nodeTargetG[0]]
             d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
-            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .09:
-#            if anisotropyMap[nodeTargetG[1],nodeTargetG[0]] <= 1.2:
+#            nodeLink = nodeTargetG
+#            break
+            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                 nodeLink = nodeTargetG
                 break
-        if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 2:
+        if stateMapG[nodeTargetS[1],nodeTargetS[0]] >= 1:
             d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
             d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
-            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .09:
-#            if anisotropyMap[nodeTargetS[1],nodeTargetS[0]] <= 1.2:
+#            nodeLink = nodeTargetS
+#            break
+            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                 nodeLink = nodeTargetS
                 break
-#    if (TmapG[start[0],start[1]] == np.inf)or(TmapS[goal[0],goal[1]] == np.inf):
-#        raise ValueError('Unreachable Goal')
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
 
 def updateStateMap(nodeTarget,stateMap):
@@ -160,7 +173,9 @@ def updateStateMap(nodeTarget,stateMap):
         N = getConsidered(getNeighbours(accepted[i]),stateMap)
         if len(N) == 0:
             stateMap[accepted[i][1],accepted[i][0]] = 2
-    return stateMap
+#            if otherStateMap[accepted[i][1],accepted[i][0]] == 2:
+#                return stateMap, True, accepted[i]
+    return stateMap#,False,nodeTarget
 
 def getAccepted(nodeList, stateMap):
     acceptedList = []

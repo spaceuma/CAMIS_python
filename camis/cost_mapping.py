@@ -226,10 +226,10 @@ class AnisotropicMap:
         Cmax = self.costModel.Cmax
         
         Q1 = vectorialData[1][:][:]
-        Q1[np.where(self.hexProximityMap[:]<self.radius)] = 2*Cmax**2
+        Q1[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
         Q1[obstacleMask] = np.inf
         Q2 = vectorialData[2][:][:]
-        Q2[np.where(self.hexProximityMap[:]<self.radius)] = 2*Cmax**2
+        Q2[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
         Q2[obstacleMask] = np.inf
         D1 = vectorialData[3][:][:]
         D1[np.where(self.hexProximityMap[:]<self.radius)] = 0

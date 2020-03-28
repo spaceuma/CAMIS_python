@@ -476,6 +476,7 @@ class CamisDrivingModel:
         self.friction = robot_data['friction']
         self.kmg = robot_data['kmg']
         self.steepness_brake_margin = robot_data['steepness_brake_margin']
+        self.risk_mode = robot_data['risk_mode']
         self.risk_roll = robot_data['risk_roll']*deg2rad
         self.risk_pitch = robot_data['risk_pitch']*deg2rad
         self.risk_block = robot_data['risk_block']*deg2rad
@@ -572,10 +573,18 @@ class CamisDrivingModel:
             return Cost
     
     def getCubicBezierCost(self,steepness,P0,P1,P2,P3):
-        res = scipy.optimize.least_squares(lambda x : 
-        (1-x)**3*P0[0] + 3*(1-x)**2*x*P1[0] + 3*(1-x)*x**2*P2[0]+x**3*P3[0] - 
-            steepness,0.5, bounds = (0,1))
-        t = res.x
+#        res = scipy.optimize.least_squares(lambda x : 
+#        (1-x)**3*P0[0] + 3*(1-x)**2*x*P1[0] + 3*(1-x)*x**2*P2[0]+x**3*P3[0] - 
+#            steepness,0.5, bounds = (0,1))
+        coeff = [-P0[0]+3*P1[0]-3*P2[0]+P3[0], 
+                 3*P0[0] - 6*P1[0] + 3*P2[0],
+                 -3*P0[0] + 3*P1[0],
+                 P0[0] - steepness]
+        results = np.roots(coeff)
+        for res in results:
+            if (res >= 0.0)and(res <=1.0)and(np.isreal(res)):
+                t = res.real
+#        t = res.x
         return np.asscalar((1-t)**3*P0[1] + 3*(1-t)**2*t*P1[1] + 3*(1-t)*t**2*P2[1] + t**3*P3[1])
                 
     def computeBezierPoints(self):
@@ -602,47 +611,54 @@ class CamisDrivingModel:
         self.risk_gain = self.Cmax/(self.bezier_coeff*self.risk_margin)
         
         #Obtain the ascent Bezier points
-        initialPointX = np.max([(self.ascentRiskThreshold-self.risk_margin),0.0])
+        initialPointX = self.risk_init
         initialPointY = self.getRawCa(initialPointX*rad2deg)
-        derInitialPoint = (self.getRawCa(initialPointX+rad2deg)-self.getRawCa(initialPointX))/rad2deg
         
-        intersectionX = scipy.optimize.fsolve(lambda x : 
-        (derInitialPoint*(x-initialPointX) + initialPointY - 
-         self.risk_gain*(x-self.ascentRiskThreshold)-self.Cmax),0)
-        intersectionY = derInitialPoint*(intersectionX-initialPointX) + initialPointY
+        aa = self.ascentRiskThreshold - self.risk_init
+        
+        intersection1X = self.risk_init + self.bezier_coeff*aa/2
+        intersection1Y = self.getRawCa(intersection1X*rad2deg)
+
+        intersection2X = self.ascentRiskThreshold - self.bezier_coeff*aa/2
+        intersection2Y = self.Cmax
         
         self.ascentBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.ascentBezierPoint_intersection = np.array([intersectionX,intersectionY])
+        self.ascentBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
+        self.ascentBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
         self.ascentBezierPoint_risk = np.array([self.ascentRiskThreshold,self.Cmax])
         
         #Obtain the lateral Bezier points
         self.lateralRiskThreshold = self.risk_roll
-        initialPointX = np.max([(self.lateralRiskThreshold-self.risk_margin),0.0])
+        initialPointX = self.risk_init
         initialPointY = self.getRawCl(initialPointX*rad2deg)
-        derInitialPoint = (self.getRawCl(initialPointX+rad2deg)-self.getRawCl(initialPointX))/rad2deg
         
-        intersectionX = scipy.optimize.fsolve(lambda x : 
-        (derInitialPoint*(x-initialPointX) + initialPointY - 
-         self.risk_gain*(x-self.lateralRiskThreshold)-self.Cmax),0)
-        intersectionY = derInitialPoint*(intersectionX-initialPointX) + initialPointY
+        aa = self.lateralRiskThreshold - self.risk_init
+        intersection1X = self.risk_init + self.bezier_coeff*aa/2
+        intersection1Y = self.getRawCl(intersection1X*rad2deg)
+        
+        intersection2X = self.lateralRiskThreshold - self.bezier_coeff*aa/2
+        intersection2Y = self.Cmax
         
         self.lateralBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.lateralBezierPoint_intersection = np.array([intersectionX,intersectionY])
+        self.lateralBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
+        self.lateralBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
         self.lateralBezierPoint_risk = np.array([self.lateralRiskThreshold,self.Cmax])
         
         #Obtain the descent Bezier points
         self.descentRiskThreshold = self.risk_pitch
-        initialPointX = np.max([(self.descentRiskThreshold-self.risk_margin),0.0])
+        initialPointX = self.risk_init
         initialPointY = self.getRawCd(initialPointX*rad2deg)
-        derInitialPoint = (self.getRawCd(initialPointX+rad2deg)-self.getRawCd(initialPointX))/rad2deg
         
-        intersectionX = scipy.optimize.fsolve(lambda x : 
-        (derInitialPoint*(x-initialPointX) + initialPointY - 
-         self.risk_gain*(x-self.descentRiskThreshold)-self.Cmax),0)
-        intersectionY = derInitialPoint*(intersectionX-initialPointX) + initialPointY
+        aa = self.descentRiskThreshold - self.risk_init
+        intersection1X = self.risk_init + self.bezier_coeff*aa/2
+        intersection1Y = self.getRawCd(intersection1X*rad2deg)
+        
+        intersection2X = self.descentRiskThreshold - self.bezier_coeff*aa/2
+        intersection2Y = self.Cmax
         
         self.descentBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.descentBezierPoint_intersection = np.array([intersectionX,intersectionY])
+        self.descentBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
+        self.descentBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
         self.descentBezierPoint_risk = np.array([self.descentRiskThreshold,self.Cmax])
         
         #The intersection between risk function and ascent function
@@ -741,16 +757,23 @@ class CamisDrivingModel:
         return R * S / pv
     def getCd(self, steepness_deg):
         rawC = self.getRawCd(steepness_deg)
+        if self.risk_mode == 'none':
+            return rawC
         if steepness_deg < self.descentBezierPoint_initial[0]*rad2deg:
             return rawC
         elif steepness_deg < self.descentBezierPoint_risk[0]*rad2deg:
             return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
                                                self.descentBezierPoint_initial,
-                                               self.descentBezierPoint_intersection,
+                                               self.descentBezierPoint_intersection1,
                                                self.descentBezierPoint_risk)
+#            return self.getCubicBezierCost(steepness_deg*deg2rad, 
+#                                               self.descentBezierPoint_initial,
+#                                               self.descentBezierPoint_intersection1,
+#                                               self.descentBezierPoint_intersection2,
+#                                               self.descentBezierPoint_risk)
         else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.descentRiskThreshold) + self.Cmax
-            return self.Cmax
+            return self.risk_gain*(steepness_deg*deg2rad - self.descentRiskThreshold) + self.Cmax
+#            return self.Cmax
     
     def getRawCa(self,steepness_deg):
         S = self.getSlipFactor(steepness_deg)
@@ -759,16 +782,18 @@ class CamisDrivingModel:
         return R * S / pv
     def getCa(self, steepness_deg):
         rawC = self.getRawCa(steepness_deg)
+        if self.risk_mode == 'none':
+            return rawC
         if steepness_deg < self.ascentBezierPoint_initial[0]*rad2deg:
             return rawC
         elif steepness_deg < self.ascentBezierPoint_risk[0]*rad2deg:
             return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
                                                self.ascentBezierPoint_initial,
-                                               self.ascentBezierPoint_intersection,
+                                               self.ascentBezierPoint_intersection1,
                                                self.ascentBezierPoint_risk)
         else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.ascentRiskThreshold) + self.Cmax
-            return self.Cmax
+            return self.risk_gain*(steepness_deg*deg2rad - self.ascentRiskThreshold) + self.Cmax
+#            return self.Cmax
         
     def getRawCl(self,steepness_deg):
         S = self.getSlipFactor(steepness_deg)
@@ -777,16 +802,18 @@ class CamisDrivingModel:
         return R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
+        if self.risk_mode == 'none':
+            return rawC
         if steepness_deg < self.lateralBezierPoint_initial[0]*rad2deg:
             return rawC
         elif steepness_deg < self.lateralBezierPoint_risk[0]*rad2deg:
             return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
                                                self.lateralBezierPoint_initial,
-                                               self.lateralBezierPoint_intersection,
+                                               self.lateralBezierPoint_intersection1,
                                                self.lateralBezierPoint_risk)
         else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.lateralRiskThreshold) + self.Cmax
-            return self.Cmax
+            return self.risk_gain*(steepness_deg*deg2rad - self.lateralRiskThreshold) + self.Cmax
+#            return self.Cmax
         
     
     def getCn(self,slope): #TODO - check this
@@ -867,7 +894,6 @@ class CamisDrivingModel:
         AnisotropyAL = np.zeros_like(linearGradient)
         AnisotropyDL = np.zeros_like(linearGradient)
         for i,g in enumerate(linearGradient):
-            Cs = []
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 Bs.append(np.arctan2(B[1],B[0]))
@@ -877,6 +903,7 @@ class CamisDrivingModel:
             AnisotropyAD[i] = Ca[i]/Cd[i]
             AnisotropyAL[i] = Ca[i]/Cl1[i]
             AnisotropyDL[i] = Cd[i]/Cl1[i]
+            Cs = []
             
         fig, axes = plt.subplots()
         l1 = axes.plot(linearGradient,Anisotropy,color='b', linestyle='dashed', label = '$Anisotropy$')
@@ -944,12 +971,18 @@ class CamisDrivingModel:
                  self.descentBezierPoint_initial[1], 'o', color = 'g')
         ax1.plot(self.lateralBezierPoint_initial[0]*rad2deg,
                  self.lateralBezierPoint_initial[1], 'o', color = 'orange')
-        ax1.plot(self.ascentBezierPoint_intersection[0]*rad2deg,
-                 self.ascentBezierPoint_intersection[1], 'o', color = 'b')
-        ax1.plot(self.descentBezierPoint_intersection[0]*rad2deg,
-                 self.descentBezierPoint_intersection[1], 'o', color = 'g')
-        ax1.plot(self.lateralBezierPoint_intersection[0]*rad2deg,
-                 self.lateralBezierPoint_intersection[1], 'o', color = 'orange')
+        ax1.plot(self.ascentBezierPoint_intersection1[0]*rad2deg,
+                 self.ascentBezierPoint_intersection1[1], 'o', color = 'b')
+        ax1.plot(self.ascentBezierPoint_intersection2[0]*rad2deg,
+                 self.ascentBezierPoint_intersection2[1], 'o', color = 'b')
+        ax1.plot(self.descentBezierPoint_intersection1[0]*rad2deg,
+                 self.descentBezierPoint_intersection1[1], 'o', color = 'g')
+        ax1.plot(self.descentBezierPoint_intersection2[0]*rad2deg,
+                 self.descentBezierPoint_intersection2[1], 'o', color = 'g')
+        ax1.plot(self.lateralBezierPoint_intersection1[0]*rad2deg,
+                 self.lateralBezierPoint_intersection1[1], 'o', color = 'orange')
+        ax1.plot(self.lateralBezierPoint_intersection2[0]*rad2deg,
+                 self.lateralBezierPoint_intersection2[1], 'o', color = 'orange')
         ax1.plot(self.lateralBezierPoint_risk[0]*rad2deg,
                  self.lateralBezierPoint_risk[1], 'o', color = 'orange')
         ax1.plot(self.ascentBezierPoint_risk[0]*rad2deg,
@@ -959,8 +992,8 @@ class CamisDrivingModel:
                  self.ascentBezierPoint_risk[1], 'o', color = 'g')
         ax1.legend(('ρ + tan α','|ρ - tan α|','((ρ + tan α)|ρ - tan α|)^.5','$R_a$','$R_d$','$R_l$','Block Risk Line', 
                     'Pitch Risk Line','Roll Risk Line','Ascent Bezier points', 'Descent Bezier points', 'Lateral Bezier points'))
-        ax1.set_xlim([0.0, 30.0])
-        ax1.set_ylim([0.0, self.risk_gain])
+        ax1.set_xlim([0.0, 45.0])
+        ax1.set_ylim([0.0, self.Cmax+1])
         ax1.set_xlabel('Steepness [degrees]')
         ax1.set_ylabel('R')
         
