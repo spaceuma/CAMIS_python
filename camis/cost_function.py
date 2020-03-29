@@ -486,6 +486,8 @@ class CamisDrivingModel:
         self.bezier_coeff = np.minimum(np.maximum(robot_data['bezier_coeff'], 0.0), 0.99)
         self.slip_mode = robot_data['slip_mode']
         self.slip = robot_data['slip']
+        self.perp_coeff = robot_data['perp_coeff']
+        self.pitch_weight = robot_data['pitch_weight']
         self.computeBezierPoints()
         self.computeAniCoLUT()
         
@@ -749,50 +751,57 @@ class CamisDrivingModel:
             raise ValueError('ERROR: input value of steepness is negative')
         else:
             return (self.friction * np.cos(steepness))*self.kmg
+#            return np.sqrt(self.getRRa(steepness_deg)*self.getRRd(steepness_deg))
+#            return (self.getRRa(steepness_deg) + self.getRRd(steepness_deg))/2
         
     def getRawCd(self, steepness_deg):
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRd(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
-        return R * S / pv
+        W = (1 + self.pitch_weight*np.tan(steepness_deg*deg2rad))
+        return R * S / pv * W
+#        return 0.1*self.getRawCa(steepness_deg) + 0.9*self.getRawCl(steepness_deg)
     def getCd(self, steepness_deg):
         rawC = self.getRawCd(steepness_deg)
-        if self.risk_mode == 'none':
-            return rawC
-        if steepness_deg < self.descentBezierPoint_initial[0]*rad2deg:
-            return rawC
-        elif steepness_deg < self.descentBezierPoint_risk[0]*rad2deg:
-            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-                                               self.descentBezierPoint_initial,
-                                               self.descentBezierPoint_intersection1,
-                                               self.descentBezierPoint_risk)
-#            return self.getCubicBezierCost(steepness_deg*deg2rad, 
+        return rawC
+#        if self.risk_mode == 'none':
+#            return rawC
+#        if steepness_deg < self.descentBezierPoint_initial[0]*rad2deg:
+#            return rawC
+#        elif steepness_deg < self.descentBezierPoint_risk[0]*rad2deg:
+#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
 #                                               self.descentBezierPoint_initial,
 #                                               self.descentBezierPoint_intersection1,
-#                                               self.descentBezierPoint_intersection2,
 #                                               self.descentBezierPoint_risk)
-        else:
-            return self.risk_gain*(steepness_deg*deg2rad - self.descentRiskThreshold) + self.Cmax
+##            return self.getCubicBezierCost(steepness_deg*deg2rad, 
+##                                               self.descentBezierPoint_initial,
+##                                               self.descentBezierPoint_intersection1,
+##                                               self.descentBezierPoint_intersection2,
+##                                               self.descentBezierPoint_risk)
+#        else:
+#            return self.risk_gain*(steepness_deg*deg2rad - self.descentRiskThreshold) + self.Cmax
 #            return self.Cmax
     
     def getRawCa(self,steepness_deg):
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRa(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
-        return R * S / pv
+        W = (1 + self.pitch_weight*np.tan(steepness_deg*deg2rad))
+        return R * S / pv * W
     def getCa(self, steepness_deg):
         rawC = self.getRawCa(steepness_deg)
-        if self.risk_mode == 'none':
-            return rawC
-        if steepness_deg < self.ascentBezierPoint_initial[0]*rad2deg:
-            return rawC
-        elif steepness_deg < self.ascentBezierPoint_risk[0]*rad2deg:
-            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-                                               self.ascentBezierPoint_initial,
-                                               self.ascentBezierPoint_intersection1,
-                                               self.ascentBezierPoint_risk)
-        else:
-            return self.risk_gain*(steepness_deg*deg2rad - self.ascentRiskThreshold) + self.Cmax
+        return rawC
+#        if self.risk_mode == 'none':
+#            return rawC
+#        if steepness_deg < self.ascentBezierPoint_initial[0]*rad2deg:
+#            return rawC
+#        elif steepness_deg < self.ascentBezierPoint_risk[0]*rad2deg:
+#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
+#                                               self.ascentBezierPoint_initial,
+#                                               self.ascentBezierPoint_intersection1,
+#                                               self.ascentBezierPoint_risk)
+#        else:
+#            return self.risk_gain*(steepness_deg*deg2rad - self.ascentRiskThreshold) + self.Cmax
 #            return self.Cmax
         
     def getRawCl(self,steepness_deg):
@@ -800,19 +809,25 @@ class CamisDrivingModel:
         R = self.getRRl(steepness_deg)
         pv = self.speed
         return R * S / pv
+#        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
-        if self.risk_mode == 'none':
-            return rawC
-        if steepness_deg < self.lateralBezierPoint_initial[0]*rad2deg:
-            return rawC
-        elif steepness_deg < self.lateralBezierPoint_risk[0]*rad2deg:
-            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-                                               self.lateralBezierPoint_initial,
-                                               self.lateralBezierPoint_intersection1,
-                                               self.lateralBezierPoint_risk)
+        if self.perp_coeff <= 1.0:
+            self.perp_coeff = np.max([self.perp_coeff,0.0])
+            return (1 - self.perp_coeff)*rawC + self.perp_coeff*self.getRawCa(steepness_deg)
         else:
-            return self.risk_gain*(steepness_deg*deg2rad - self.lateralRiskThreshold) + self.Cmax
+            return self.getRawCa(steepness_deg)*(1 + (self.perp_coeff - 1)*np.tan(steepness_deg*deg2rad))
+#        if self.risk_mode == 'none':
+#            return self.getRawCa(steepness_deg)*(1 + np.tan(steepness_deg*deg2rad))
+#        if steepness_deg < self.lateralBezierPoint_initial[0]*rad2deg:
+#            return rawC
+#        elif steepness_deg < self.lateralBezierPoint_risk[0]*rad2deg:
+#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
+#                                               self.lateralBezierPoint_initial,
+#                                               self.lateralBezierPoint_intersection1,
+#                                               self.lateralBezierPoint_risk)
+#        else:
+#            return self.risk_gain*(steepness_deg*deg2rad - self.lateralRiskThreshold) + self.Cmax
 #            return self.Cmax
         
     
