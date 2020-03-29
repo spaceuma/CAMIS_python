@@ -486,7 +486,7 @@ class CamisDrivingModel:
         self.bezier_coeff = np.minimum(np.maximum(robot_data['bezier_coeff'], 0.0), 0.99)
         self.slip_mode = robot_data['slip_mode']
         self.slip = robot_data['slip']
-        self.perp_coeff = robot_data['perp_coeff']
+        self.roll_weight = robot_data['roll_weight']
         self.pitch_weight = robot_data['pitch_weight']
         self.computeBezierPoints()
         self.computeAniCoLUT()
@@ -573,6 +573,9 @@ class CamisDrivingModel:
                                      4*(x-P1[0]-X1)*(-X1-X2)))/(2*(-X1-X2))
             Cost = P1[1] + (1 - t)**2*Y1 + t**2*Y2
             return Cost
+    def getDescentBezier(self,steepness):
+        t = (self.brakePoint01[0] - steepness)/(-2*self.steepness_brake_margin*deg2rad)
+        return (1 - t)**2*self.brakePoint01[1] + t**2*self.brakePoint02[1]
     
     def getCubicBezierCost(self,steepness,P0,P1,P2,P3):
 #        res = scipy.optimize.least_squares(lambda x : 
@@ -732,11 +735,14 @@ class CamisDrivingModel:
         steepness = steepness_deg*deg2rad
         if steepness < 0:
             raise ValueError('ERROR: input value of steepness is negative')
-        if steepness < self.brakePoint01[0] or steepness > self.brakePoint02[0]:
-            return np.abs(self.friction - np.tan(steepness))*self.kmg
+        if steepness < self.brakePoint01[0]:
+            return (self.friction - np.tan(steepness))*self.kmg
+        elif steepness > self.brakePoint02[0]:
+            return (- self.friction + np.tan(steepness))*self.kmg
         else:
-            return self.getQuadraticBezierCost(steepness, self.brakePoint01, 
-                                               self.brakePoint, self.brakePoint02)
+            return self.getDescentBezier(steepness)
+#            return self.getQuadraticBezierCost(steepness, self.brakePoint01, 
+#                                               self.brakePoint, self.brakePoint02)
         
     def getRRa(self, steepness_deg):
         steepness = steepness_deg*deg2rad
@@ -808,15 +814,17 @@ class CamisDrivingModel:
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRl(steepness_deg)
         pv = self.speed
-        return R * S / pv
+        W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
+        return R * S / pv * W
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
-        if self.perp_coeff <= 1.0:
-            self.perp_coeff = np.max([self.perp_coeff,0.0])
-            return (1 - self.perp_coeff)*rawC + self.perp_coeff*self.getRawCa(steepness_deg)
-        else:
-            return self.getRawCa(steepness_deg)*(1 + (self.perp_coeff - 1)*np.tan(steepness_deg*deg2rad))
+        return rawC
+#        if self.perp_coeff <= 1.0:
+#            self.perp_coeff = np.max([self.perp_coeff,0.0])
+#            return (1 - self.perp_coeff)*rawC + self.perp_coeff*self.getRawCa(steepness_deg)
+#        else:
+#            return self.getRawCa(steepness_deg)*(1 + (self.perp_coeff - 1)*np.tan(steepness_deg*deg2rad))
 #        if self.risk_mode == 'none':
 #            return self.getRawCa(steepness_deg)*(1 + np.tan(steepness_deg*deg2rad))
 #        if steepness_deg < self.lateralBezierPoint_initial[0]*rad2deg:
@@ -928,6 +936,8 @@ class CamisDrivingModel:
         lns = l1+l2+l3+l4
         labs = [l.get_label() for l in lns]
         axes.legend(lns, labs, fontsize='small')
+        axes.set_xlim([0.0, 45.0])
+        axes.set_ylim([0.0, 10.0])
         
     def showBraking(self):
         plt.style.use('seaborn-darkgrid')
@@ -946,11 +956,35 @@ class CamisDrivingModel:
         ax1.plot(self.brakePoint01[0]*rad2deg, self.brakePoint01[1], 'o', color = 'g')
         ax1.plot(self.brakePoint02[0]*rad2deg, self.brakePoint02[1], 'o', color = 'g')
         ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
-        ax1.set_xlabel('Steepness [degrees]')
-        ax1.set_ylabel('Descent Rolling Resistance')
+        ax1.set_xlabel('Steepness α [degrees]')
+        ax1.set_ylabel('Energy [Ws/m]')
+        ax1.legend(('|ρ - tan α|','$\mathbb{R}_d$'))
+        ax1.annotate('$α_{b} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint[0]*rad2deg, 
+                        self.brakePoint[1]),
+                    xytext=(9, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='left', va='bottom')
+        ax1.annotate('$α - Δ α_{b} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint01[0]*rad2deg, 
+                        self.brakePoint01[1]),
+                    xytext=(9, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='left', va='bottom')
+        ax1.annotate('$α + Δ α_{b} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint02[0]*rad2deg, 
+                        self.brakePoint02[1]),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='right', va='bottom')
         plt.style.use('default')
         
     def showDirCosts(self):
+        plt.style.use('seaborn-darkgrid')
+        
+        plt.rcParams["font.family"] = "Constantia"
+        plt.rcParams['mathtext.fontset'] = 'cm'
+        plt.rcParams['mathtext.rm'] = 'serif'
         steepnessArray = np.linspace(0.0,45.0,90+2)*deg2rad
         
         ascentCAMIS = np.zeros_like(steepnessArray)
@@ -977,41 +1011,40 @@ class CamisDrivingModel:
         ax1.plot(steepnessArray*rad2deg, ascentCAMIS, color = 'b')
         ax1.plot(steepnessArray*rad2deg, descentCAMIS, color = 'g')
         ax1.plot(steepnessArray*rad2deg, lateralCAMIS, color = 'orange')
-        ax1.plot(steepnessArray*rad2deg, blockRiskFunction, linestyle = 'dotted', color = 'y')
-        ax1.plot(steepnessArray*rad2deg, pitchRiskFunction, linestyle = 'dotted', color = 'r')
-        ax1.plot(steepnessArray*rad2deg, rollRiskFunction, linestyle = 'dotted', color = 'm')
-        ax1.plot(self.ascentBezierPoint_initial[0]*rad2deg,
-                 self.ascentBezierPoint_initial[1], 'o', color = 'b')
-        ax1.plot(self.descentBezierPoint_initial[0]*rad2deg,
-                 self.descentBezierPoint_initial[1], 'o', color = 'g')
-        ax1.plot(self.lateralBezierPoint_initial[0]*rad2deg,
-                 self.lateralBezierPoint_initial[1], 'o', color = 'orange')
-        ax1.plot(self.ascentBezierPoint_intersection1[0]*rad2deg,
-                 self.ascentBezierPoint_intersection1[1], 'o', color = 'b')
-        ax1.plot(self.ascentBezierPoint_intersection2[0]*rad2deg,
-                 self.ascentBezierPoint_intersection2[1], 'o', color = 'b')
-        ax1.plot(self.descentBezierPoint_intersection1[0]*rad2deg,
-                 self.descentBezierPoint_intersection1[1], 'o', color = 'g')
-        ax1.plot(self.descentBezierPoint_intersection2[0]*rad2deg,
-                 self.descentBezierPoint_intersection2[1], 'o', color = 'g')
-        ax1.plot(self.lateralBezierPoint_intersection1[0]*rad2deg,
-                 self.lateralBezierPoint_intersection1[1], 'o', color = 'orange')
-        ax1.plot(self.lateralBezierPoint_intersection2[0]*rad2deg,
-                 self.lateralBezierPoint_intersection2[1], 'o', color = 'orange')
-        ax1.plot(self.lateralBezierPoint_risk[0]*rad2deg,
-                 self.lateralBezierPoint_risk[1], 'o', color = 'orange')
-        ax1.plot(self.ascentBezierPoint_risk[0]*rad2deg,
-                 self.ascentBezierPoint_risk[1], 'o', color = 'b')
-        ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
-        ax1.plot(self.descentBezierPoint_risk[0]*rad2deg, 
-                 self.ascentBezierPoint_risk[1], 'o', color = 'g')
-        ax1.legend(('ρ + tan α','|ρ - tan α|','((ρ + tan α)|ρ - tan α|)^.5','$R_a$','$R_d$','$R_l$','Block Risk Line', 
-                    'Pitch Risk Line','Roll Risk Line','Ascent Bezier points', 'Descent Bezier points', 'Lateral Bezier points'))
+#        ax1.plot(steepnessArray*rad2deg, blockRiskFunction, linestyle = 'dotted', color = 'y')
+#        ax1.plot(steepnessArray*rad2deg, pitchRiskFunction, linestyle = 'dotted', color = 'r')
+#        ax1.plot(steepnessArray*rad2deg, rollRiskFunction, linestyle = 'dotted', color = 'm')
+#        ax1.plot(self.ascentBezierPoint_initial[0]*rad2deg,
+#                 self.ascentBezierPoint_initial[1], 'o', color = 'b')
+#        ax1.plot(self.descentBezierPoint_initial[0]*rad2deg,
+#                 self.descentBezierPoint_initial[1], 'o', color = 'g')
+#        ax1.plot(self.lateralBezierPoint_initial[0]*rad2deg,
+#                 self.lateralBezierPoint_initial[1], 'o', color = 'orange')
+#        ax1.plot(self.ascentBezierPoint_intersection1[0]*rad2deg,
+#                 self.ascentBezierPoint_intersection1[1], 'o', color = 'b')
+#        ax1.plot(self.ascentBezierPoint_intersection2[0]*rad2deg,
+#                 self.ascentBezierPoint_intersection2[1], 'o', color = 'b')
+#        ax1.plot(self.descentBezierPoint_intersection1[0]*rad2deg,
+#                 self.descentBezierPoint_intersection1[1], 'o', color = 'g')
+#        ax1.plot(self.descentBezierPoint_intersection2[0]*rad2deg,
+#                 self.descentBezierPoint_intersection2[1], 'o', color = 'g')
+#        ax1.plot(self.lateralBezierPoint_intersection1[0]*rad2deg,
+#                 self.lateralBezierPoint_intersection1[1], 'o', color = 'orange')
+#        ax1.plot(self.lateralBezierPoint_intersection2[0]*rad2deg,
+#                 self.lateralBezierPoint_intersection2[1], 'o', color = 'orange')
+#        ax1.plot(self.lateralBezierPoint_risk[0]*rad2deg,
+#                 self.lateralBezierPoint_risk[1], 'o', color = 'orange')
+#        ax1.plot(self.ascentBezierPoint_risk[0]*rad2deg,
+#                 self.ascentBezierPoint_risk[1], 'o', color = 'b')
+#        ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
+#        ax1.plot(self.descentBezierPoint_risk[0]*rad2deg, 
+#                 self.ascentBezierPoint_risk[1], 'o', color = 'g')
+        ax1.legend(('ρ + tan α','|ρ - tan α|','ρ cos α','$R_a/ν_∥$','$R_d/ν_∥$','$R_l/ν_⟂$(1 + 1/ρ tan α)'))
         ax1.set_xlim([0.0, 45.0])
-        ax1.set_ylim([0.0, self.Cmax+1])
-        ax1.set_xlabel('Steepness [degrees]')
-        ax1.set_ylabel('R')
-        
+        ax1.set_ylim([0.0, self.getCa(45.0)])
+        ax1.set_xlabel('Steepness α [degrees]')
+        ax1.set_ylabel('Cost [Ws/m]')
+        plt.style.use('default')
     def showCAMIS(self):
         
         linearGradient = np.linspace(0,89,90)
