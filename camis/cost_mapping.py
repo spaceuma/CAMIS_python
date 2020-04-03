@@ -67,9 +67,9 @@ class AnisotropicMap:
     def show3dDEM(self):
         if isMayavi:
             mlab.figure(size=(800, 640),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
-            mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.elevationMap), colormap='gist_earth')
+            mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.processedElevationMap), colormap='gist_earth')
             mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
-                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,50,0,100,0,15))
+                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,20,0,30,53,57))
 #            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
         else:
             raise ImportError('show3dDEM: Mayavi is not available')
@@ -90,6 +90,17 @@ class AnisotropicMap:
             axes.set_aspect('equal')
             axes.set_xlabel('X-axis [m]')
             axes.set_ylabel('Y-axis [m]')
+        elif opt == 'hex-slope':
+            cc = axes.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=20)
+            axes.set_aspect('equal')
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Slope (deg)')
+            axes.set_aspect('equal')
+            axes.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+            axes.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+            axes.set_xlabel('X-axis [m]')
+            axes.set_ylabel('Y-axis [m]')
+            plt.show()
         elif opt == 'proximity':
             cc = axes.contourf(self.xMap, self.yMap, self.proximityMap, 100, cmap = 'nipy_spectral')
             cc.set_clim(0,5.0)
@@ -163,6 +174,7 @@ class AnisotropicMap:
         processedElevationMap = signal.convolve2d(processedElevationMap, \
                                                   self.occupancyMatrixNorm, \
                                                   mode='same', boundary='symm')
+        self.processedElevationMap = processedElevationMap
         self.hexElevationMap = interp.griddata(self.hexXYpoints, \
                                               processedElevationMap.flatten(),\
                                               (self.hexXmap, self.hexYmap), \
@@ -262,7 +274,8 @@ class AnisotropicMap:
         self.Tmap, dirMap, stateMap = \
         ap.computeTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
                        ijGoal, ijStart, self.hexXmap, self.hexYmap, self.planRes)
-        print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
+        elapsedTime = time()-init
+        print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         
         
 #        startWaypoint = IJ2XY[:,start[1],start[0]]
@@ -273,6 +286,7 @@ class AnisotropicMap:
         path,uu = ap.getPath(dirMap, IJ2XY, XY2IJ, start, goal, self.xMin, self.yMin, self.planRes)
         self.path = np.asarray(path)
         self.getPathData()
+        return elapsedTime
     
     # Executing BiOUM to compute the path faster
     def executeBiPlanning(self, goal, start):
@@ -292,8 +306,8 @@ class AnisotropicMap:
         ap.computeBiTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
                        ijGoal, ijStart, self.hexXmap, self.hexYmap,\
                        self.planRes)
-        
-        print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
+        elapsedTime = time()-init
+        print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         self.linkNode = nodeLink
         self.linkPos = IJ2XY[:,nodeLink[1],nodeLink[0]]
         
@@ -314,6 +328,8 @@ class AnisotropicMap:
         self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
         self.Tmap[np.where(self.Tmap < 0.0)] = np.inf
         self.getPathData()
+        self.elapsedTime = elapsedTime
+        return elapsedTime
         
     def getBeta(self, xPos, yPos, heading):
         beta = []
@@ -339,10 +355,8 @@ class AnisotropicMap:
         pathAspectY = []
         pathTravDist = []
         pathPitch = []
-        pathRoll = []
         pathHeading = []
         pathAspect = []
-        pathBeta = []
         pathCost = []
         pathSegment = []
         pathEstimatedTotalCost = []
@@ -363,29 +377,20 @@ class AnisotropicMap:
                 pathTravDist.append(pathTravDist[index-1] + np.linalg.norm(A-B))
         for index, waypoint in enumerate(self.path):
             if index == self.path.shape[0]-1:
-                pathPitch.append(np.nan) #Fix this!
-                pathHeading.append(pathHeading[-1])
-                pathSegment.append(0)
+                A = self.path[index] - self.path[index-1]
+                pathHeading.append(np.arctan2(A[1],A[0]))
+                pathSegment.append(np.linalg.norm(A)/2)
             elif index == 0:
-                pathPitch.append(np.nan)
                 A = self.path[index+1] - self.path[index]
-                pathSegment.append(np.linalg.norm(A))
+                pathSegment.append(np.linalg.norm(A)/2)
                 pathHeading.append(np.arctan2(A[1],A[0]))
             else:
-                pathPitch.append((pathElevation[index]-pathElevation[index+1])/(pathTravDist[index+1]-pathTravDist[index]))
-                A = self.path[index+1] - self.path[index]
-                pathSegment.append(np.linalg.norm(A))
-                pathHeading.append(np.arctan2(A[1],A[0]))
-            pathCost.append(self.costModel.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
-#        N = 5
-#        pathPitch = np.convolve(pathPitch, np.ones((N,))/N, mode='same')
-        for index, waypoint in enumerate(self.path):
-            pathRoll.append(np.arccos(np.cos(pathSlope[index])/np.cos(pathPitch[index])))
-            pathBeta.append(np.arccos(np.cos(pathHeading[index])*np.cos(pathAspect[index])+np.sin(pathHeading[index])*np.sin(pathAspect[index])))
-            if np.isnan(pathRoll[index]): #This can happen due to numerical errors
-                pathRoll[index] = 0.0
-            if (index == self.path.shape[0] - 1):
-                print('stop')
+                A1 = self.path[index+1] - self.path[index]
+                A2 = self.path[index] - self.path[index-1]
+                pathSegment.append((np.linalg.norm(A1) + \
+                                    np.linalg.norm(A2))/2)
+                pathHeading.append(np.arctan2(A1[1]+A2[1],A1[0]+A2[0]))
+            pathCost.append(self.costModel.getRawCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
             pathEstimatedTotalCost.append(ap.getTriLowest(waypoint,self.Tmap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             if index == 0:
                 pathComputedTotalCost.append(0)
@@ -407,7 +412,6 @@ class AnisotropicMap:
         self.pathElevation = pathElevation
         self.pathSlope = pathSlope
         self.pathTravDist = pathTravDist
-        self.pathRoll = pathRoll
         self.pathAspect = pathAspect
         self.pathHeading = pathHeading
         self.pathBeta = b
@@ -536,9 +540,9 @@ class AnisotropicMap:
         plt.show()
         
         fig, ax = plt.subplots()
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathSlope], linestyle='solid')
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathPitch], linestyle='dotted')
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathRoll], linestyle='dashed')
+        ax.plot(self.pathTravDist, np.asarray(self.pathSlope)*rad2deg, linestyle='solid')
+        ax.plot(self.pathTravDist, np.asarray(self.pathPitch)*rad2deg, linestyle='dotted')
+        ax.plot(self.pathTravDist, np.asarray(self.pathRoll)*rad2deg, linestyle='dashed')
         ax.set_aspect('equal')
         ax.legend(('Slope','Pitch','Roll'))
         plt.show()

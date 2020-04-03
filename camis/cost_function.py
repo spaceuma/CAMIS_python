@@ -487,7 +487,13 @@ class CamisDrivingModel:
         self.slip_mode = robot_data['slip_mode']
         self.slip = robot_data['slip']
         self.roll_weight = robot_data['roll_weight']
-        self.pitch_weight = robot_data['pitch_weight']
+        self.ascent_weight = robot_data['ascent_weight']
+        self.descent_weight = robot_data['descent_weight']
+        self.computeBezierPoints()
+        self.computeAniCoLUT()
+    
+    def setAsIsotropic(self):
+        self.mode = 'isotropic'
         self.computeBezierPoints()
         self.computeAniCoLUT()
         
@@ -764,12 +770,12 @@ class CamisDrivingModel:
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRd(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
-        W = (1 + self.pitch_weight*np.tan(steepness_deg*deg2rad))
-        return R * S / pv * W
+        return R * S / pv
 #        return 0.1*self.getRawCa(steepness_deg) + 0.9*self.getRawCl(steepness_deg)
     def getCd(self, steepness_deg):
         rawC = self.getRawCd(steepness_deg)
-        return rawC
+        W = (1 + self.descent_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W
 #        if self.risk_mode == 'none':
 #            return rawC
 #        if steepness_deg < self.descentBezierPoint_initial[0]*rad2deg:
@@ -792,11 +798,11 @@ class CamisDrivingModel:
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRa(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
-        W = (1 + self.pitch_weight*np.tan(steepness_deg*deg2rad))
-        return R * S / pv * W
+        return R * S / pv
     def getCa(self, steepness_deg):
         rawC = self.getRawCa(steepness_deg)
-        return rawC
+        W = (1 + self.ascent_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W
 #        if self.risk_mode == 'none':
 #            return rawC
 #        if steepness_deg < self.ascentBezierPoint_initial[0]*rad2deg:
@@ -814,12 +820,12 @@ class CamisDrivingModel:
         S = self.getSlipFactor(steepness_deg)
         R = self.getRRl(steepness_deg)
         pv = self.speed
-        W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
-        return R * S / pv * W
+        return R * S / pv 
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
-        return rawC
+        W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W
 #        if self.perp_coeff <= 1.0:
 #            self.perp_coeff = np.max([self.perp_coeff,0.0])
 #            return (1 - self.perp_coeff)*rawC + self.perp_coeff*self.getRawCa(steepness_deg)
@@ -890,6 +896,18 @@ class CamisDrivingModel:
         Ca = self.getCa(slope)
         Cl1 = self.getCl(slope)
         Cl2 = self.getCl(slope)
+        Q1 = ((Ca+Cd)/2)**2
+        Q2 = ((Cl1+Cl2)/2)**2
+        D1 =  (Ca-Cd)/2
+        D2 = (Cl2-Cl1)/2
+        return getCAMIScost(beta,Q1,Q2,D1,D2)
+    
+    def getRawCost(self, slope, aspect, heading):
+        beta = computeBeta(aspect,heading)
+        Cd = self.getRawCd(slope)
+        Ca = self.getRawCa(slope)
+        Cl1 = self.getRawCl(slope)
+        Cl2 = self.getRawCl(slope)
         Q1 = ((Ca+Cd)/2)**2
         Q2 = ((Cl1+Cl2)/2)**2
         D1 =  (Ca-Cd)/2
