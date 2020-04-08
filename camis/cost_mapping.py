@@ -66,10 +66,14 @@ class AnisotropicMap:
       
     def show3dDEM(self):
         if isMayavi:
-            mlab.figure(size=(800, 640),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
+            mlab.figure(size=(800, 400),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
             mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.processedElevationMap), colormap='gist_earth')
-            mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
-                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,20,0,30,53,57))
+            axes = mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
+                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,25,0,80,53,57))
+            axes.label_text_property.font_family = 'times'
+            axes.label_text_property.font_size = 10
+            axes.axes.label_format='%.1f'
+            axes.axes.axis_label_text_property.bold = 0
 #            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
         else:
             raise ImportError('show3dDEM: Mayavi is not available')
@@ -228,7 +232,7 @@ class AnisotropicMap:
         print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
         init = time()
         
-        obstacleMask = self.hexProximityMap <= 0.0 + sys.float_info.epsilon
+        obstacleMask = self.hexProximityMap <= self.costModel.occupancy_radius + self.costModel.tracking_error + sys.float_info.epsilon
         
         AnisotropyMap = vectorialData[0][:][:]
         AnisotropyMap[obstacleMask] = np.inf
@@ -395,7 +399,8 @@ class AnisotropicMap:
             if index == 0:
                 pathComputedTotalCost.append(0)
             else:
-                pathComputedTotalCost.append(pathComputedTotalCost[index-1]+0.5*(pathCost[index-1]+pathCost[index])*pathSegment[index-1])
+                pathComputedTotalCost.append(pathComputedTotalCost[index-1] + pathCost[index]*pathSegment[index])
+#                pathComputedTotalCost.append(pathComputedTotalCost[index-1]+0.5*(pathCost[index-1]+pathCost[index])*pathSegment[index-1])
             
         b = np.arccos(np.cos(pathHeading)*np.cos(pathAspect)+np.sin(pathHeading)*np.sin(pathAspect))
         crossDirection = np.sin(pathHeading)*np.cos(pathAspect)-np.cos(pathHeading)*np.sin(pathAspect)

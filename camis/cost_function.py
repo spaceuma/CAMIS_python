@@ -473,6 +473,7 @@ class CamisDrivingModel:
         self.tracking_error = robot_data['tracking_error']
         self.speed = robot_data['speed']
         self.mode = robot_data['mode']
+        self.rolling_resistance_mode = robot_data['rolling_resistance_mode']
         self.friction = robot_data['friction']
         self.kmg = robot_data['kmg']
         self.steepness_brake_margin = robot_data['steepness_brake_margin']
@@ -485,6 +486,10 @@ class CamisDrivingModel:
         self.risk_margin = robot_data['risk_margin']*deg2rad
         self.bezier_coeff = np.minimum(np.maximum(robot_data['bezier_coeff'], 0.0), 0.99)
         self.slip_mode = robot_data['slip_mode']
+        if (self.slip_mode == 'roots'):
+            self.slip_roots_ascent = robot_data['slip_roots_ascent']
+            self.slip_roots_descent = robot_data['slip_roots_descent']
+            self.slip_roots_lateral = robot_data['slip_roots_lateral']
         self.slip = robot_data['slip']
         self.roll_weight = robot_data['roll_weight']
         self.ascent_weight = robot_data['ascent_weight']
@@ -729,14 +734,65 @@ class CamisDrivingModel:
         self.riskPoint3 = np.array([intersection3X + self.bezier_coeff*(self.risk_roll - intersection3X),
                                intersection3Y + self.bezier_coeff*(self.risk_gain-intersection3Y)])
 
-    def getSlipFactor(self, steepness):
+#    def getSlipFactor(self, steepness):
+#        if self.slip_mode == 'none':
+#            return 1
+#        elif self.slip_mode == 'sin':
+#            return 1/(1 - np.sin(np.min([steepness/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
+#        elif self.slip_mode == 'roots':
+#            s = np.min([np.polyval(self.slip_roots,steepness),0.95])
+#            return 1/(1 - s)
+#        else:
+#            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
+    
+    def getSSa(self, steepness_deg):
         if self.slip_mode == 'none':
             return 1
         elif self.slip_mode == 'sin':
-            return 1/(1 - np.min([np.sin(steepness/self.slopeThreshold*90.0*deg2rad),0.99])**self.slip)
+            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
+        elif self.slip_mode == 'roots':
+            if steepness_deg >= self.slopeThreshold:
+                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
+            else:
+                s = np.min([np.polyval(self.slip_roots_ascent,steepness_deg),0.99])
+            return 1/(1 - s)
         else:
             raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
-    
+            
+    def getSSl(self, steepness_deg):
+        if self.slip_mode == 'none':
+            return 1
+        elif self.slip_mode == 'sin':
+            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
+        elif self.slip_mode == 'roots':
+            if steepness_deg >= self.slopeThreshold:
+                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
+            else:
+                s = np.min([np.polyval(self.slip_roots_lateral,steepness_deg),0.99])
+            return 1/(1 - s)
+        else:
+            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
+            
+    def getSSd(self, steepness_deg):
+        if self.slip_mode == 'none':
+            return 1
+        elif self.slip_mode == 'sin':
+            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
+        elif self.slip_mode == 'roots':
+            if steepness_deg >= self.slopeThreshold:
+                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
+                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
+            else:
+                s = np.min([np.polyval(self.slip_roots_descent,steepness_deg),0.99])
+            return 1/(1 - s)
+        else:
+            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
+            
     def getRRd(self, steepness_deg):
         steepness = steepness_deg*deg2rad
         if steepness < 0:
@@ -767,8 +823,11 @@ class CamisDrivingModel:
 #            return (self.getRRa(steepness_deg) + self.getRRd(steepness_deg))/2
         
     def getRawCd(self, steepness_deg):
-        S = self.getSlipFactor(steepness_deg)
-        R = self.getRRd(steepness_deg)
+        S = self.getSSd(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRd(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
         return R * S / pv
 #        return 0.1*self.getRawCa(steepness_deg) + 0.9*self.getRawCl(steepness_deg)
@@ -795,8 +854,11 @@ class CamisDrivingModel:
 #            return self.Cmax
     
     def getRawCa(self,steepness_deg):
-        S = self.getSlipFactor(steepness_deg)
-        R = self.getRRa(steepness_deg)
+        S = self.getSSa(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRa(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
         return R * S / pv
     def getCa(self, steepness_deg):
@@ -817,8 +879,11 @@ class CamisDrivingModel:
 #            return self.Cmax
         
     def getRawCl(self,steepness_deg):
-        S = self.getSlipFactor(steepness_deg)
-        R = self.getRRl(steepness_deg)
+        S = self.getSSl(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRl(steepness_deg)
         pv = self.speed
         return R * S / pv 
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
@@ -1058,8 +1123,8 @@ class CamisDrivingModel:
 #        ax1.plot(self.descentBezierPoint_risk[0]*rad2deg, 
 #                 self.ascentBezierPoint_risk[1], 'o', color = 'g')
         ax1.legend(('ρ + tan α','|ρ - tan α|','ρ cos α','$R_a/ν_∥$','$R_d/ν_∥$','$R_l/ν_⟂$(1 + 1/ρ tan α)'))
-        ax1.set_xlim([0.0, 45.0])
-        ax1.set_ylim([0.0, self.getCa(45.0)])
+        ax1.set_xlim([0.0, 35.0])
+        ax1.set_ylim([0.0, self.getCa(35.0)])
         ax1.set_xlabel('Steepness α [degrees]')
         ax1.set_ylabel('Cost [Ws/m]')
         plt.style.use('default')
