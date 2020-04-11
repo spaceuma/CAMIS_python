@@ -362,9 +362,11 @@ class AnisotropicMap:
         pathHeading = []
         pathAspect = []
         pathCost = []
+        pathCostwithRisk = []
         pathSegment = []
         pathEstimatedTotalCost = []
         pathComputedTotalCost = []
+        pathComputedTotalCostwithRisk = []
         for index, waypoint in enumerate(self.path):
             pathElevation.append(ap.getTriInterpolation(waypoint,self.hexElevationMap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             pathSlope.append(ap.getTriInterpolation(waypoint,self.hexSlopeMap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
@@ -395,11 +397,14 @@ class AnisotropicMap:
                                     np.linalg.norm(A2))/2)
                 pathHeading.append(np.arctan2(A1[1]+A2[1],A1[0]+A2[0]))
             pathCost.append(self.costModel.getRawCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
+            pathCostwithRisk.append(self.costModel.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
             pathEstimatedTotalCost.append(ap.getTriLowest(waypoint,self.Tmap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             if index == 0:
                 pathComputedTotalCost.append(0)
+                pathComputedTotalCostwithRisk.append(0)
             else:
                 pathComputedTotalCost.append(pathComputedTotalCost[index-1] + pathCost[index]*pathSegment[index])
+                pathComputedTotalCostwithRisk.append(pathComputedTotalCostwithRisk[index-1] + pathCostwithRisk[index]*pathSegment[index])
 #                pathComputedTotalCost.append(pathComputedTotalCost[index-1]+0.5*(pathCost[index-1]+pathCost[index])*pathSegment[index-1])
             
         b = np.arccos(np.cos(pathHeading)*np.cos(pathAspect)+np.sin(pathHeading)*np.sin(pathAspect))
@@ -421,8 +426,10 @@ class AnisotropicMap:
         self.pathHeading = pathHeading
         self.pathBeta = b
         self.pathCost = pathCost
+        self.pathCostwithRisk = pathCostwithRisk
         self.pathSegment = pathSegment
         self.pathComputedTotalCost = pathComputedTotalCost
+        self.pathComputedTotalCostwithRisk = pathComputedTotalCostwithRisk
         self.pathEstimatedTotalCost = pathEstimatedTotalCost
         
     def showVecCostMap(self, index):

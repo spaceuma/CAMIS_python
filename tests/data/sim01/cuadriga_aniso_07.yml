@@ -10,7 +10,7 @@ kmg: 47.704
 steepness_brake_margin: 15.0
 slip_mode: roots
 slip: 0.5
-slip_roots_ascent: [-1.14362645e-05, -1.19941714e-04,  4.60378698e-02,  0.00000000e+00]
+slip_roots_ascent: [-1.04707212e-05,  1.23658236e-03, -1.04049181e-03,  0.00000000e+00]
 slip_roots_descent: [ 3.40817555e-05, -3.26620400e-04,  7.68395548e-04,  0.00000000e+00]
 slip_roots_lateral: [ 3.40817555e-05, -3.26620400e-04,  7.68395548e-04,  0.00000000e+00]
 roll_weight: 0.0

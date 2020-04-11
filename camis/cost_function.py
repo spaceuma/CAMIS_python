@@ -563,6 +563,60 @@ class CamisDrivingModel:
                         vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
         return vectorialCostMap
     
+    def computeAnisotropy(self):
+            linearGradient = np.linspace(0,33,34)
+            heading = np.arange(0, 2*np.pi, 0.01)
+            aspect = [1,0]
+            Cd = np.zeros_like(linearGradient)
+            Ca = np.zeros_like(linearGradient)
+            Cl1 = np.zeros_like(linearGradient)
+            Cl2 = np.zeros_like(linearGradient)
+            for i,g in enumerate(linearGradient):
+                Cd[i] = self.getCd(linearGradient[i])
+                Ca[i] = self.getCa(linearGradient[i])
+                Cl1[i] = self.getCl(linearGradient[i])
+                Cl2[i] = self.getCl(linearGradient[i])
+                
+            Bs = []
+            Cs = []
+            Anisotropy = np.zeros_like(linearGradient)
+            AnisotropyAD = np.zeros_like(linearGradient)
+            AnisotropyAL = np.zeros_like(linearGradient)
+            AnisotropyDL = np.zeros_like(linearGradient)
+            for i,g in enumerate(linearGradient):
+                for theta in heading:
+                    B = computeBeta(aspect,theta)
+                    Bs.append(np.arctan2(B[1],B[0]))
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                    Cs.append(preCost)
+                Anisotropy[i] = max(Cs)/min(Cs)
+                AnisotropyAD[i] = Ca[i]/Cd[i]
+                AnisotropyAL[i] = Ca[i]/Cl1[i]
+                AnisotropyDL[i] = Cd[i]/Cl1[i]
+                Cs = []
+            self.Anisotropy = Anisotropy
+            self.AnisotropyAD = AnisotropyAD
+            self.AnisotropyAL = AnisotropyAL
+            self.AnisotropyDL = AnisotropyDL
+    def showModelData(self, opt, fig, axes, color, style):
+        linearGradient = np.linspace(0,33,34)
+        if   opt == 'ascent-cost':
+            ascentCostArray = [self.getCa(steepness) for steepness in linearGradient]
+            axes.plot(linearGradient, ascentCostArray, color, linestyle=style)
+        elif opt == 'descent-cost':
+            axes.plot(linearGradient, [self.getCd(steepness) for steepness in linearGradient], color, linestyle=style)
+        elif opt == 'lateral-cost':
+            axes.plot(linearGradient, [self.getCl(steepness) for steepness in linearGradient], color, linestyle=style)    
+        elif opt == 'nominal-cost':
+            axes.plot(linearGradient, [self.getCn(steepness) for steepness in linearGradient], color, linestyle=style)  
+        elif opt == 'anisotropy':
+            axes.plot(linearGradient, self.Anisotropy, color, linestyle=style)  
+        elif opt == 'anisotropyAD':
+            axes.plot(linearGradient, self.AnisotropyAD, color, linestyle=style)
+        elif opt == 'anisotropyAL':
+            axes.plot(linearGradient, self.AnisotropyAL, color, linestyle=style)
+        elif opt == 'anisotropyDL':
+            axes.plot(linearGradient, self.AnisotropyDL, color, linestyle=style)
     def getQuadraticBezierCost(self,x, P0, P1, P2):
         X1 = P0[0] - P1[0]
         X2 = P2[0] - P1[0]
@@ -1019,7 +1073,7 @@ class CamisDrivingModel:
         lns = l1+l2+l3+l4
         labs = [l.get_label() for l in lns]
         axes.legend(lns, labs, fontsize='small')
-        axes.set_xlim([0.0, 45.0])
+        axes.set_xlim([0.0, 30.0])
         axes.set_ylim([0.0, 10.0])
         
     def showBraking(self):
