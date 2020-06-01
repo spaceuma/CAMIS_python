@@ -795,7 +795,39 @@ plt.minorticks_on()
 plt.show()
 
 
+from pyproj import Proj, transform
 
+f = open("trialPathA2E.gpx","w")
+f.write('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n')
+f.write('<gpx ')
+f.write('version="1.1"\n')
+f.write('creator="UMA-SpaceRoboticsLab">\n')
+f.write('<trk>\n')
+f.write('<name>trialPathA2E.gpx</name>\n')
+f.write('<trkseg>\n')
+
+
+D0 = 180.0/np.pi
+l1 = offset[0]/D0
+(l1*D0 + 183)/6
+
+p = Proj(proj='utm', zone=30, ellps='WGS84')
+for i,isomap in enumerate(env_isoCUAD02_scene01):
+    if i < 4:
+        currentPath = isomap.path
+        for j in range(isomap.path.shape[0]):
+            pointX = isomap.path[j,0]+offset[0]
+            pointY = isomap.path[j,1]+offset[1]
+            
+#            lon,lat = transform(inProj,outProj,pointX,pointY)
+            lon, lat = p(pointX, pointY, inverse=True)
+            f.write('<trkpt lat="' + format(lat,'.12f') + '" lon="' + format(lon,'.12f') + '">\n')
+            f.write(' <ele>0.0</ele>\n')
+            f.write('  </trkpt>\n')
+f.write('</trkseg>\n')
+f.write('</trk>\n')
+f.write('</gpx>\n')
+f.close()
 
 
 
