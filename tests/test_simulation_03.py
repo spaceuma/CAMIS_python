@@ -24,7 +24,7 @@ hiRes_elevationMap = np.loadtxt(\
 hiRes = 0.1
 offset = np.loadtxt(open("data/terrainData/UMATerrainCuesta_10cmOffset.csv",\
                                  "rb"), delimiter=" ", skiprows=0)
-env = camis.AnisotropicMap(hiRes_elevationMap[50:850,80:325], hiRes, 0.4,\
+env = camis.AnisotropicMap(hiRes_elevationMap[160:960,350:600], hiRes, 0.4,\
                                offset)
 posA = np.asarray([5,70])
 posB = np.asarray([20,55])
