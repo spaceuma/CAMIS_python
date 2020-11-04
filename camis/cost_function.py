@@ -943,7 +943,12 @@ class CamisDrivingModel:
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
+#        rawC = np.sqrt(self.getRawCd(steepness_deg)*self.getRawCa(steepness_deg))
+#        rawC = self.getRawCa(steepness_deg)
+#        rawC = np.max((self.getRawCd(steepness_deg),self.getRawCl(steepness_deg)))
         W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
+        #W = (1 + np.tan(np.pi/2*np.min((1.0,steepness_deg/self.roll_weight))))
+#        W = 1
         return rawC * W
 #        if self.perp_coeff <= 1.0:
 #            self.perp_coeff = np.max([self.perp_coeff,0.0])
@@ -1182,9 +1187,9 @@ class CamisDrivingModel:
         ax1.set_xlabel('Steepness α [degrees]')
         ax1.set_ylabel('Cost [Ws/m]')
         plt.style.use('default')
-    def showCAMIS(self):
+    def showCAMIS(self,limAngle):
         
-        linearGradient = np.linspace(0,89,90)
+        linearGradient = np.linspace(0,limAngle,limAngle+1)
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0]
         
@@ -1225,7 +1230,7 @@ class CamisDrivingModel:
         axes3.view_init(elev=30, azim=-50)
         axes3.tick_params(axis="x",direction="in", pad=-6)
         axes3.tick_params(axis="y",direction="in", pad=-6)
-        axes3.set_aspect('equal')
+#        axes3.set_aspect('equal')
         axes3.dist = 7
         for spine in axes3.spines.values():
             spine.set_visible(False)

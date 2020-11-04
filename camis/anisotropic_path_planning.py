@@ -146,7 +146,7 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             TmapS, nbTS, nbNodesS = updateNode(NClist, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)
             
             
-        if stateMapS[nodeTargetG[1],nodeTargetG[0]] >= 1:
+        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
             d1 = dirMapS[nodeTargetG[1],nodeTargetG[0]]
             d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
 #            nodeLink = nodeTargetG
@@ -154,7 +154,7 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                 nodeLink = nodeTargetG
                 break
-        if stateMapG[nodeTargetS[1],nodeTargetS[0]] >= 1:
+        if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 2:
             d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
             d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
 #            nodeLink = nodeTargetS

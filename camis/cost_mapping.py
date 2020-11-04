@@ -22,6 +22,7 @@ try:
     import scipy.interpolate as interp
     from scipy import signal
     from scipy import ndimage
+    import scipy.linalg
 except:
     raise ImportError('ERROR: scipy module could not be imported')
 
@@ -49,6 +50,9 @@ class AnisotropicMap:
     def __init__(self, DEM, demRes, planRes, offset):
         init = time()
         self.elevationMap = DEM
+        self.nx = np.zeros_like(self.elevationMap)
+        self.ny = np.zeros_like(self.elevationMap)
+        self.nz = np.zeros_like(self.elevationMap)
         self.size = DEM.shape
         xMap, yMap = \
           np.meshgrid(np.linspace(0,self.size[1]-1,self.size[1]), \
@@ -84,6 +88,14 @@ class AnisotropicMap:
 #            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
             cbar = fig.colorbar(cc)
             cbar.set_label('Elevation (m)')
+        elif opt == 'conv-slope':
+#            cc = axes.contourf(self.xMap, self.yMap, 180/3.1416*np.arccos(self.nz), 50, cmap="nipy_spectral")
+            cc = axes.contourf(self.xMap, self.yMap, self.aspectY, 50, cmap = cm.gist_earth, extend='both')
+#            axes.contour(self.xMap, self.yMap, 180/3.1416*np.arccos(self.nz), 10, colors = 'k', alpha=.3)
+#            cc.set_clim(0,30.0)
+#            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
+            cbar = fig.colorbar(cc)
+            cbar.set_label('Slope')
         elif opt == 'hex-elevation':
             cc = axes.contourf(self.hexXmap, self.hexYmap, self.hexElevationMap, 50, cmap = cm.gist_earth, extend='both')
             axes.contour(self.hexXmap, self.hexYmap, rad2deg*self.hexElevationMap, 20, colors = 'k', alpha=.3)
@@ -123,9 +135,11 @@ class AnisotropicMap:
     def computeOccupancyMatrix(self):
         radius = self.costModel.occupancy_radius + \
                  self.costModel.tracking_error
+        print('Occupancy radius is: ', radius, ' meters')
         r = int(radius/self.demRes)
         r = r + 1 - r%2
         y,x = np.ogrid[-r: r+1, -r: r+1]
+        print('Occupancy radius in nodes is: ', r, ' meters')
         convMatrix = x**2+y**2 <= r**2
         convMatrix = convMatrix.astype(float)
         self.occupancyMatrix = convMatrix
@@ -161,7 +175,7 @@ class AnisotropicMap:
         II,JJ = np.meshgrid(np.linspace(0,IMax,IMax+1),np.linspace(0,JMax,JMax+1))
         self.hexXmap = self.xMap[0,0] + self.planRes*(II + .5*JJ) - DY/math.sqrt(3)
         self.hexYmap = self.yMap[0,0] + self.planRes*math.sqrt(3)/2*JJ
-        XX,YY = np.meshgrid(np.linspace(0,np.ceil(DX),np.ceil(DX)+1),np.linspace(0,np.ceil(DY),np.ceil(DY)+1))
+        XX,YY = np.meshgrid(np.linspace(0,int(np.ceil(DX)),int(np.ceil(DX))+1),np.linspace(0,int(np.ceil(DY)),int(np.ceil(DY))+1))
         self.xy2J = 2*YY/(np.sqrt(3)*self.planRes)
         self.xy2I = (DY/np.sqrt(3)+ XX)/self.planRes-0.5*self.xy2J
         
@@ -171,10 +185,11 @@ class AnisotropicMap:
         self.hexXYpoints[:,1] = self.yMap.flatten()
     
     def computeHexElevationMap(self):
-        processedElevationMap = ndimage.median_filter(self.elevationMap, \
-                                                      footprint = \
-                                                     self.occupancyMatrixNorm,\
-                                                     mode='nearest')
+        processedElevationMap = self.elevationMap
+        #processedElevationMap = ndimage.median_filter(self.elevationMap, \
+         #                                             footprint = \
+          #                                           self.occupancyMatrixNorm,\
+           #                                          mode='nearest')
         processedElevationMap = signal.convolve2d(processedElevationMap, \
                                                   self.occupancyMatrixNorm, \
                                                   mode='same', boundary='symm')
@@ -184,46 +199,129 @@ class AnisotropicMap:
                                               (self.hexXmap, self.hexYmap), \
                                               method='cubic')
         
+        XX,YY = np.meshgrid(np.linspace(-0.5,0.5,11), np.linspace(-0.5,0.5,11))       
+        Xarray = XX.flatten()
+        Yarray = YY.flatten()
+#        print(Xarray.shape)
+        Zarray = np.zeros_like(Xarray)
+        self.aspectX = np.zeros_like(self.elevationMap)
+        self.aspectY = np.zeros_like(self.elevationMap)
+        self.slope = np.ones_like(self.elevationMap)*np.nan
+        for j in range(5,processedElevationMap.shape[1]-6): #TODO: hardcodec!!
+            for i in range(5,processedElevationMap.shape[1]-6):
+                for l in range(-5,6):
+                    for k in range(-5,6):
+                        Zarray[k+5 + (l+5)*11] = self.processedElevationMap[j+l][i+k] - self.processedElevationMap[j][i]
+                A = np.c_[Xarray, Yarray, np.ones(Xarray.size)]
+                C,_,_,_ = scipy.linalg.lstsq(A, Zarray)
+#                print(C)
+                self.nx[j][i] = -C[0] / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.ny[j][i] = -C[1] / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.nz[j][i] = 1.0 / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.aspectX[j][i] = self.nx[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
+                self.aspectY[j][i] = self.ny[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
+                self.slope[j][i] = np.abs(np.arccos(self.nz[j][i]))
+#        for j in range(0,processedElevationMap.shape[1]):
+#            for i in range(0,6):
+#                self.nx[j][i] = 1.0
+#                self.ny[j][i] = 0.0
+#                self.slope = 1.57;
+#        for j in range(0,6):
+#            for i in range(0,processedElevationMap.shape[1]):
+#                self.nx[j][i] = 0.0
+#                self.ny[j][i] = 1.0
+#                self.slope = 1.57;
+#        for j in range(0,processedElevationMap.shape[1]):
+#            for i in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
+#                self.nx[j][i] = -1.0
+#                self.ny[j][i] = 0.0
+#                self.slope = 1.57;
+#        for j in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
+#            for i in range(0,processedElevationMap.shape[1]):
+#                self.nx[j][i] = 0.0
+#                self.ny[j][i] = -1.0
+#                self.slope = 1.57;
+#        self.aspectX = self.nx / np.sqrt(self.nx**2 + self.ny**2)
+#        self.aspectY = self.ny / np.sqrt(self.nx**2 + self.ny**2)
+#        self.slope = np.abs(np.arccos(self.nz))
     def computeHexSlopeMap(self):
         hexSlopeMap = np.ones([self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
-        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
-        h = np.sqrt(3)/2.0
-        for i in range(self.hexElevationMap.shape[1]):
-            for j in range(self.hexElevationMap.shape[0]):
-                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
-                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
-                (self.hexYmap[j,i] > self.yMap[0,0]) and \
-                (self.hexYmap[j,i] < self.yMap[-1,-1]):
-                    Z1 = self.hexElevationMap[j,i+1]
-                    Z2 = self.hexElevationMap[j+1,i]
-                    Z3 = self.hexElevationMap[j-1,i-1]
-                    Z4 = self.hexElevationMap[j,i-1]
-                    Z5 = self.hexElevationMap[j-1,i]
-                    Z6 = self.hexElevationMap[j-1,i+1]
-                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
-                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
-                    nn1 = np.cross(n1,n2)
-                    nn1 = nn1/np.linalg.norm(nn1)
-                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
-                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
-                    nn2 = np.cross(n3,n4)
-                    nn2 = nn2/np.linalg.norm(nn2)                
-                    nn = nn1 + nn2
-                    nn = nn/np.linalg.norm(nn)
-                    aspect = np.arctan2(nn[1],nn[0])
-                    hexAspectMap[0,j,i] = np.cos(aspect)
-                    hexAspectMap[1,j,i] = np.sin(aspect)
-                    hexSlopeMap[j,i] = np.arccos(nn[2])
-        self.hexSlopeMap = np.abs(hexSlopeMap)
-        self.hexAspectMap = hexAspectMap
+        self.hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+        hexSlopeMap = np.abs(interp.griddata(self.hexXYpoints, \
+                                              self.slope.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='nearest'))
+        hexAspectMapX = interp.griddata(self.hexXYpoints, \
+                                              self.aspectX.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='nearest')
+        
+        hexAspectMapY = interp.griddata(self.hexXYpoints, \
+                                              self.aspectY.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='nearest')
+        self.hexSlopeMap = hexSlopeMap
+        self.hexAspectMap[0] = hexAspectMapX
+        self.hexAspectMap[1] = hexAspectMapY
+#        self.hexAspectMap[0,:,:] = hexAspectMap[0,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
+#        self.hexAspectMap[1,:,:] = hexAspectMap[1,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
+#        h = np.sqrt(3)/2.0
+#        for i in range(1,self.hexElevationMap.shape[1]-2):
+#            for j in range(1,self.hexElevationMap.shape[0]-2):
+#                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
+#                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
+#                (self.hexYmap[j,i] > self.yMap[0,0]) and \
+#                (self.hexYmap[j,i] < self.yMap[-1,-1]):
+#                    Z1 = self.hexElevationMap[j,i+1]
+#                    Z2 = self.hexElevationMap[j+1,i]
+#                    Z3 = self.hexElevationMap[j-1,i-1]
+#                    Z4 = self.hexElevationMap[j,i-1]
+#                    Z5 = self.hexElevationMap[j-1,i]
+#                    Z6 = self.hexElevationMap[j-1,i+1]
+##                    Z1 = self.hexElevationMap[j+1,i+1]
+##                    Z2 = self.hexElevationMap[j+2,i-1]
+##                    Z3 = self.hexElevationMap[j+1,i-2]
+##                    Z4 = self.hexElevationMap[j-1,i-1]
+##                    Z5 = self.hexElevationMap[j-2,i+1]
+##                    Z6 = self.hexElevationMap[j-1,i+2]
+#                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
+#                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
+##                    n1 = np.array([3.0*self.planRes,0.0,Z6-Z4])
+##                    n2 = np.array([1.5*self.planRes,3.0*h*self.planRes,Z2-Z4])
+#                    nn1 = np.cross(n1,n2)
+#                    nn1 = nn1/np.linalg.norm(nn1)
+#                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
+#                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
+##                    n3 = np.array([-3.0*self.planRes,0.0,Z3-Z1])
+##                    n4 = np.array([-1.5*self.planRes,-3.0*h*self.planRes,Z5-Z1])
+#                    nn2 = np.cross(n3,n4)
+#                    nn2 = nn2/np.linalg.norm(nn2)                
+#                    nn = nn1 + nn2
+#                    nn = nn/np.linalg.norm(nn)
+#                    aspect = np.arctan2(nn[1],nn[0])
+#                    hexAspectMap[0,j,i] = np.cos(aspect)
+#                    hexAspectMap[1,j,i] = np.sin(aspect)
+#                    hexSlopeMap[j,i] = np.arccos(nn[2])
+#        self.hexSlopeMap = np.abs(hexSlopeMap)
+#        self.hexAspectMap = hexAspectMap
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel
+        init = time()   
         self.computeOccupancyMatrix()
+        print('Elapsed time to compute the Occupancy Matrix: '+str(time()-init)) 
+        init = time()   
         self.computeHexXYPoints()
+        print('Elapsed time to compute the hexXY flattening: '+str(time()-init)) 
+        init = time() 
         self.computeHexElevationMap()
+        print('Elapsed time to compute the Hex Elevation Map: '+str(time()-init)) 
+        init = time() 
         self.computeHexSlopeMap()
+        print('Elapsed time to compute the Hex Slope Map: '+str(time()-init)) 
+        init = time() 
         self.computeObstacles()
+        print('Elapsed time to compute the Hex Obstacle Map: '+str(time()-init)) 
         
         init = time()        
 
@@ -477,7 +575,7 @@ class AnisotropicMap:
         ax.set_ylabel('Y-axis [m]')
         plt.show()
     def showHexAspectMap(self):
-        levels = np.linspace(0.0,45,46.0)
+        levels = np.linspace(0.0,45.0,46)
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*np.arctan2(self.hexAspectMap[1],self.hexAspectMap[0]), cmap="hsv",s=20)
         ax.set_aspect('equal')
@@ -577,8 +675,8 @@ class AnisotropicMap:
 #        ax.set_title('T Map G')
 #        
         
-    def showPath(self, fig, axes, color, style):
-        axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style)
+    def showPath(self, fig, axes, color, style, alpha=1.0):
+        axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style, alpha = alpha)
 #        axes.scatter(self.linkPos[0], self.linkPos[1], c=color)
         plt.show()
         
