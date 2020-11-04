@@ -1,4 +1,5 @@
-
+*.spydata
+*.gpx
 *.Result
 *.pyc
 lib\__pycache__\*
