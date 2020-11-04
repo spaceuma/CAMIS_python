@@ -12,7 +12,7 @@ import scipy.signal
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
 
-def readCuadrigaData(file, show=0):
+def readCuadrigaData(file, counter_lim):
     Roll = []
     Pitch = []
     Yaw = []
@@ -25,13 +25,19 @@ def readCuadrigaData(file, show=0):
     Error = []
     GPSspeed = []
     
+    reference = 0
+    
+    path_counter = 0
+    
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
         line_count = 0
         for row in csv_reader:
             error = float(row[14])
+            if float(row[0]) > 0 and reference == 0:
+                path_counter = path_counter + 1
             reference = float(row[0])
-            if error < 1.0 and reference > 0:
+            if error < 1.0 and reference > 0 and path_counter == counter_lim:
                 c = np.abs(float(row[4])) + np.abs(float(row[5]))
                 r = -float(row[6])-5.5
 #                p = float(row[7])+13.7
@@ -47,6 +53,8 @@ def readCuadrigaData(file, show=0):
                 Error.append(error)
                 t = dt.datetime.strptime(row[15], '%H:%M:%S.%f')
                 Time.append((t.hour * 60 + t.minute) * 60 + t.second + t.microsecond/1000000)
+            if reference == 0 and path_counter == counter_lim:
+                break
             line_count += 1
         print(f'Processed {line_count} lines.')
     
@@ -128,6 +136,7 @@ def readCuadrigaData(file, show=0):
     
     
     Time = Time[5:]
+    Time = [t - Time[0] for i,t in enumerate(Time)]
     dHeading = dHeading[5:]
     segmentPath = segmentPath[5:]
     traversedDist = np.cumsum(segmentPath)
@@ -143,53 +152,62 @@ def readCuadrigaData(file, show=0):
     utmPoseY = utmPoseY[5:]
     heading = heading[5:]
     
-    if show == 1:
-        fig, ax = plt.subplots()
-        ax.plot(Time,Speed,Time,GPSspeed)
+    segmentPath = np.zeros_like(utmPoseX)
+    for index, waypoint in enumerate(utmPoseX):
+            if index == 0:
+                segmentPath[index] = 0.0
+            else:
+                A = [utmPoseX[index] - utmPoseX[index-1],utmPoseY[index] - utmPoseY[index-1]]
+                segmentPath[index] = np.linalg.norm(A)               
+    traversedDist = np.cumsum(segmentPath)
+    
+#    if show == 1:
+#        fig, ax = plt.subplots()
+#        ax.plot(Time,Speed,Time,GPSspeed)
+##        ax.set_xlim(0, Time[-1])
+#        ax.set_xlabel('Time [s]')
+#        ax.set_ylabel('Speed [m/s]')
+#        ax.grid(True)
+#        ax.legend(labels = ['Computed Speed','GPS Speed'])
+#        
+#        fig, ax = plt.subplots()
+#        ax.plot(utmPoseX,utmPoseY)
+#        ax.set_xlabel('UTM-X [m]')
+#        ax.set_ylabel('UTM-Y [m]')
+#        ax.grid(True)
+#        ax.legend(labels = ['Path'])
+#        plt.tight_layout()
+#        ax.set_aspect('equal')
+#        
+#        Gradient = np.zeros_like(Roll)
+#        for i, r in enumerate(Roll):
+#            Gradient[i] = rad2deg*np.arccos(np.cos(deg2rad*Roll[i])*np.cos(deg2rad*Pitch[i]))
+#        
+#        fig, ax = plt.subplots()
+#        ax.plot(Time,Roll,Time,Pitch,Time,Gradient)
 #        ax.set_xlim(0, Time[-1])
-        ax.set_xlabel('Time [s]')
-        ax.set_ylabel('Speed [m/s]')
-        ax.grid(True)
-        ax.legend(labels = ['Computed Speed','GPS Speed'])
-        
-        fig, ax = plt.subplots()
-        ax.plot(utmPoseX,utmPoseY)
-        ax.set_xlabel('UTM-X [m]')
-        ax.set_ylabel('UTM-Y [m]')
-        ax.grid(True)
-        ax.legend(labels = ['Path'])
-        plt.tight_layout()
-        ax.set_aspect('equal')
-        
-        Gradient = np.zeros_like(Roll)
-        for i, r in enumerate(Roll):
-            Gradient[i] = rad2deg*np.arccos(np.cos(deg2rad*Roll[i])*np.cos(deg2rad*Pitch[i]))
-        
-        fig, ax = plt.subplots()
-        ax.plot(Time,Roll,Time,Pitch,Time,Gradient)
-        ax.set_xlim(0, Time[-1])
-        ax.set_xlabel('Time [s]')
-        ax.set_ylabel('Angle [degrees]')
-        ax.grid(True)
-        ax.legend(labels = ['Roll','Pitch','Gradient'])
-        
-        fig, ax = plt.subplots()
-        ax.plot(Time,Current)
-#        ax.set_xlim(0, Time[-1])
-        ax.set_xlabel('Time [s]')
-        ax.set_ylabel('[A]')
-        ax.grid(True)
-        ax.legend(labels = ['Current'])
-        
-        fig, ax = plt.subplots()
-        ax.plot(Time,Curvature)
-#        ax.set_xlim(0, Time[-1])
-        ax.set_xlabel('Time [s]')
-        ax.set_ylabel('[A]')
-        ax.grid(True)
-        ax.legend(labels = ['Curvature'])
+#        ax.set_xlabel('Time [s]')
+#        ax.set_ylabel('Angle [degrees]')
+#        ax.grid(True)
+#        ax.legend(labels = ['Roll','Pitch','Gradient'])
+#        
+#        fig, ax = plt.subplots()
+#        ax.plot(Time,Current)
+##        ax.set_xlim(0, Time[-1])
+#        ax.set_xlabel('Time [s]')
+#        ax.set_ylabel('[A]')
+#        ax.grid(True)
+#        ax.legend(labels = ['Current'])
+#        
+#        fig, ax = plt.subplots()
+#        ax.plot(Time,Curvature)
+##        ax.set_xlim(0, Time[-1])
+#        ax.set_xlabel('Time [s]')
+#        ax.set_ylabel('[A]')
+#        ax.grid(True)
+#        ax.legend(labels = ['Curvature'])
             
-    return utmPoseX, utmPoseY, heading, Roll, Pitch, Yaw, Current, Speed, traversedDist, segmentPath, GPSspeed, dT
+    return utmPoseX, utmPoseY, heading, Roll, Pitch, Yaw, Current, Speed, traversedDist, segmentPath, GPSspeed, dT, Time
 
 
 def getData(file):
@@ -293,8 +311,6 @@ def getData(file):
     return movingBetaX, movingBetaY, movingCurrent, movingGradient
 
 def showData(file):
-    
-
     Roll = []
     Pitch = []
     Yaw = []
