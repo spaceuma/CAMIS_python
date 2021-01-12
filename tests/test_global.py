@@ -24,19 +24,20 @@ import plotly.graph_objects as go
 
 #v = x.*exp(-x.^2-y.^2-z.^2);
 
-xx = np.linspace(-4.5,4.5,50)
+xx = np.linspace(-3.0,3.0,50)
 yy = np.linspace(-4.5,4.5,50)
 xmesh, ymesh = np.meshgrid(xx,yy)
 
 z = np.ones_like(xmesh)
 for j,y in enumerate(yy):
     for i,x in enumerate(xx):
-        z[j,i] =  3*(1-x)**2*np.exp(-(x**2) - (y+1)**2) - \
-        10*(x/5 - x**3 - y**5)*np.exp(-x**2-y**2) - 1/3*np.exp(-(x+1)**2 - y**2) 
+        z[j,i] =  3*(1-x)**2*np.exp(-(x**2)/1.0 - (y+1)**2/1.0) - \
+        10*(x/5 - x**3 - y**5)*np.exp(-x**2-y**2) - \
+        1/3*np.exp(-(x+1)**2 - y**2) 
 
 xmesh *= 10.0
 ymesh *= 10.0
-z = z/10.0
+z = z/9.0
 
 plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
@@ -52,9 +53,10 @@ hexRes = 0.5
 offset = (0,0)
 occupancy_radius = 0.5
 tracking_error = 0.5
-posA = np.asarray([20,45])
-posB = np.asarray([30,5])
-
+#posA = np.asarray([20,45])
+#posB = np.asarray([30,5])
+posA = np.asarray([27,5])
+posB = np.asarray([20,45])
 env = camis.AnisotropicMap(z, hiRes, hexRes,\
                                offset, occupancy_radius, tracking_error)
 plt.style.use('default')
@@ -83,24 +85,7 @@ offset = np.loadtxt(\
                         open("data/umaRescueArea/UMARescueArea_1mOffset.csv",\
                              "rb"), delimiter=" ", skiprows=0)
 
-#fig = go.Figure(data=[go.Surface(contours = {"z": {"show": True, "size": 0.01, "color":"white"}},\
-#                                 z=hiRes_elevationMap[:70,60:140], colorscale = 'haline')])
-#
-#scene=dict(camera=dict(eye=dict(x=1.15, y=1.15, z=0.8)), #the default values are 1.25, 1.25, 1.25
-#           xaxis=dict(),
-#           yaxis=dict(),
-#           zaxis=dict(),
-#           aspectmode='data', #this string can be 'data', 'cube', 'auto', 'manual'
-#           #a custom aspectratio is defined as follows:
-#           aspectratio=dict(x=1, y=1, z=1)
-#           )
-#
-#fig.update_layout(autosize=True,
-#                  width=1024, height=512,
-#                  margin=dict(l=0, r=0, b=0, t=0), scene = scene)
-#
-##fig.show(renderer="iframe")
-#fig.write_image("elevation_map.pdf")
+
 
 hiRes = 1.0
 occupancy_radius = 0.5
@@ -217,21 +202,23 @@ env_CUAD04_scene01, env_isoCUAD04_scene01 = getMapLists(aniso_04)
 computeAllPlannings(env_CUAD04_scene01)
 computeAllPlannings(env_isoCUAD04_scene01)
 
-#with open("data/sim01/cuadriga_aniso_05.yml", 'r') as file:
-#    cuadriga_data = yaml.full_load(file)
-#aniso_05 = camis.CamisDrivingModel(cuadriga_data)
-#aniso_05.showCAMIS(55)
-#env_CUAD05_scene01, env_isoCUAD05_scene01 = getMapLists(aniso_05)
-#computeAllPlannings(env_CUAD05_scene01)
-#computeAllPlannings(env_isoCUAD05_scene01)
-#
-#with open("data/sim01/cuadriga_aniso_06.yml", 'r') as file:
-#    cuadriga_data = yaml.full_load(file)
-#aniso_06 = camis.CamisDrivingModel(cuadriga_data)
-#aniso_06.showCAMIS(55)
-#env_CUAD06_scene01, env_isoCUAD06_scene01 = getMapLists(aniso_06)
-#computeAllPlannings(env_CUAD06_scene01)
-#computeAllPlannings(env_isoCUAD06_scene01)
+with open("data/sim01/cuadriga_aniso_05.yml", 'r') as file:
+    cuadriga_data = yaml.full_load(file)
+aniso_05 = camis.CamisDrivingModel(cuadriga_data)
+aniso_05.showCAMIS(25)
+env_CUAD05_scene01, env_isoCUAD05_scene01 = getMapLists(aniso_05)
+computeAllPlannings(env_CUAD05_scene01)
+computeAllPlannings(env_isoCUAD05_scene01)
+
+with open("data/sim01/cuadriga_aniso_06.yml", 'r') as file:
+    cuadriga_data = yaml.full_load(file)
+aniso_06 = camis.CamisDrivingModel(cuadriga_data)
+aniso_06.showCAMIS(25)
+env_CUAD06_scene01, env_isoCUAD06_scene01 = getMapLists(aniso_06)
+computeAllPlannings(env_CUAD06_scene01)
+computeAllPlannings(env_isoCUAD06_scene01)
+
+
 #
 #with open("data/sim01/cuadriga_aniso_07.yml", 'r') as file:
 #    cuadriga_data = yaml.full_load(file)
@@ -309,16 +296,16 @@ fig.text(0.005, 0.5, 'Y-axis [m]', va='center', rotation='vertical')
 
 showAnisoPath(env_CUAD01_scene01, 'r', ax1, ax2,'solid')
 showIsoPath(env_isoCUAD01_scene01, 'r', ax3, ax3,'dashed')
-showAnisoPath(env_CUAD02_scene01, 'c', ax1, ax2,'solid')
-showIsoPath(env_isoCUAD02_scene01, 'c', ax3, ax3,'dashed')
-showAnisoPath(env_CUAD03_scene01, 'lime', ax1, ax2,'solid')
-showIsoPath(env_isoCUAD03_scene01, 'lime', ax3, ax3,'dashed')
+showAnisoPath(env_CUAD02_scene01, 'm', ax1, ax2,'solid')
+showIsoPath(env_isoCUAD02_scene01, 'm', ax3, ax3,'dashed')
+showAnisoPath(env_CUAD03_scene01, 'orange', ax1, ax2,'solid')
+showIsoPath(env_isoCUAD03_scene01, 'orange', ax3, ax3,'dashed')
 showAnisoPath(env_CUAD04_scene01, 'b', ax1, ax2,'solid')
 showIsoPath(env_isoCUAD04_scene01, 'b', ax3, ax3,'dashed')
-#showAnisoPath(env_CUAD05_scene01, 'm', ax1, ax2,'dashed')
-#showIsoPath(env_isoCUAD05_scene01, 'm', ax3, ax3,'dashed')
-#showAnisoPath(env_CUAD06_scene01, 'g', ax1, ax2,'dashed')
-#showIsoPath(env_isoCUAD06_scene01, 'g', ax3, ax3,'dashed')
+showAnisoPath(env_CUAD05_scene01, 'c', ax1, ax2,'dashed')
+showIsoPath(env_isoCUAD05_scene01, 'c', ax3, ax3,'dashed')
+showAnisoPath(env_CUAD06_scene01, 'g', ax1, ax2,'dashed')
+showIsoPath(env_isoCUAD06_scene01, 'g', ax3, ax3,'dashed')
 #showAnisoPath(env_CUAD07_scene01, 'orange', ax1, ax2,'dotted')
 #showIsoPath(env_isoCUAD07_scene01, 'orange', ax3, ax3,'dotted')
 #showAnisoPath(env_CUAD08_scene01, 'm', ax1, ax2,'dotted')
@@ -374,11 +361,13 @@ fig.tight_layout()
 
 
 ################ ENERGY PLOT ##################
-    
-        
-coeffsLabels = ['CUAD01','CUAD02','CUAD03','CSLI01']
-anisoTotalCost = [0,0,0,0]
-isoTotalCost = [0,0,0,0]
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+coeffsLabels = ['CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06']
+anisoTotalCost = [0,0,0,0,0,0]
+isoTotalCost = [0,0,0,0,0,0]
 anisoTR = [0,0]
 isoTR = [0,0]
 for i in range(2):
@@ -386,22 +375,26 @@ for i in range(2):
     anisoTotalCost[1] = anisoTotalCost[1] + env_CUAD02_scene01[i].pathComputedTotalCost[-1]/3600.0
     anisoTotalCost[2] = anisoTotalCost[2] + env_CUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
     anisoTotalCost[3] = anisoTotalCost[3] + env_CUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
+    anisoTotalCost[4] = anisoTotalCost[4] + env_CUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
+    anisoTotalCost[5] = anisoTotalCost[5] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[0] = isoTotalCost[0] + env_isoCUAD01_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[1] = isoTotalCost[1] + env_isoCUAD02_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[2] = isoTotalCost[2] + env_isoCUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[3] = isoTotalCost[3] + env_isoCUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTR[0] = anisoTR[0] + env_CUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
-    anisoTR[1] = anisoTR[1] + env_CUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
-    isoTR[0] = isoTR[0] + env_isoCUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
-    isoTR[1] = isoTR[1] + env_isoCUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
+    isoTotalCost[4] = isoTotalCost[4] + env_isoCUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
+    isoTotalCost[5] = isoTotalCost[5] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+#    anisoTR[0] = anisoTR[0] + env_CUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
+#    anisoTR[1] = anisoTR[1] + env_CUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
+#    isoTR[0] = isoTR[0] + env_isoCUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
+#    isoTR[1] = isoTR[1] + env_isoCUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
 
 x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
 width = 0.4  # the width of the bars
 
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
-rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
+#rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
+#rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
 rects1 = ax.bar(x - width/2, anisoTotalCost, width, label='Isotropic (ρ = 0.8)', color='r')
 rects2 = ax.bar(x + width/2, isoTotalCost, width, label='Isotropic (ρ = 0.8)', color = 'b')
 
@@ -428,29 +421,29 @@ for i,rect in enumerate(rects2):
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='center', va='bottom')
-for i,rect in enumerate(rects3):
-        T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\nAh',
-                    xy=(rect.get_x() + rect.get_width() / 2, T),
-                    xytext=(0, 3),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom',color = 'k')
-for i,rect in enumerate(rects4):
-        T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\nAh',
-                    xy=(rect.get_x() + rect.get_width() / 2, T),
-                    xytext=(0, 3),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom',color = 'k')
-for i,rect in enumerate(rects4):
-        isoT = rect.get_height()
-        anisoT = rects3[i].get_height()
-        gain = (isoT - anisoT)/isoT * 100
-        ax.annotate('Gain = ' + '{0:.2f}'.format(gain) + '%',
-                    xy=(rect.get_x(), isoT),
-                    xytext=(0, 25),  # 3 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom')   
+#for i,rect in enumerate(rects3):
+#        T = rect.get_height()
+#        ax.annotate('{0:.2f}'.format(T) + '\nAh',
+#                    xy=(rect.get_x() + rect.get_width() / 2, T),
+#                    xytext=(0, 3),  # 3 points vertical offset
+#                    textcoords="offset points",
+#                    ha='center', va='bottom',color = 'k')
+#for i,rect in enumerate(rects4):
+#        T = rect.get_height()
+#        ax.annotate('{0:.2f}'.format(T) + '\nAh',
+#                    xy=(rect.get_x() + rect.get_width() / 2, T),
+#                    xytext=(0, 3),  # 3 points vertical offset
+#                    textcoords="offset points",
+#                    ha='center', va='bottom',color = 'k')
+#for i,rect in enumerate(rects4):
+#        isoT = rect.get_height()
+#        anisoT = rects3[i].get_height()
+#        gain = (isoT - anisoT)/isoT * 100
+#        ax.annotate('Gain = ' + '{0:.2f}'.format(gain) + '%',
+#                    xy=(rect.get_x(), isoT),
+#                    xytext=(0, 25),  # 3 points vertical offset
+#                    textcoords="offset points",
+#                    ha='center', va='bottom')   
         
 ax.grid(True, which='both')   
 #autolabel(rects1)
@@ -459,9 +452,74 @@ ax.set_ylabel('Total Cost [Ah]')
 ax.set_xlabel('CAMIS')
 ax.set_xticks(x)
 ax.set_xticklabels(coeffsLabels)
-ax.legend(('Anisotropic Total Cost + Risk','Isotropic Total Cost + Risk', 'Anisotropic Total Cost','Isotropic Total Cost'))
+ax.legend(('Anisotropic Total Cost','Isotropic Total Cost'))
 plt.minorticks_on()  
 plt.show()
+
+
+
+
+
+fig = go.Figure(data=[go.Surface(contours = {"z": {"show": True, "size": 0.01, "color":"white"}},\
+                                 z=z, colorscale = 'haline'), \
+    go.Scatter3d(
+    x=env_CUAD01_scene01[0].path[:,0], y=env_CUAD01_scene01[0].path[:,1], \
+    z=env_CUAD01_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='red'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD01_scene01[1].path[:,0], y=env_CUAD01_scene01[1].path[:,1], \
+    z=env_CUAD01_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='red'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD02_scene01[0].path[:,0], y=env_CUAD02_scene01[0].path[:,1], \
+    z=env_CUAD02_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='magenta'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD02_scene01[1].path[:,0], y=env_CUAD02_scene01[1].path[:,1], \
+    z=env_CUAD02_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='magenta'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD03_scene01[0].path[:,0], y=env_CUAD03_scene01[0].path[:,1], \
+    z=env_CUAD03_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='orange'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD03_scene01[1].path[:,0], y=env_CUAD03_scene01[1].path[:,1], \
+    z=env_CUAD03_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='orange'
+    )) 
+])
+
+scene=dict(camera=dict(eye=dict(x=1.25, y=1.25, z=1.25)), #the default values are 1.25, 1.25, 1.25
+           xaxis=dict(),
+           yaxis=dict(),
+           zaxis=dict(),
+           aspectmode='data', #this string can be 'data', 'cube', 'auto', 'manual'
+           #a custom aspectratio is defined as follows:
+           aspectratio=dict(x=1, y=1, z=1)
+           )
+
+fig.update_layout(autosize=False,
+                  width=2048, height=512,
+                  margin=dict(l=0, r=0, b=0, t=0), scene = scene)
+#fig.show(renderer="iframe")
+fig.write_image("elevation_map.pdf")
 
 
 
