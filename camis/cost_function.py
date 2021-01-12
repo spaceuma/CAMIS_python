@@ -468,7 +468,6 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
     
 class CamisDrivingModel:
     def __init__(self, robot_data):
-        self.slopeThreshold = robot_data['slope_threshold']
         self.occupancy_radius = robot_data['occupancy_radius']
         self.tracking_error = robot_data['tracking_error']
         self.speed = robot_data['speed']
@@ -477,25 +476,34 @@ class CamisDrivingModel:
         self.friction = robot_data['friction']
         self.kmg = robot_data['kmg']
         self.steepness_brake_margin = robot_data['steepness_brake_margin']
-        self.risk_mode = robot_data['risk_mode']
-        self.risk_roll = robot_data['risk_roll']*deg2rad
-        self.risk_pitch = robot_data['risk_pitch']*deg2rad
-        self.risk_block = robot_data['risk_block']*deg2rad
-        self.risk_init = robot_data['risk_init']*deg2rad
-        self.risk_mult = robot_data['risk_mult']
-        self.risk_margin = robot_data['risk_margin']*deg2rad
-        self.bezier_coeff = np.minimum(np.maximum(robot_data['bezier_coeff'], 0.0), 0.99)
-        self.slip_mode = robot_data['slip_mode']
-        if (self.slip_mode == 'roots'):
-            self.slip_roots_ascent = robot_data['slip_roots_ascent']
-            self.slip_roots_descent = robot_data['slip_roots_descent']
-            self.slip_roots_lateral = robot_data['slip_roots_lateral']
-        self.slip = robot_data['slip']
         self.roll_weight = robot_data['roll_weight']
         self.ascent_weight = robot_data['ascent_weight']
         self.descent_weight = robot_data['descent_weight']
+        self.slip_ratio_A = robot_data['slip_ratio_A']
+        self.slip_ratio_B = robot_data['slip_ratio_B']
+        self.slip_angle_A = robot_data['slip_angle_A']
+        self.slip_angle_B = robot_data['slip_angle_B']
+        
+        # This is the angle from which the slip factor degenerates
+        if self.slip_ratio_A < 0.001 or self.slip_ratio_B < 0.001:
+            if self.slip_angle_A < 0.001 or self.slip_angle_A < 0.001:
+                self.limit_angle_deg = 89.0
+            else:
+                self.limit_angle_deg = (np.log(np.arccos(1.0 - 0.9) * rad2deg / self.slip_angle_A) / self.slip_angle_B)
+        else:
+            if self.slip_angle_A < 0.001 or self.slip_angle_A < 0.001:
+                self.limit_angle_deg = np.log(0.9 / self.slip_ratio_A) / self.slip_ratio_B
+            else:
+                self.limit_angle_deg = np.min(((np.log(0.9 / self.slip_ratio_A) / self.slip_ratio_B),\
+                                      (np.log(np.arccos(1.0 - 0.9) * rad2deg / self.slip_angle_A) / self.slip_angle_B)))
+        print("The limit angle is " + str(self.limit_angle_deg) + " deg")  
         self.computeBezierPoints()
+        self.limit_cost = np.max((self.getCa(self.limit_angle_deg),\
+                                  self.getCl(self.limit_angle_deg),\
+                                  self.getCd(self.limit_angle_deg)))
+        print("The limit cost is " + str(self.limit_cost))
         self.computeAniCoLUT()
+        
     
     def setAsIsotropic(self):
         self.mode = 'isotropic'
@@ -503,7 +511,7 @@ class CamisDrivingModel:
         self.computeAniCoLUT()
         
     def fitCAMIS(self, gradient,beta,cost,sigma):
-        bounds = ([0.01,0.01,0.01,0.0,0.0],[1.0,1.0,np.inf,self.slopeThreshold/45.0,self.slopeThreshold/45.0])
+        bounds = ([0.01,0.01,0.01,0.0,0.0],[1.0,1.0,np.inf,self.limit_angle_deg/45.0,self.limit_angle_deg/45.0])
         popt,_ = curve_fit(self.fittingDrivingCAMIS, (gradient,beta), cost, sigma=sigma, bounds = bounds,method='dogbox')
         self.friction_parallel = popt[0]
         self.friction_perp = popt[1]
@@ -532,9 +540,9 @@ class CamisDrivingModel:
            
     def getVectorialCostMap(self,slopeMap):
         vectorialCostMap = np.ones([5,slopeMap.shape[0],slopeMap.shape[1]])
-        Cobs = np.max((self.getCd(self.slopeThreshold),\
-                                   self.getCa(self.slopeThreshold),\
-                                   self.getCl(self.slopeThreshold)))*self.getAnisotropy(self.slopeThreshold)
+        Cobs = np.max((self.getCd(self.limit_angle_deg),\
+                       self.getCa(self.limit_angle_deg),\
+                       self.getCl(self.limit_angle_deg)))*self.getAnisotropy(self.limit_angle_deg)
         vectorialCostMap[1] = vectorialCostMap[1]*Cobs**2
         vectorialCostMap[2] = vectorialCostMap[2]*Cobs**2
         vectorialCostMap[3] = vectorialCostMap[3]*0.0
@@ -543,7 +551,6 @@ class CamisDrivingModel:
         for i in range(slopeMap.shape[1]):
             for j in range(slopeMap.shape[0]):
                 slope = slopeMap[j][i]
-#                if (slope < self.slopeThreshold):
                 if (self.mode == 'isotropic'):
                         Cn = self.getCn(slope)
                         vectorialCostMap[0][j][i] = 1
@@ -552,10 +559,10 @@ class CamisDrivingModel:
                         vectorialCostMap[3][j][i] =  0
                         vectorialCostMap[4][j][i] = 0
                 else:
-                        Cd = self.getCd(slope)
-                        Ca = self.getCa(slope)
-                        Cl1 = self.getCl(slope)
-                        Cl2 = self.getCl(slope)
+                        Cd = np.min((self.limit_cost, self.getCd(slope)))
+                        Ca = np.min((self.limit_cost, self.getCa(slope)))
+                        Cl1 = np.min((self.limit_cost, self.getCl(slope)))
+                        Cl2 = np.min((self.limit_cost, self.getCl(slope)))
                         vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
                         vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
                         vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
@@ -673,180 +680,13 @@ class CamisDrivingModel:
         brake02X = (self.brakeSteepness_rad + self.steepness_brake_margin*deg2rad)
         brake02Y = self.kmg * np.abs(self.friction - np.tan(brake02X))
         self.brakePoint02 = np.array([brake02X, brake02Y]) 
-        
-        
-        #Get the risk line
-        self.ascentRiskThreshold = np.min([self.risk_pitch,self.risk_block])
-        self.Cmax = self.risk_mult*self.getRawCa(self.ascentRiskThreshold*rad2deg)
-        self.risk_gain = self.Cmax/(self.bezier_coeff*self.risk_margin)
-        
-        #Obtain the ascent Bezier points
-        initialPointX = self.risk_init
-        initialPointY = self.getRawCa(initialPointX*rad2deg)
-        
-        aa = self.ascentRiskThreshold - self.risk_init
-        
-        intersection1X = self.risk_init + self.bezier_coeff*aa/2
-        intersection1Y = self.getRawCa(intersection1X*rad2deg)
-
-        intersection2X = self.ascentRiskThreshold - self.bezier_coeff*aa/2
-        intersection2Y = self.Cmax
-        
-        self.ascentBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.ascentBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
-        self.ascentBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
-        self.ascentBezierPoint_risk = np.array([self.ascentRiskThreshold,self.Cmax])
-        
-        #Obtain the lateral Bezier points
-        self.lateralRiskThreshold = self.risk_roll
-        initialPointX = self.risk_init
-        initialPointY = self.getRawCl(initialPointX*rad2deg)
-        
-        aa = self.lateralRiskThreshold - self.risk_init
-        intersection1X = self.risk_init + self.bezier_coeff*aa/2
-        intersection1Y = self.getRawCl(intersection1X*rad2deg)
-        
-        intersection2X = self.lateralRiskThreshold - self.bezier_coeff*aa/2
-        intersection2Y = self.Cmax
-        
-        self.lateralBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.lateralBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
-        self.lateralBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
-        self.lateralBezierPoint_risk = np.array([self.lateralRiskThreshold,self.Cmax])
-        
-        #Obtain the descent Bezier points
-        self.descentRiskThreshold = self.risk_pitch
-        initialPointX = self.risk_init
-        initialPointY = self.getRawCd(initialPointX*rad2deg)
-        
-        aa = self.descentRiskThreshold - self.risk_init
-        intersection1X = self.risk_init + self.bezier_coeff*aa/2
-        intersection1Y = self.getRawCd(intersection1X*rad2deg)
-        
-        intersection2X = self.descentRiskThreshold - self.bezier_coeff*aa/2
-        intersection2Y = self.Cmax
-        
-        self.descentBezierPoint_initial = np.array([initialPointX,initialPointY])
-        self.descentBezierPoint_intersection1 = np.array([intersection1X,intersection1Y])
-        self.descentBezierPoint_intersection2 = np.array([intersection2X,intersection2Y])
-        self.descentBezierPoint_risk = np.array([self.descentRiskThreshold,self.Cmax])
-        
-        #The intersection between risk function and ascent function
-        intersectionX = scipy.optimize.fsolve(lambda x : 
-        (x - np.minimum(self.risk_pitch, self.risk_block) + 
-         self.risk_margin)/self.risk_margin*self.risk_gain - np.tan(x) - 
-         self.friction,0)
-        intersectionY = self.friction + np.tan(intersectionX)
-        self.ascentIntersection = np.array([intersectionX,intersectionY])
-        
-        #The intersection between risk function and descent function
-        if self.brakeSteepness_rad >= self.risk_pitch - self.risk_margin:
-            intersection2X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_pitch + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain + 
-                 np.tan(x) - self.friction, 0)
-            intersection2Y = self.friction - np.tan(intersection2X)
-        else:
-            intersection2X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_pitch + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain + 
-                -np.tan(x) + self.friction,0)
-            intersection2Y = - self.friction + np.tan(intersection2X)
-        self.descentIntersection = np.array([intersection2X,intersection2Y])
-        
-        #The intersection between risk function and lateral function 
-        intersection3X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_roll + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain - 
-                 self.friction*np.cos(x), 0)
-        intersection3Y = np.sqrt(self.friction**2  - 
-                                 np.tan(intersection3X)**2)
-
-        self.lateralIntersection = np.array([intersection3X,intersection3Y])
-        
-        #The first Bezier points
-        self.initialPoint = np.array([(1-self.bezier_coeff)*intersectionX,
-                                 self.friction + 
-                                 np.tan((1-self.bezier_coeff)*intersectionX)])
-        
-        if self.brakeSteepness_rad >= self.risk_pitch - self.risk_margin:
-            self.initial2Point = np.array([(1-self.bezier_coeff)*intersection2X,
-                                      self.friction - 
-                                      np.tan((1-self.bezier_coeff)*intersection2X)])
-        else:
-            self.initial2Point = np.array([(1-self.bezier_coeff)*self.brakeSteepness_rad,
-                                      self.friction - np.tan((1-self.bezier_coeff)*self.brakeSteepness_rad)])
-            
-        self.initial3Point = np.array([(1-self.bezier_coeff)*intersection3X,
-                                       self.friction*np.cos((1-self.bezier_coeff)*intersection3X)])
-            
-        # The last Bezier points
-        self.riskPoint = np.array([intersectionX + self.bezier_coeff*(np.minimum(self.risk_block, self.risk_pitch) - intersectionX),
-                              intersectionY + self.bezier_coeff*(self.risk_gain-intersectionY)])
-        self.riskPoint2 = np.array([intersection2X + self.bezier_coeff*(self.risk_pitch - intersection2X),
-                               intersection2Y + self.bezier_coeff*(self.risk_gain-intersection2Y)])
-        self.riskPoint3 = np.array([intersection3X + self.bezier_coeff*(self.risk_roll - intersection3X),
-                               intersection3Y + self.bezier_coeff*(self.risk_gain-intersection3Y)])
-
-#    def getSlipFactor(self, steepness):
-#        if self.slip_mode == 'none':
-#            return 1
-#        elif self.slip_mode == 'sin':
-#            return 1/(1 - np.sin(np.min([steepness/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
-#        elif self.slip_mode == 'roots':
-#            s = np.min([np.polyval(self.slip_roots,steepness),0.95])
-#            return 1/(1 - s)
-#        else:
-#            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
     
     def getSSa(self, steepness_deg):
-        if self.slip_mode == 'none':
-            return 1
-        elif self.slip_mode == 'sin':
-            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
-        elif self.slip_mode == 'roots':
-            if steepness_deg >= self.slopeThreshold:
-                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
-            else:
-                s = np.min([np.polyval(self.slip_roots_ascent,steepness_deg),0.99])
-            return 1/(1 - s)
-        else:
-            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
-            
+        return 1 / np.max((0.01,(1 - self.slip_ratio_A * np.exp(self.slip_ratio_B * steepness_deg))))
     def getSSl(self, steepness_deg):
-        if self.slip_mode == 'none':
-            return 1
-        elif self.slip_mode == 'sin':
-            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
-        elif self.slip_mode == 'roots':
-            if steepness_deg >= self.slopeThreshold:
-                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
-            else:
-                s = np.min([np.polyval(self.slip_roots_lateral,steepness_deg),0.99])
-            return 1/(1 - s)
-        else:
-            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
-            
+        return 1.0 / np.cos(np.min((1.5607961601207294, self.slip_angle_A*np.exp(self.slip_angle_B*steepness_deg)*deg2rad)))         
     def getSSd(self, steepness_deg):
-        if self.slip_mode == 'none':
-            return 1
-        elif self.slip_mode == 'sin':
-            return 1/(1 - np.sin(np.min([steepness_deg/self.slopeThreshold,0.99])*90.0*deg2rad)**self.slip)
-        elif self.slip_mode == 'roots':
-            if steepness_deg >= self.slopeThreshold:
-                s = np.max([np.min([np.polyval(self.slip_roots_ascent,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_lateral,self.slopeThreshold),0.99]),
-                            np.min([np.polyval(self.slip_roots_descent,self.slopeThreshold),0.99])])
-            else:
-                s = np.min([np.polyval(self.slip_roots_descent,steepness_deg),0.99])
-            return 1/(1 - s)
-        else:
-            raise ValueError('The slip mode ' + self.slip_mode + ' is not valid')
-            
+        return 1 / np.max((0.01,(1 - self.slip_ratio_A * np.exp(self.slip_ratio_B * steepness_deg))))           
     def getRRd(self, steepness_deg):
         steepness = steepness_deg*deg2rad
         if steepness < 0:
@@ -856,17 +696,14 @@ class CamisDrivingModel:
         elif steepness > self.brakePoint02[0]:
             return (- self.friction + np.tan(steepness))*self.kmg
         else:
-            return self.getDescentBezier(steepness)
-#            return self.getQuadraticBezierCost(steepness, self.brakePoint01, 
-#                                               self.brakePoint, self.brakePoint02)
-        
+#            return self.getDescentBezier(steepness)
+            return self.getQuadraticBezierCost(steepness, self.brakePoint01, self.brakePoint, self.brakePoint02)
     def getRRa(self, steepness_deg):
         steepness = steepness_deg*deg2rad
         if steepness < 0:
             raise ValueError('ERROR: input value of steepness is negative')
         else:
-            return (self.friction + np.tan(steepness))*self.kmg
-        
+            return (self.friction + np.tan(steepness))*self.kmg     
     def getRRl(self, steepness_deg):
         steepness = steepness_deg*deg2rad
         if steepness < 0:
@@ -884,29 +721,10 @@ class CamisDrivingModel:
             R = self.getRRd(steepness_deg)
         pv = self.speed*np.cos(steepness_deg*deg2rad)
         return R * S / pv
-#        return 0.1*self.getRawCa(steepness_deg) + 0.9*self.getRawCl(steepness_deg)
     def getCd(self, steepness_deg):
         rawC = self.getRawCd(steepness_deg)
         W = (1 + self.descent_weight*np.tan(steepness_deg*deg2rad))
-        return rawC * W
-#        if self.risk_mode == 'none':
-#            return rawC
-#        if steepness_deg < self.descentBezierPoint_initial[0]*rad2deg:
-#            return rawC
-#        elif steepness_deg < self.descentBezierPoint_risk[0]*rad2deg:
-#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-#                                               self.descentBezierPoint_initial,
-#                                               self.descentBezierPoint_intersection1,
-#                                               self.descentBezierPoint_risk)
-##            return self.getCubicBezierCost(steepness_deg*deg2rad, 
-##                                               self.descentBezierPoint_initial,
-##                                               self.descentBezierPoint_intersection1,
-##                                               self.descentBezierPoint_intersection2,
-##                                               self.descentBezierPoint_risk)
-#        else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.descentRiskThreshold) + self.Cmax
-#            return self.Cmax
-    
+        return rawC * W  
     def getRawCa(self,steepness_deg):
         S = self.getSSa(steepness_deg)
         if self.rolling_resistance_mode == 'none':
@@ -919,18 +737,6 @@ class CamisDrivingModel:
         rawC = self.getRawCa(steepness_deg)
         W = (1 + self.ascent_weight*np.tan(steepness_deg*deg2rad))
         return rawC * W
-#        if self.risk_mode == 'none':
-#            return rawC
-#        if steepness_deg < self.ascentBezierPoint_initial[0]*rad2deg:
-#            return rawC
-#        elif steepness_deg < self.ascentBezierPoint_risk[0]*rad2deg:
-#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-#                                               self.ascentBezierPoint_initial,
-#                                               self.ascentBezierPoint_intersection1,
-#                                               self.ascentBezierPoint_risk)
-#        else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.ascentRiskThreshold) + self.Cmax
-#            return self.Cmax
         
     def getRawCl(self,steepness_deg):
         S = self.getSSl(steepness_deg)
@@ -943,31 +749,9 @@ class CamisDrivingModel:
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
-#        rawC = np.sqrt(self.getRawCd(steepness_deg)*self.getRawCa(steepness_deg))
-#        rawC = self.getRawCa(steepness_deg)
-#        rawC = np.max((self.getRawCd(steepness_deg),self.getRawCl(steepness_deg)))
         W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
-        #W = (1 + np.tan(np.pi/2*np.min((1.0,steepness_deg/self.roll_weight))))
-#        W = 1
         return rawC * W
-#        if self.perp_coeff <= 1.0:
-#            self.perp_coeff = np.max([self.perp_coeff,0.0])
-#            return (1 - self.perp_coeff)*rawC + self.perp_coeff*self.getRawCa(steepness_deg)
-#        else:
-#            return self.getRawCa(steepness_deg)*(1 + (self.perp_coeff - 1)*np.tan(steepness_deg*deg2rad))
-#        if self.risk_mode == 'none':
-#            return self.getRawCa(steepness_deg)*(1 + np.tan(steepness_deg*deg2rad))
-#        if steepness_deg < self.lateralBezierPoint_initial[0]*rad2deg:
-#            return rawC
-#        elif steepness_deg < self.lateralBezierPoint_risk[0]*rad2deg:
-#            return self.getQuadraticBezierCost(steepness_deg*deg2rad, 
-#                                               self.lateralBezierPoint_initial,
-#                                               self.lateralBezierPoint_intersection1,
-#                                               self.lateralBezierPoint_risk)
-#        else:
-#            return self.risk_gain*(steepness_deg*deg2rad - self.lateralRiskThreshold) + self.Cmax
-#            return self.Cmax
-        
+#        return np.max((self.getCd(steepness_deg), rawC * W)) # TODO: make this configurable?
     
     def getCn(self,slope): #TODO - check this
         cd = self.getCd(slope)
@@ -1100,20 +884,20 @@ class CamisDrivingModel:
         ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
         ax1.set_xlabel('Steepness α [degrees]')
         ax1.set_ylabel('Energy [Ws/m]')
-        ax1.legend(('|ρ - tan α|','$\mathbb{R}_d$'))
-        ax1.annotate('$α_{b} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
+        ax1.legend(('|ρ - tan α|','R(α,0)'))
+        ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint[0]*rad2deg, 
                         self.brakePoint[1]),
-                    xytext=(9, 3),  # 3 points vertical offset
+                    xytext=(12, 3),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='left', va='bottom')
-        ax1.annotate('$α - Δ α_{b} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
+        ax1.annotate('$arctan_{ρ} - α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint01[0]*rad2deg, 
                         self.brakePoint01[1]),
                     xytext=(9, 3),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='left', va='bottom')
-        ax1.annotate('$α + Δ α_{b} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
+        ax1.annotate('$arctan_{ρ} + α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint02[0]*rad2deg, 
                         self.brakePoint02[1]),
                     xytext=(0, 3),  # 3 points vertical offset
@@ -1136,11 +920,7 @@ class CamisDrivingModel:
         descentFunction = np.abs(self.friction - np.tan(steepnessArray))
         ascentFunction = self.friction + np.tan(steepnessArray)
         lateralFunction = self.friction*np.cos(steepnessArray)
-        
-        pitchRiskFunction = (steepnessArray - self.risk_pitch + self.risk_margin)/self.risk_margin*self.risk_gain
-        rollRiskFunction = (steepnessArray - self.risk_roll + self.risk_margin)/self.risk_margin*self.risk_gain
-        blockRiskFunction = (steepnessArray - self.risk_block + self.risk_margin)/self.risk_margin*self.risk_gain
-        
+       
         for i,steepness in enumerate(steepnessArray):
             ascentCAMIS[i] = self.getCa(steepness*rad2deg)
             descentCAMIS[i] = self.getCd(steepness*rad2deg)
@@ -1205,21 +985,21 @@ class CamisDrivingModel:
         Cl2 = np.zeros_like(linearGradient)
          
         for i,g in enumerate(linearGradient):
-            Cd[i] = self.getCd(linearGradient[i])
-            Ca[i] = self.getCa(linearGradient[i])
-            Cl1[i] = self.getCl(linearGradient[i])
-            Cl2[i] = self.getCl(linearGradient[i])
+            Cd[i] = np.min((self.limit_cost, self.getCd(linearGradient[i])))
+            Ca[i] = np.min((self.limit_cost, self.getCa(linearGradient[i])))
+            Cl1[i] = np.min((self.limit_cost, self.getCl(linearGradient[i])))
+            Cl2[i] = np.min((self.limit_cost, self.getCl(linearGradient[i])))
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Xs.append(B[0]*preCost)
                 Ys.append(B[1]*preCost)
-            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.slopeThreshold))
+            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.limit_angle_deg))
             Xs = []
             Ys = []
         
-        axes3.set_xlim(-self.Cmax,self.Cmax)
-        axes3.set_ylim(-self.Cmax,self.Cmax)
+        axes3.set_xlim(-self.limit_cost,self.limit_cost)
+        axes3.set_ylim(-self.limit_cost,self.limit_cost)
         axes3.set_zlim(0,1.2*linearGradient[-1])
         axes3.set_xlabel('Parallel Cost',fontsize='medium')
         axes3.set_ylabel('Perpendicular Cost',fontsize='medium')
@@ -1250,8 +1030,8 @@ class CamisDrivingModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
                 Ps.append(1/preCost)
-            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
-            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
+            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
+            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
             Cs = []
             Ps = []
             Bs = []

@@ -8,6 +8,7 @@ import datetime as dt
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal
+from scipy.spatial.transform import Rotation as R
 
 deg2rad = np.pi/180
 rad2deg = 180/np.pi
@@ -24,11 +25,24 @@ def readCuadrigaData(file, counter_lim):
     Ref = []
     Error = []
     GPSspeed = []
+    Slope = []
     
     reference = 0
     
     path_counter = 0
     
+    I2C = R.from_euler('ZYX', [159.68348098,  14.18826271,   5.65423381], degrees=True)
+#    I2C = R.from_euler('ZYX', [0.0, -11.4, -10.2 ], degrees=True)
+    I2Cinv = I2C.inv()
+#    horizontalRot = R.from_euler('zyx', [0.0, -11.4, -10.1 ], degrees=True)
+#    horizontalRot = R.from_euler('zyx', [-30.0, -13.7, -5.5 ], degrees=True)
+#    horizontalRot = R.from_euler('zyx', [-60.3, -15.3, 1.1 ], degrees=True)
+#    horizontalRot = R.from_euler('zyx', [-90.0, -8.2, 6.2 ], degrees=True)
+#    hR = R.from_euler('z', 0.0, degrees=True) * horizontalRot.inv()  
+    
+#    I2C_Z = [-0.1377589 ,  0.15973515,  0.97750047]
+#    I2C_Z = [-0.19453349,  0.17708474,  0.96477858]
+    I2C_Z = [0.0,0.0,0.0]
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
         line_count = 0
@@ -38,16 +52,32 @@ def readCuadrigaData(file, counter_lim):
                 path_counter = path_counter + 1
             reference = float(row[0])
             if error < 1.0 and reference > 0 and path_counter == counter_lim:
+                imuRot = R.from_euler('ZYX', [float(row[8]), float(row[7]), float(row[6])], degrees=True)
+                #Z component of the orientation vector from IMU perspective
+                imuRot = imuRot.as_matrix()
+                imuZ = [imuRot[0][2], imuRot[1][2], imuRot[2][2]]
+                if np.linalg.norm(I2C_Z) < 0.1:
+                    I2C_Z = imuZ
+                Slope.append(np.arccos(np.sum(np.dot(I2C_Z,imuZ)))*180.0/3.1416)
                 c = np.abs(float(row[4])) + np.abs(float(row[5]))
-                r = -float(row[6])-5.5
-#                p = float(row[7])+13.7
-                p = float(row[7])+10.7
+                I2R = R.from_euler('ZYX', [float(row[8]), float(row[7]), float(row[6])], degrees=True)
+#                fixRot = R.from_euler('XYZ', [-float(row[6]), 12.177, - float(row[8])], degrees=True)
+                C2R = I2Cinv*I2R
+                R2C = C2R.inv()
+                y,p,r = R2C.as_euler('ZYX', degrees=True)
+#                r = float(row[6]) + 6.0
+##                r = -float(row[6])-5.5
+##                p = float(row[7])+13.7
+##                p = float(row[7])+10.7
+#                p = float(row[7])+17
+#                y = float(row[8])
                 utmData = utm.from_latlon(float(row[9]), float(row[10]))
                 utmPoseX.append(utmData[0])
                 utmPoseY.append(utmData[1])
                 GPSspeed.append(float(row[13]))
-                Roll.append(r)
-                Pitch.append(p)
+                Roll.append(float(row[6]))
+                Pitch.append(float(row[7]))
+                Yaw.append(float(row[8]))
                 Current.append(c)
                 Ref.append(reference)
                 Error.append(error)
@@ -57,6 +87,7 @@ def readCuadrigaData(file, counter_lim):
                 break
             line_count += 1
         print(f'Processed {line_count} lines.')
+    
     
     #Smooth the path
     N = 10
@@ -71,6 +102,8 @@ def readCuadrigaData(file, counter_lim):
     Time = Time[5:-5]
     Roll = Roll[5:-5]
     Pitch = Pitch[5:-5]
+    Yaw = Yaw[5:-5]
+    Slope = Slope[5:-5]
     Current = Current[5:-5]
     GPSspeed = GPSspeed[5:-5]
     
@@ -98,6 +131,7 @@ def readCuadrigaData(file, counter_lim):
     Roll = [y for i,y in enumerate(Roll) if logic[i]]
     Pitch = [y for i,y in enumerate(Pitch) if logic[i]]
     Yaw = [y for i,y in enumerate(Yaw) if logic[i]]
+    Slope = [y for i,y in enumerate(Slope) if logic[i]]
     GPSspeed = [s for i,s in enumerate(GPSspeed) if logic[i]]
     
 
@@ -112,7 +146,7 @@ def readCuadrigaData(file, counter_lim):
 
     Speed = np.asarray(segmentPath)/np.asarray(dT)
     
-    Yaw = rad2deg*np.arctan2(dY,dX)
+#    Yaw = rad2deg*np.arctan2(dY,dX)
     
     Curvature = np.abs(angularSpeed/Speed)
     Curvature = np.convolve(Curvature, np.ones((N,))/N, mode='same')
@@ -130,6 +164,7 @@ def readCuadrigaData(file, counter_lim):
     Roll = [y for i,y in enumerate(Roll) if logic[i]]
     Pitch = [y for i,y in enumerate(Pitch) if logic[i]]
     Yaw = [y for i,y in enumerate(Yaw) if logic[i]]
+    Slope = [y for i,y in enumerate(Slope) if logic[i]]
     GPSspeed = [s for i,s in enumerate(GPSspeed) if logic[i]]
     Speed = [s for i,s in enumerate(Speed) if logic[i]]
     Curvature = [y for i,y in enumerate(Curvature) if logic[i]]
@@ -151,6 +186,7 @@ def readCuadrigaData(file, counter_lim):
     utmPoseX = utmPoseX[5:]
     utmPoseY = utmPoseY[5:]
     heading = heading[5:]
+    Slope = Slope[5:]
     
     segmentPath = np.zeros_like(utmPoseX)
     for index, waypoint in enumerate(utmPoseX):
@@ -160,6 +196,47 @@ def readCuadrigaData(file, counter_lim):
                 A = [utmPoseX[index] - utmPoseX[index-1],utmPoseY[index] - utmPoseY[index-1]]
                 segmentPath[index] = np.linalg.norm(A)               
     traversedDist = np.cumsum(segmentPath)
+    
+    
+#    Rimu = (
+#    [
+#        [1, 0, 0],
+#        [0, 1, 0],
+#        [0, 0, 1],
+#    ])
+#        
+#    Rcuad = (
+#    [
+#        [0.98027117, 0.        , 0.19765734],
+#        [ 0.0350021 ,  0.98419561, -0.17359107],
+#        [-0.19453349,  0.17708474,  0.96477858],
+#    ])
+    
+##    I2Cmatrix,_ = R.align_vectors(Rcuad,Rimu)
+##    I2Cmatrix = R.from_matrix(Rcuad)
+#    # Make here a more sofisticated calibration
+#    I2Cmatrix = R.from_euler('ZYX', [Yaw[0], Pitch[0], Roll[0]], degrees=True)
+#    I2Cmatrix.as_euler('ZYX',degrees=True)
+##    Y0 = Yaw[0]
+#    for i,x in enumerate(Roll):
+#        if i == 0:
+#            A = [utmPoseX[1] - utmPoseX[0], utmPoseY[1] - utmPoseY[0]]
+#            heading[i] = np.arctan2(A[1],A[0]) * 180.0/3.1416
+#        elif i == len(utmPoseX) - 1:
+#            A = [utmPoseX[i] - utmPoseX[i-1], utmPoseY[i] - utmPoseY[i-1]]
+#            heading[i] = np.arctan2(A[1],A[0]) * 180.0/3.1416
+#        else:
+#            A1 = [utmPoseX[i] - utmPoseX[i-1], utmPoseY[i] - utmPoseY[i-1]]
+#            A2 = [utmPoseX[i+1] - utmPoseX[i], utmPoseY[i+1] - utmPoseY[i]]
+#            heading[i] = np.arctan2(A1[1]+A2[1],A1[0]+A1[0]) * 180.0/3.1416
+##        I2C = I2Cmatrix*R.from_euler('z',Yaw[i] + heading[i] + 0.0,degrees=True)
+##        I2C = I2Cmatrix*R.from_euler('z',-Yaw[i]+Y0,degrees=True)
+#        I2C = I2Cmatrix
+#        I2Cinv = I2C.inv()
+#        I2R = R.from_euler('ZYX', [Yaw[i], Pitch[i], Roll[i]], degrees=True)
+#        C2R = I2C.inv()*I2R
+##        R2C = C2R.inv()
+#        Yaw[i],Pitch[i],Roll[i] = C2R.as_euler('ZYX', degrees=True)
     
 #    if show == 1:
 #        fig, ax = plt.subplots()
@@ -207,7 +284,9 @@ def readCuadrigaData(file, counter_lim):
 #        ax.grid(True)
 #        ax.legend(labels = ['Curvature'])
             
-    return utmPoseX, utmPoseY, heading, Roll, Pitch, Yaw, Current, Speed, traversedDist, segmentPath, GPSspeed, dT, Time
+    return utmPoseX, utmPoseY, heading, np.asarray(Roll), np.asarray(Pitch), \
+np.asarray(Yaw), np.asarray(Current), Speed, traversedDist, segmentPath, \
+GPSspeed, dT, np.asarray(Time), np.asarray(Slope)
 
 
 def getData(file):

@@ -47,7 +47,7 @@ rad2deg = 180/np.pi
 
 # Proccessed DEM
 class AnisotropicMap:
-    def __init__(self, DEM, demRes, planRes, offset):
+    def __init__(self, DEM, demRes, planRes, offset, occupancy_radius, tracking_error):
         init = time()
         self.elevationMap = DEM
         self.nx = np.zeros_like(self.elevationMap)
@@ -67,6 +67,20 @@ class AnisotropicMap:
         self.proximityMap = np.ones_like(xMap)*np.inf
         self.computeHexGrid()
         print('Anisotropic Map created in ' + str(time()-init))
+        init = time()   
+        self.occupancy_radius = occupancy_radius
+        self.tracking_error = tracking_error
+        self.computeOccupancyMatrix()
+        print('Elapsed time to compute the Occupancy Matrix: '+str(time()-init)) 
+        init = time()   
+        self.computeHexXYPoints()
+        print('Elapsed time to compute the hexXY flattening: '+str(time()-init)) 
+        init = time() 
+        self.computeHexElevationMap()
+        print('Elapsed time to compute the Hex Elevation Map: '+str(time()-init)) 
+        init = time() 
+        self.computeHexSlopeMap()
+        print('Elapsed time to compute the Hex Slope Map: '+str(time()-init)) 
       
     def show3dDEM(self):
         if isMayavi:
@@ -133,8 +147,8 @@ class AnisotropicMap:
 
 
     def computeOccupancyMatrix(self):
-        radius = self.costModel.occupancy_radius + \
-                 self.costModel.tracking_error
+        radius = self.occupancy_radius + \
+                 self.tracking_error
         print('Occupancy radius is: ', radius, ' meters')
         r = int(radius/self.demRes)
         r = r + 1 - r%2
@@ -198,8 +212,12 @@ class AnisotropicMap:
                                               processedElevationMap.flatten(),\
                                               (self.hexXmap, self.hexYmap), \
                                               method='cubic')
-        
-        XX,YY = np.meshgrid(np.linspace(-0.5,0.5,11), np.linspace(-0.5,0.5,11))       
+        r = int(self.radius/self.demRes)
+        r = np.max((3,r + 1 - r%2))
+        r2 = int((r - 1) / 2)
+        print('Occupancy radius in nodes is: ', r, ' nodes')
+        print('Half occupancy radius in nodes is: ', r2, ' nodes')
+        XX,YY = np.meshgrid(np.linspace(-0.5,0.5,r), np.linspace(-0.5,0.5,r))       
         Xarray = XX.flatten()
         Yarray = YY.flatten()
 #        print(Xarray.shape)
@@ -207,11 +225,12 @@ class AnisotropicMap:
         self.aspectX = np.zeros_like(self.elevationMap)
         self.aspectY = np.zeros_like(self.elevationMap)
         self.slope = np.ones_like(self.elevationMap)*np.nan
-        for j in range(5,processedElevationMap.shape[1]-6): #TODO: hardcodec!!
-            for i in range(5,processedElevationMap.shape[1]-6):
-                for l in range(-5,6):
-                    for k in range(-5,6):
-                        Zarray[k+5 + (l+5)*11] = self.processedElevationMap[j+l][i+k] - self.processedElevationMap[j][i]
+        
+        for j in range(r2,processedElevationMap.shape[0] - r2 - 1):
+            for i in range(r2,processedElevationMap.shape[1] - r2 - 1):
+                for l in range(-r2,r2+1):
+                    for k in range(-r2,r2+1):
+                        Zarray[k+r2 + (l+r2)*r] = self.processedElevationMap[j+l][i+k] - self.processedElevationMap[j][i]
                 A = np.c_[Xarray, Yarray, np.ones(Xarray.size)]
                 C,_,_,_ = scipy.linalg.lstsq(A, Zarray)
 #                print(C)
@@ -221,6 +240,10 @@ class AnisotropicMap:
                 self.aspectX[j][i] = self.nx[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
                 self.aspectY[j][i] = self.ny[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
                 self.slope[j][i] = np.abs(np.arccos(self.nz[j][i]))
+                
+                
+                
+                
 #        for j in range(0,processedElevationMap.shape[1]):
 #            for i in range(0,6):
 #                self.nx[j][i] = 1.0
@@ -246,23 +269,24 @@ class AnisotropicMap:
 #        self.slope = np.abs(np.arccos(self.nz))
     def computeHexSlopeMap(self):
         hexSlopeMap = np.ones([self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+#        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
         self.hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
         hexSlopeMap = np.abs(interp.griddata(self.hexXYpoints, \
                                               self.slope.flatten(),\
                                               (self.hexXmap, self.hexYmap), \
-                                              method='nearest'))
+                                              method='linear'))
         hexAspectMapX = interp.griddata(self.hexXYpoints, \
                                               self.aspectX.flatten(),\
                                               (self.hexXmap, self.hexYmap), \
-                                              method='nearest')
+                                              method='linear')
         
         hexAspectMapY = interp.griddata(self.hexXYpoints, \
                                               self.aspectY.flatten(),\
                                               (self.hexXmap, self.hexYmap), \
-                                              method='nearest')
+                                              method='linear')
         self.hexSlopeMap = hexSlopeMap
-        self.hexAspectMap[0] = hexAspectMapX
-        self.hexAspectMap[1] = hexAspectMapY
+        self.hexAspectMap[0] = hexAspectMapX / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
+        self.hexAspectMap[1] = hexAspectMapY / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
 #        self.hexAspectMap[0,:,:] = hexAspectMap[0,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
 #        self.hexAspectMap[1,:,:] = hexAspectMap[1,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
 #        h = np.sqrt(3)/2.0
@@ -307,18 +331,6 @@ class AnisotropicMap:
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel
-        init = time()   
-        self.computeOccupancyMatrix()
-        print('Elapsed time to compute the Occupancy Matrix: '+str(time()-init)) 
-        init = time()   
-        self.computeHexXYPoints()
-        print('Elapsed time to compute the hexXY flattening: '+str(time()-init)) 
-        init = time() 
-        self.computeHexElevationMap()
-        print('Elapsed time to compute the Hex Elevation Map: '+str(time()-init)) 
-        init = time() 
-        self.computeHexSlopeMap()
-        print('Elapsed time to compute the Hex Slope Map: '+str(time()-init)) 
         init = time() 
         self.computeObstacles()
         print('Elapsed time to compute the Hex Obstacle Map: '+str(time()-init)) 
@@ -337,7 +349,7 @@ class AnisotropicMap:
         
         VCMap = np.zeros([4,AnisotropyMap.shape[0],AnisotropyMap.shape[1]])
         
-        Cmax = self.costModel.Cmax
+        Cmax = self.costModel.limit_cost
         
         Q1 = vectorialData[1][:][:]
         Q1[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3

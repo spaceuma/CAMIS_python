@@ -40,8 +40,10 @@ hexRes = 1.0/np.sqrt(6)
 
 localDEM = hiRes_elevationMap[260:510,350:600]
 offset = offset + [350*0.1, 260*0.1]
+occupancy_radius = 0.5
+tracking_error = 0.5
 env = camis.AnisotropicMap(hiRes_elevationMap[260:510,350:600], hiRes, hexRes,\
-                               offset)
+                               offset, occupancy_radius, tracking_error)
 
 #offset = offset + [350*0.1, 650*0.1]
 #env = camis.AnisotropicMap(hiRes_elevationMap[650:1000,350:600], hiRes, hexRes,\

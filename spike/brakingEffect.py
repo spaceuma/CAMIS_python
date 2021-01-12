@@ -12,7 +12,7 @@ rad2deg = 180/np.pi
 
 
 
-steepnessArray = np.linspace(0,45,90.0+2)*deg2rad
+steepnessArray = np.linspace(0,45,90+2)*deg2rad
 
 rho = .4
 steepnessThreshold = np.arctan(rho)

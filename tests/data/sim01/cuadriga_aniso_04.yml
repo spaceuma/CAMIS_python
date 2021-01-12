@@ -1,26 +1,16 @@
 name: Cuadriga
 mode: anisotropic
-slope_threshold: 33.88
 occupancy_radius: 0.5
 tracking_error: 0.5
 speed: 0.5
 rolling_resistance_mode: nominal
-friction: 0.44866
-kmg: 47.704
+friction: 0.8
+kmg: 1.0
 steepness_brake_margin: 15.0
-slip_mode: roots
-slip: 0.5
-slip_roots_ascent: [-1.04707212e-05,  1.23658236e-03, -1.04049181e-03,  0.00000000e+00]
-slip_roots_descent: [-1.04707212e-05,  1.23658236e-03, -1.04049181e-03,  0.00000000e+00]
-slip_roots_lateral: [-1.04707212e-05,  1.23658236e-03, -1.04049181e-03,  0.00000000e+00]
+slip_ratio_A: 0.07
+slip_ratio_B: 0.10
+slip_angle_A: 1.32
+slip_angle_B: 0.16
 roll_weight: 0.0
 ascent_weight: 0.0
 descent_weight: 0.0
-risk_mode: none
-risk_roll: 28.0
-risk_pitch: 28.0
-risk_block: 20.0
-risk_init: 14.0
-risk_mult: 5.0
-risk_margin: 15.0
-bezier_coeff: 0.6
