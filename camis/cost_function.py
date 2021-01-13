@@ -605,8 +605,8 @@ class CamisDrivingModel:
             self.AnisotropyAD = AnisotropyAD
             self.AnisotropyAL = AnisotropyAL
             self.AnisotropyDL = AnisotropyDL
-    def showModelData(self, opt, fig, axes, color, style):
-        linearGradient = np.linspace(0,33,34)
+    def showModelData(self, opt, fig, axes, color, style, angle):
+        linearGradient = np.linspace(0,angle,20)
         if   opt == 'ascent-cost':
             ascentCostArray = [self.getCa(steepness) for steepness in linearGradient]
             axes.plot(linearGradient, ascentCostArray, color, linestyle=style)
@@ -617,7 +617,26 @@ class CamisDrivingModel:
         elif opt == 'nominal-cost':
             axes.plot(linearGradient, [self.getCn(steepness) for steepness in linearGradient], color, linestyle=style)  
         elif opt == 'anisotropy':
-            axes.plot(linearGradient, self.Anisotropy, color, linestyle=style)  
+            Anisotropy = np.zeros_like(linearGradient)
+            Ca = [self.getCa(steepness) for steepness in linearGradient]
+            Cd = [self.getCd(steepness) for steepness in linearGradient]
+            Cl1 = [self.getCl(steepness) for steepness in linearGradient]
+            Cl2 = [self.getCl(steepness) for steepness in linearGradient]
+            heading = np.arange(0, 2*np.pi, 0.01)
+            aspect = [1,0]
+            Bs = []
+            Cs = []
+            for i,g in enumerate(linearGradient):
+                for theta in heading:
+                    B = computeBeta(aspect,theta)
+                    Bs.append(np.arctan2(B[1],B[0]))
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                    Cs.append(preCost)
+                Anisotropy[i] = max(Cs)/min(Cs)
+                Cs = []
+                Bs = []
+            p1, = axes.plot(linearGradient, Anisotropy, color, linestyle=style)
+            return p1
         elif opt == 'anisotropyAD':
             axes.plot(linearGradient, self.AnisotropyAD, color, linestyle=style)
         elif opt == 'anisotropyAL':

@@ -131,26 +131,26 @@ computeAllPlannings(env_isoCUAD05_scene01)
 
 print('TEST: Finished CUAD05 plannings')
 
-with open("data/localCuadrigaTest/cuadriga_aniso_06.yml", 'r') as file:
-    cuadriga_data = yaml.full_load(file)
-aniso_06 = camis.CamisDrivingModel(cuadriga_data)
-env_CUAD06_scene01, env_isoCUAD06_scene01 = getMapLists(aniso_06)
-computeAllPlannings(env_CUAD06_scene01)
-computeAllPlannings(env_isoCUAD06_scene01)
+#with open("data/localCuadrigaTest/cuadriga_aniso_06.yml", 'r') as file:
+#    cuadriga_data = yaml.full_load(file)
+#aniso_06 = camis.CamisDrivingModel(cuadriga_data)
+#env_CUAD06_scene01, env_isoCUAD06_scene01 = getMapLists(aniso_06)
+#computeAllPlannings(env_CUAD06_scene01)
+#computeAllPlannings(env_isoCUAD06_scene01)
+#
+#print('TEST: Finished CUAD06 plannings')
+#
+#
+#with open("data/localCuadrigaTest/cuadriga_aniso_07.yml", 'r') as file:
+#    cuadriga_data = yaml.full_load(file)
+#aniso_07 = camis.CamisDrivingModel(cuadriga_data)
+#env_CUAD07_scene01, env_isoCUAD07_scene01 = getMapLists(aniso_07)
+#computeAllPlannings(env_CUAD07_scene01)
+#computeAllPlannings(env_isoCUAD07_scene01)
+#
+#print('TEST: Finished CUAD07 plannings')
 
-print('TEST: Finished CUAD06 plannings')
-
-
-with open("data/localCuadrigaTest/cuadriga_aniso_07.yml", 'r') as file:
-    cuadriga_data = yaml.full_load(file)
-aniso_07 = camis.CamisDrivingModel(cuadriga_data)
-env_CUAD07_scene01, env_isoCUAD07_scene01 = getMapLists(aniso_07)
-computeAllPlannings(env_CUAD07_scene01)
-computeAllPlannings(env_isoCUAD07_scene01)
-
-print('TEST: Finished CUAD07 plannings')
-
-env.show3dDEM()
+#env.show3dDEM()
 
 plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
@@ -168,78 +168,56 @@ cbar.set_label('Steepness (deg)')
 
 
 ######################## SHOW PATHS ##################
-def showAnisoPath(mapList, color1, color2, ax, mode):
+def showAnisoPath(mapList, color, ax1, ax2, mode):
     for i,anisomap in enumerate(mapList):
         if i < 4:
-            anisomap.showPath(fig,ax,color1,mode)
+            anisomap.showPath(fig,ax1,color,mode)
         else:
-            anisomap.showPath(fig,ax,color2,mode)
-def showIsoPath(mapList, color, axes, axindex, mode):
-    for k,ax in enumerate(axes):
-        for i,anisomap in enumerate(mapList):
-            if i < 4:
-                if k == axindex:
-                    anisomap.showPath(fig,ax,color,mode, alpha=1.0)
-                else:
-                    anisomap.showPath(fig,ax,color,mode, alpha=0.1)
+            anisomap.showPath(fig,ax2,color,mode)
+def showIsoPath(mapList, color, ax1, mode):
+    for i,isomap in enumerate(mapList):
+        if i < 4:
+            isomap.showPath(fig,ax1,color,mode)
             
 plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, (axes1,axes2) = plt.subplots(figsize=(15, 8), \
-      nrows = 2, ncols = 4, \
+fig, axes = plt.subplots(figsize=(12, 4.5), \
+      nrows = 1, ncols = 3, \
       sharex = 'all', sharey = 'all')
-ax1 = axes1[0]
-ax2 = axes1[1]
-ax3 = axes1[2]
-ax4 = axes1[3]
-ax5 = axes2[0]
-ax6 = axes2[1]
-ax7 = axes2[2]
-ax8 = axes2[3]
+ax1 = axes[0]
+ax2 = axes[1]
+ax3 = axes[2]
 
 fig.text(0.5, 0.005, 'X-axis [m]', ha='center')
 fig.text(0.005, 0.5, 'Y-axis [m]', va='center', rotation='vertical')
 
-showAnisoPath(env_CUAD01_scene01, 'lime', 'c', ax1, 'solid')
-showAnisoPath(env_CUAD02_scene01, 'lime', 'c', ax2, 'solid')
-showAnisoPath(env_CUAD03_scene01, 'lime', 'c', ax3, 'solid')
-showAnisoPath(env_CUAD04_scene01, 'lime', 'c', ax4, 'solid')
-showAnisoPath(env_CUAD05_scene01, 'lime', 'c', ax5, 'solid')
-showAnisoPath(env_CUAD06_scene01, 'lime', 'c', ax6, 'solid')
-showAnisoPath(env_CUAD07_scene01, 'lime', 'c', ax7, 'solid')
-showIsoPath(env_isoCUAD01_scene01, 'r', axes1, 0, 'solid')
-showIsoPath(env_isoCUAD02_scene01, 'r', axes1, 1, 'solid')
-showIsoPath(env_isoCUAD03_scene01, 'r', axes1, 2, 'solid')
-showIsoPath(env_isoCUAD04_scene01, 'r', axes1, 3, 'solid')
-showIsoPath(env_isoCUAD05_scene01, 'r', (ax5,ax6,ax7), 0, 'solid')
-showIsoPath(env_isoCUAD06_scene01, 'r', (ax5,ax6,ax7), 1, 'solid')
-showIsoPath(env_isoCUAD07_scene01, 'r', (ax5,ax6,ax7), 2, 'solid')
-ax1.text(0.01, 0.1, 'CAMIS 01 \n wroll = 0.0 \n wascent = 0.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax1.transAxes, fontsize = 12,\
-         color = 'white')
-ax2.text(0.01, 0.1, 'CAMIS 02 \n wroll = 4.0 \n wascent = 0.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax2.transAxes, fontsize = 12,\
-         color = 'white')
-ax3.text(0.01, 0.1, 'CAMIS 03 \n wroll = 6.0 \n wascent = 0.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax3.transAxes, fontsize = 12,\
-         color = 'white')
-ax4.text(0.01, 0.1, 'CAMIS 04 \n wroll = 6.0 \n wascent = 2.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax4.transAxes, fontsize = 12,\
-         color = 'white')
-ax5.text(0.01, 0.1, 'CAMIS 05 \n wroll = 6.0 \n wascent = 4.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax5.transAxes, fontsize = 12,\
-         color = 'white')
-ax6.text(0.01, 0.1, 'CAMIS 06 \n wroll = 6.0 \n wascent = 6.0 \n wdescent = 0.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax6.transAxes, fontsize = 12,\
-         color = 'white')
-ax7.text(0.01, 0.1, 'CAMIS 07 \n wroll = 6.0 \n wascent = 6.0 \n wdescent = 6.0', horizontalalignment='left', \
-         verticalalignment='center', transform=ax7.transAxes, fontsize = 12,\
-         color = 'white')
+showAnisoPath(env_CUAD01_scene01, 'r', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD02_scene01, 'm', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD03_scene01, 'b', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD04_scene01, 'c', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD05_scene01, 'g', ax1, ax2, 'solid')
+showIsoPath(env_isoCUAD01_scene01, 'r', ax3, 'solid')
+showIsoPath(env_isoCUAD02_scene01, 'm', ax3, 'solid')
+showIsoPath(env_isoCUAD03_scene01, 'b', ax3, 'solid')
+showIsoPath(env_isoCUAD04_scene01, 'c', ax3, 'solid')
+showIsoPath(env_isoCUAD05_scene01, 'g', ax3, 'solid')
+#ax1.text(0.01, 0.1, 'Anisotropic A-B-C-D-A', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax1.transAxes, fontsize = 12,\
+#         color = 'white')
+#ax2.text(0.01, 0.1, 'Anisotropic A-D-C-B-A', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax2.transAxes, fontsize = 12,\
+#         color = 'white')
+#ax3.text(0.01, 0.1, 'Isotropic', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax3.transAxes, fontsize = 12,\
+#         color = 'white')
+ax1.set_title('Anisotropic A-B-C-D-A')
+ax2.set_title('Anisotropic A-D-C-B-A')
+ax3.set_title('Isotropic')
 #ax1.legend()
      
-for ax in axes1:
+for ax in (ax1,ax2,ax3):
     cc = ax.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
     ax.scatter(posA[0], posA[1], facecolor = 'r', edgecolor='black', s=60)
     ax.text(posA[0]-1, posA[1],'A',color = 'white')
@@ -252,25 +230,34 @@ for ax in axes1:
     ax.set_xlim([env.xMap[0,2], env.xMap[-1,-4]])
     ax.set_ylim([env.yMap[0,0], env.yMap[-1,-1]])
     ax.set_aspect('equal')
-for ax in (ax5,ax6,ax7):
-    cc = ax.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
-    ax.scatter(posA[0], posA[1], facecolor = 'r', edgecolor='black', s=60)
-    ax.scatter(posB[0], posB[1], facecolor = 'r', edgecolor='black', s=60)
-    ax.scatter(posC[0], posC[1], facecolor = 'r', edgecolor='black', s=60)
-    ax.scatter(posD[0], posD[1], facecolor = 'r', edgecolor='black', s=60)
-    ax.set_xlim([env.xMap[0,2], env.xMap[-1,-4]])
-    ax.set_ylim([env.yMap[0,0], env.yMap[-1,-1]])
-    ax.set_aspect('equal')
-cc = ax8.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
-ax8.plot(-1,-1,'lime')
-ax8.plot(-1,-1,'c')
-ax8.plot(-1,-1,'r')
-ax8.legend(('A-B-C-D-A', 'A-D-C-B-A', 'Isotropic equivalent'))
-plt.axis('off')
-cc.set_visible(False)
-fig.colorbar(cc, ax=ax8)
-plt.subplots_adjust(left = 0.00, right = 0.1, bottom = 0.0, top = 0.1, wspace = -1.0, hspace = -1.0)
+#cc = ax4.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
+#ax4.plot(-1,-1,'lime')
+#ax4.plot(-1,-1,'c')
+#ax4.plot(-1,-1,'r')
+#ax4.legend(('A-B-C-D-A', 'A-D-C-B-A', 'Isotropic equivalent'))
+#plt.axis('off')
+#cc.set_visible(False)
+#fig.colorbar(cc, ax=ax4, loc='left')
+#plt.subplots_adjust(left = 0.00, right = 0.1, bottom = 0.0, top = 0.1, wspace = -1.0, hspace = -1.0)
 fig.tight_layout()
+
+cbar_ax = fig.add_axes([0.05, 0.18, 0.2, 0.02])
+legend_ax = fig.add_axes([0.55, 0.17, 0.4, 0.05])
+legend_ax.plot(0,0,'r',label='$W_ϕ = 1$\n$W_θ = 1$')
+legend_ax.plot(0,0,'m',label='$W_ϕ = 1 + 3 tan_{α}$\n$W_θ = 1$')
+legend_ax.plot(0,0,'b',label='$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1$')
+legend_ax.plot(0,0,'c',label='$W_ϕ = 1 + 3 tan_{α}$\n$W_θ = 1 + 3 tan_{α}$')
+legend_ax.plot(0,0,'g',label='$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1 + 6 tan_{α}$')
+plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+plt.grid(b=False)
+plt.axis('off')
+cbar = fig.colorbar(cc, cax=cbar_ax, orientation = 'horizontal')
+cbar.set_label('Elevation [m]',color='w')
+cbar.ax.tick_params(colors='w')
+cbar.outline.set_edgecolor('w')
+#cbar.ax.yaxis.set_tick_params(color='w')
+legend_ax.legend(ncol=5)
+plt.show()
 
 
 ############### SHOW ROLL PATH ###############
@@ -368,7 +355,7 @@ def showOrientation(env,ax,color,name):
                 ha='left', va='bottom',color='steelblue')
     ax.annotate(name,
                 xy=(179, 5),
-                xytext=(-4, 0),  # 3 points vertical offset
+                xytext=(15, -15),  # 3 points vertical offset
                 textcoords="offset points",
                 ha='right', va='bottom',color=color)
 
@@ -376,28 +363,32 @@ plt.style.use('seaborn-darkgrid')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, rowaxes = plt.subplots(figsize=(10, 7), nrows = 12, ncols = 1, \
+fig, rowaxes = plt.subplots(figsize=(7, 7), nrows = 12, ncols = 1, \
      sharex = 'all', sharey = 'all')
 
-rowaxes[4].set_xlabel('Traversed Distance [m]')
+rowaxes[0].set_visible(False)
+rowaxes[1].set_title('Anisotropic')
+rowaxes[7].set_title('Isotropic')
+rowaxes[6].set_visible(False)
+rowaxes[11].set_xlabel('Traversed Distance [m]')
 
 plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, top = 0.9, wspace = 0.1, hspace = 0.075)
 fig.text(0.02, 0.5, 'Orientation Angle [deg]', va='center', rotation='vertical')
 rowaxes[0].set_xlim([0,179])
 
-showOrientation(env_CUAD01_scene01, rowaxes[0], 'r', 'CUAD')
-showOrientation(env_CUAD02_scene01, rowaxes[1], 'c', 'CORI00')
-showOrientation(env_CUAD03_scene01, rowaxes[2], 'c', 'CORI01')
-showOrientation(env_CUAD04_scene01, rowaxes[3], 'c', 'CORI02')
-showOrientation(env_CUAD05_scene01, rowaxes[4], 'c', 'CORI02')
-showOrientation(env_CUAD06_scene01, rowaxes[5], 'c', 'CORI02')
+showOrientation(env_CUAD01_scene01, rowaxes[1], 'r', '$W_ϕ = 1$\n$W_θ = 1$')
+showOrientation(env_CUAD02_scene01, rowaxes[2], 'm', '$W_ϕ = 1 + 3 tan_{α}$\n$W_θ = 1$')
+showOrientation(env_CUAD03_scene01, rowaxes[3], 'b', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1$')
+showOrientation(env_CUAD04_scene01, rowaxes[4], 'c', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1 + 3 tan_{α}$')
+showOrientation(env_CUAD05_scene01, rowaxes[5], 'g', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1 + 6 tan_{α}$')
+#showOrientation(env_CUAD06_scene01, rowaxes[5], 'c', 'CORI02')
 
-showOrientation(env_isoCUAD01_scene01, rowaxes[6], 'r', 'isoCUAD')
-showOrientation(env_isoCUAD02_scene01, rowaxes[7], 'c', 'isoCORI00')
-showOrientation(env_isoCUAD03_scene01, rowaxes[8], 'y', 'isoCORI01')
-showOrientation(env_isoCUAD04_scene01, rowaxes[9], 'y', 'isoCORI02')
-showOrientation(env_isoCUAD05_scene01, rowaxes[10], 'y', 'isoCORI02')
-showOrientation(env_isoCUAD06_scene01, rowaxes[11], 'y', 'isoCORI02')
+showOrientation(env_isoCUAD01_scene01, rowaxes[7], 'r', '$W_ϕ = 1$\n$W_θ = 1$')
+showOrientation(env_isoCUAD02_scene01, rowaxes[8], 'm', '$W_ϕ = 1 + 3 tan_{α}$\n$W_θ = 1$')
+showOrientation(env_isoCUAD03_scene01, rowaxes[9], 'b', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1$')
+showOrientation(env_isoCUAD04_scene01, rowaxes[10], 'c', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1 + 3 tan_{α}$')
+showOrientation(env_isoCUAD05_scene01, rowaxes[11], 'g', '$W_ϕ = 1 + 6 tan_{α}$\n$W_θ = 1 + 6 tan_{α}$')
+#showOrientation(env_isoCUAD06_scene01, rowaxes[11], 'y', 'isoCORI02')
 
 plt.grid(b=True, which = 'minor')
 legend_ax = fig.add_axes([0.2, 0.92, 0.6, 0.07])
@@ -483,9 +474,9 @@ for direction in (-1, 1):
 ################ ENERGY PLOT ##################
     
         
-coeffsLabels = ['CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06','CUAD07']
-anisoTotalCost = [0,0,0,0,0,0,0]
-isoTotalCost = [0,0,0,0,0,0,0]
+coeffsLabels = ['CUAD01','CUAD02','CUAD03','CUAD04','CUAD05']
+anisoTotalCost = [0,0,0,0,0]
+isoTotalCost = [0,0,0,0,0]
 anisoTR = [0,0]
 isoTR = [0,0]
 for i in range(8):
@@ -494,15 +485,15 @@ for i in range(8):
     anisoTotalCost[2] = anisoTotalCost[2] + env_CUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
     anisoTotalCost[3] = anisoTotalCost[3] + env_CUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
     anisoTotalCost[4] = anisoTotalCost[4] + env_CUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[5] = anisoTotalCost[5] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[6] = anisoTotalCost[6] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+#    anisoTotalCost[5] = anisoTotalCost[5] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+#    anisoTotalCost[6] = anisoTotalCost[6] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[0] = isoTotalCost[0] + env_isoCUAD01_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[1] = isoTotalCost[1] + env_isoCUAD02_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[2] = isoTotalCost[2] + env_isoCUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[3] = isoTotalCost[3] + env_isoCUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
     isoTotalCost[4] = isoTotalCost[4] + env_isoCUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[5] = isoTotalCost[5] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[6] = isoTotalCost[6] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+#    isoTotalCost[5] = isoTotalCost[5] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+#    isoTotalCost[6] = isoTotalCost[6] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
     anisoTR[0] = anisoTR[0] + env_CUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
     anisoTR[1] = anisoTR[1] + env_CUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
     isoTR[0] = isoTR[0] + env_isoCUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
@@ -641,24 +632,19 @@ def computeunderNegativePitch(env_input, linearGradient): #Descending
     return underPitch
 linearGradient = np.linspace(0,30,301) 
 ## ROLL ##  
-fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+fig, ax = plt.subplots(figsize=(4,4), constrained_layout=True)
 ax.plot(linearGradient,computeaboveRoll(env_CUAD01_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveRoll(env_CUAD02_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveRoll(env_CUAD03_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveRoll(env_CUAD04_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveRoll(env_CUAD05_scene01, linearGradient))
-ax.plot(linearGradient,computeaboveRoll(env_CUAD06_scene01, linearGradient))
-ax.plot(linearGradient,computeaboveRoll(env_CUAD07_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveRoll(env_isoCUAD01_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveRoll(env_isoCUAD02_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveRoll(env_isoCUAD03_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveRoll(env_isoCUAD04_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveRoll(env_isoCUAD05_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeaboveRoll(env_isoCUAD06_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeaboveRoll(env_isoCUAD07_scene01, linearGradient), linestyle='dashed')
 ax.legend(('CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06','CUAD07', \
-           'isoCUAD01','isoCUAD02','isoCUAD03','isoCUAD04','isoCUAD05', \
-           'isoCUAD06','isoCUAD07'))
+           'isoCUAD01','isoCUAD02','isoCUAD03','isoCUAD04','isoCUAD05'))
 ax.set_xlabel('Absolute Roll Threshold [degrees]')
 ax.set_ylabel('Traversed distance above absolute roll threshold [m]')
 ax.set_xlim([0,16])
@@ -669,15 +655,11 @@ ax.plot(linearGradient,computeaboveSlope(env_CUAD02_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveSlope(env_CUAD03_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveSlope(env_CUAD04_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveSlope(env_CUAD05_scene01, linearGradient))
-ax.plot(linearGradient,computeaboveSlope(env_CUAD06_scene01, linearGradient))
-ax.plot(linearGradient,computeaboveSlope(env_CUAD07_scene01, linearGradient))
 ax.plot(linearGradient,computeaboveSlope(env_isoCUAD01_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveSlope(env_isoCUAD02_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveSlope(env_isoCUAD03_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveSlope(env_isoCUAD04_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeaboveSlope(env_isoCUAD05_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeaboveSlope(env_isoCUAD06_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeaboveSlope(env_isoCUAD07_scene01, linearGradient), linestyle='dashed')
 ax.legend(('CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06','CUAD07', \
            'isoCUAD01','isoCUAD02','isoCUAD03','isoCUAD04','isoCUAD05', \
            'isoCUAD06','isoCUAD07'))
@@ -691,15 +673,11 @@ ax.plot(linearGradient,computeabovePositivePitch(env_CUAD02_scene01, linearGradi
 ax.plot(linearGradient,computeabovePositivePitch(env_CUAD03_scene01, linearGradient))
 ax.plot(linearGradient,computeabovePositivePitch(env_CUAD04_scene01, linearGradient))
 ax.plot(linearGradient,computeabovePositivePitch(env_CUAD05_scene01, linearGradient))
-ax.plot(linearGradient,computeabovePositivePitch(env_CUAD06_scene01, linearGradient))
-ax.plot(linearGradient,computeabovePositivePitch(env_CUAD07_scene01, linearGradient))
 ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD01_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD02_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD03_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD04_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD05_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD06_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeabovePositivePitch(env_isoCUAD07_scene01, linearGradient), linestyle='dashed')
 ax.legend(('CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06','CUAD07', \
            'isoCUAD01','isoCUAD02','isoCUAD03','isoCUAD04','isoCUAD05', \
            'isoCUAD06','isoCUAD07'))
@@ -713,15 +691,11 @@ ax.plot(linearGradient,computeunderNegativePitch(env_CUAD02_scene01, linearGradi
 ax.plot(linearGradient,computeunderNegativePitch(env_CUAD03_scene01, linearGradient))
 ax.plot(linearGradient,computeunderNegativePitch(env_CUAD04_scene01, linearGradient))
 ax.plot(linearGradient,computeunderNegativePitch(env_CUAD05_scene01, linearGradient))
-ax.plot(linearGradient,computeunderNegativePitch(env_CUAD06_scene01, linearGradient))
-ax.plot(linearGradient,computeunderNegativePitch(env_CUAD07_scene01, linearGradient))
 ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD01_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD02_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD03_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD04_scene01, linearGradient), linestyle='dashed')
 ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD05_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD06_scene01, linearGradient), linestyle='dashed')
-ax.plot(linearGradient,computeunderNegativePitch(env_isoCUAD07_scene01, linearGradient), linestyle='dashed')
 ax.legend(('CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06','CUAD07', \
            'isoCUAD01','isoCUAD02','isoCUAD03','isoCUAD04','isoCUAD05', \
            'isoCUAD06','isoCUAD07'))

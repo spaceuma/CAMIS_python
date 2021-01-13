@@ -205,7 +205,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                             afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                     except:
                         pass
-            nfPairs = []
+            localAFPairs = []
             SS = []
             SS[:] = afList
             while (len(SS)!=0):
@@ -213,14 +213,14 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                 del SS[0]
                 for j in SS:
                     if (computeDistance(ss,j,res) <= 1.1*res):
-                        nfPairs.append(np.concatenate((ss,j)))
-#            nfPairs = []
-#            for j in localAFPairs:
-#                if checkNF(j,nodeTarget,anisotropy,res):
-#                    nfPairs.append(j)
-#            if len(nfPairs) == 0:
-#                for j in afList:
-#                    nfPairs.append(np.concatenate((j,j)))
+                        localAFPairs.append(np.concatenate((ss,j)))
+            nfPairs = []
+            for j in localAFPairs:
+                if checkNF(j,nodeTarget,anisotropy,res):
+                    nfPairs.append(j)
+            if len(nfPairs) == 0:
+                for j in afList:
+                    nfPairs.append(np.concatenate((j,j)))
         Q1 = VCmap[0,nodeTarget[1],nodeTarget[0]]
         Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]

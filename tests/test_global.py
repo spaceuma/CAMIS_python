@@ -12,6 +12,7 @@ from context import camis
 import copy
 import zipfile
 import yaml
+from matplotlib.ticker import FormatStrFormatter
 try:
     from scipy import signal
 except:
@@ -43,10 +44,12 @@ plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax1 = plt.subplots(figsize=(5, 4),nrows = 1, ncols = 1, constrained_layout=True)
+fig, ax1 = plt.subplots(figsize=(2.6, 4),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(xmesh, ymesh, c = z, 
                  cmap=cm.gist_earth,s=16.0)
-cbar = fig.colorbar(cc, ax=ax1,shrink=0.6)
+cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
+cbar.set_label('Elevation [deg]')
+ax1.set_aspect('equal')
 
 hiRes = 1.0
 hexRes = 0.5
@@ -63,12 +66,29 @@ plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax1 = plt.subplots(figsize=(5, 4),nrows = 1, ncols = 1, constrained_layout=True)
+fig, ax1 = plt.subplots(figsize=(3.2, 4),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(env.hexXmap, env.hexYmap, c = 180/np.pi*env.hexSlopeMap, 
                  cmap="nipy_spectral",s=16.0)
-cbar = fig.colorbar(cc, ax=ax1,shrink=0.6)
+cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
 #cc.set_clim(0,50.0)
-cbar.set_label('Steepness (deg)')
+cbar.set_label('Steepness α [deg]')
+ax1.set_xlim([0,48.0])
+ax1.set_ylim([0,48.0])
+ax1.set_aspect('equal')
+
+
+plt.style.use('default')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, ax1 = plt.subplots(figsize=(3.2, 4),nrows = 1, ncols = 1, constrained_layout=True)
+cc = ax1.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, 
+                 cmap=cm.gist_earth,s=16.0)
+cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
+cbar.set_label('Elevation [m]')
+ax1.set_xlim([0,48.0])
+ax1.set_ylim([0,48.0])
+ax1.set_aspect('equal')
 
 
 #cc.set_clim(0,50.0)
@@ -218,6 +238,67 @@ env_CUAD06_scene01, env_isoCUAD06_scene01 = getMapLists(aniso_06)
 computeAllPlannings(env_CUAD06_scene01)
 computeAllPlannings(env_isoCUAD06_scene01)
 
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, ax = plt.subplots(figsize=(5,3.5),constrained_layout=True)
+p1 = aniso_01.showModelData('anisotropy',fig,ax,'r','solid',25)
+p2 = aniso_02.showModelData('anisotropy',fig,ax,'m','solid',25)
+p3 = aniso_03.showModelData('anisotropy',fig,ax,'orange','solid',25)
+p4 = aniso_04.showModelData('anisotropy',fig,ax,'b','solid',25)
+p5 = aniso_05.showModelData('anisotropy',fig,ax,'c','solid',25)
+p6 = aniso_06.showModelData('anisotropy',fig,ax,'g','solid',25)
+p7, = ax.plot([0], marker='None',
+           linestyle='None', label='Model A')
+ax.set_xlabel('Steepness α [degrees]')
+ax.set_ylabel('Anisotropy')
+l1 = ax.legend([p7,p1,p2,p3,p7,p7,p4,p5,p6], [r'$Model A$'] + \
+               ['$ρ = 0.3$', '$ρ = 0.6$', \
+                '$ρ = 0.9$'] + ['']  + \
+                [r'$Model B$'] + \
+                [r'$ρ = 0.3$', r'$ρ = 0.6$', \
+                r'$ρ = 0.9$'])
+plt.show()
+
+
+def plotModels(model, fig, axes,label,modelname):
+    model.showModelData('ascent-cost',fig,axes,'m','dashed',25)
+    model.showModelData('lateral-cost',fig,axes,'g','dashed',25)
+    model.showModelData('descent-cost',fig,axes,'b','dashed',25)
+    axes.legend(('$C(α,\pm π)$','$C(α,\pm π/2)$','$C(α, 0)$'), loc = 2)
+    axes.set_ylabel(label)
+    axes.text(0.95, 1.0, modelname, horizontalalignment='right', \
+         verticalalignment='bottom', transform=axes.transAxes, fontsize = 10,\
+         color = 'k')
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig,(axes1, axes2, axes3) = plt.subplots(figsize=(6, 6), \
+      nrows = 3, ncols = 2, \
+      sharex = 'all')
+plotModels(aniso_01,fig,axes1[0],'Power/Speed [As/m]','ρ = 0.3')
+plotModels(aniso_02,fig,axes2[0],'Power/Speed [As/m]','ρ = 0.6')
+plotModels(aniso_03,fig,axes3[0],'Power/Speed [As/m]','ρ = 0.9')
+plotModels(aniso_04,fig,axes1[1],'Power/Speed [As/m]','ρ = 0.3')
+plotModels(aniso_05,fig,axes2[1],'Power/Speed [As/m]','ρ = 0.6')
+plotModels(aniso_06,fig,axes3[1],'Power/Speed [As/m]','ρ = 0.9')
+for ax in axes1:
+#    ax.set_ylim([0,300])
+    ax.grid(True, which='both') 
+for ax in axes2:
+#    ax.set_ylim([0,3300])
+    ax.grid(True, which='both')
+for ax in axes3:
+#    ax.set_ylim([0,110])
+    ax.grid(True, which='both')
+axes1[0].set_title('Model A')
+axes1[1].set_title('Model B')
+plt.subplots_adjust(left = 0.1, right = 0.99, bottom = 0.075, top = 0.95, wspace = 0.3, hspace = 0.1)
+fig.text(0.5, 0.0075, 'Steepness α [deg]', ha='center')
+plt.minorticks_on() 
+#axes.set_xlabel('Steepness [deg]')
 
 #
 #with open("data/sim01/cuadriga_aniso_07.yml", 'r') as file:
@@ -503,10 +584,54 @@ fig = go.Figure(data=[go.Surface(contours = {"z": {"show": True, "size": 0.01, "
     marker=dict(
         size=2,
         color='orange'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD04_scene01[0].path[:,0], y=env_CUAD04_scene01[0].path[:,1], \
+    z=env_CUAD04_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='blue'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD04_scene01[1].path[:,0], y=env_CUAD04_scene01[1].path[:,1], \
+    z=env_CUAD04_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='blue'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD05_scene01[0].path[:,0], y=env_CUAD05_scene01[0].path[:,1], \
+    z=env_CUAD05_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='cyan'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD05_scene01[1].path[:,0], y=env_CUAD05_scene01[1].path[:,1], \
+    z=env_CUAD05_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='cyan'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD06_scene01[0].path[:,0], y=env_CUAD06_scene01[0].path[:,1], \
+    z=env_CUAD06_scene01[0].pathElevation,
+    marker=dict(
+        size=2,
+        color='green'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD06_scene01[1].path[:,0], y=env_CUAD06_scene01[1].path[:,1], \
+    z=env_CUAD06_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='green'
     )) 
 ])
 
-scene=dict(camera=dict(eye=dict(x=1.25, y=1.25, z=1.25)), #the default values are 1.25, 1.25, 1.25
+scene=dict(camera=dict(up=dict(x=0, y=0, z=1),\
+                       center=dict(x=0, y=0, z=-0.2),\
+                       eye=dict(x=1.5, y=-1.5, z=0.7)), #the default values are 1.25, 1.25, 1.25
            xaxis=dict(),
            yaxis=dict(),
            zaxis=dict(),
