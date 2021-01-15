@@ -19,6 +19,7 @@ import scipy.signal
 from scipy.optimize import curve_fit
 from scipy.spatial.transform import Rotation as R
 from scipy import interpolate
+import plotly.graph_objects as go
 
 ## =============================================================================
 ### IMPORT PLANNED PATHS
@@ -33,16 +34,16 @@ def buildPathInfo(posX, posY, time, roll, pitch, yaw, current, devAngle, fixAngl
 #    roll = roll + 180.0
 #    yaw = yaw + 180.0
     for i,x in enumerate(posX):
-        if (np.linalg.norm([posX[i],posY[i]] - posA) < 2.8) or \
-        (np.linalg.norm([posX[i],posY[i]] - posB) < 2.8) or \
-        (np.linalg.norm([posX[i],posY[i]] - posC) < 2.8) or \
-        (np.linalg.norm([posX[i],posY[i]] - posD) < 2.8) or \
-        (posX[i] < posA[0]) or \
-        (posY[i] > posA[1]) or \
-        (posY[i] > posB[1]) or \
-        (posY[i] < 3.0):
-            logic[i] = False
-        else:
+#        if (np.linalg.norm([posX[i],posY[i]] - posA) < 2.8) or \
+#        (np.linalg.norm([posX[i],posY[i]] - posB) < 2.8) or \
+#        (np.linalg.norm([posX[i],posY[i]] - posC) < 2.8) or \
+#        (np.linalg.norm([posX[i],posY[i]] - posD) < 2.8) or \
+#        (posX[i] < posA[0]) or \
+#        (posY[i] > posA[1]) or \
+#        (posY[i] > posB[1]) or \
+#        (posY[i] < 3.0):
+#            logic[i] = False
+#        else:
             logic[i] = True
             
     posX = posX[logic == 1.0]
@@ -204,8 +205,8 @@ posX_D2A, posY_D2A, _, Roll_D2A, Pitch_D2A, Yaw_D2A, Current_D2A, _, Distance_D2
  dTime_D2A, Time_D2A, Slope_D2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_10_23.txt',1)
 posX_D2A_02, posY_D2A_02, _, Roll_D2A_02, Pitch_D2A_02, Yaw_D2A_02, Current_D2A_02, _, Distance_D2A, Segment_D2A, _, \
  dTime_D2A, Time_D2A_02, Slope_D2A_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_22_22.txt',1)
-I2Cmatrix_D2A = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
-I2Cmatrix_D2A = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_D2A 
+I2Cmatrix_D2A = R.from_euler('Y', -8.0, degrees=True)*I2Cmatrix
+I2Cmatrix_D2A = R.from_euler('X', 4.0, degrees=True)*I2Cmatrix_D2A 
 path_aniso_D2A = buildPathInfo(posX_D2A, posY_D2A, Time_D2A, \
                                Roll_D2A, Pitch_D2A, Yaw_D2A, Current_D2A, 105.0, 160.0,I2Cmatrix_D2A)
 path_aniso_D2A_02 = buildPathInfo(posX_D2A_02, posY_D2A_02, Time_D2A_02, \
@@ -382,6 +383,581 @@ ax.plot(path_iso_B2C[9])
 ax.plot(path_iso_B2C_02[9])
 ax.set_ylabel('Slope_B2C')
 
+######################## SHOW PATHS ##################
+def showAnisoPath(mapList, color, ax1, ax2, mode):
+    for i,anisomap in enumerate(mapList):
+        if i < 4:
+            anisomap.showPath(fig,ax1,color,mode)
+        else:
+            anisomap.showPath(fig,ax2,color,mode)
+def showIsoPath(mapList, color, ax1, mode):
+    for i,isomap in enumerate(mapList):
+        if i < 4:
+            isomap.showPath(fig,ax1,color,mode)
+            
+plt.style.use('default')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, axes = plt.subplots(figsize=(12, 4.5), \
+      nrows = 1, ncols = 3, \
+      sharex = 'all', sharey = 'all')
+ax1 = axes[0]
+ax2 = axes[1]
+ax3 = axes[2]
+
+fig.text(0.5, 0.005, 'X-axis [m]', ha='center')
+fig.text(0.005, 0.5, 'Y-axis [m]', va='center', rotation='vertical')
+
+showAnisoPath(env_CUAD01_scene01, 'r', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD02_scene01, 'm', ax1, ax2, 'solid')
+showAnisoPath(env_CUAD03_scene01, 'b', ax1, ax2, 'solid')
+showIsoPath(env_isoCUAD01_scene01, 'r', ax3, 'solid')
+showIsoPath(env_isoCUAD02_scene01, 'm', ax3, 'solid')
+showIsoPath(env_isoCUAD03_scene01, 'b', ax3, 'solid')
+#ax1.text(0.01, 0.1, 'Anisotropic A-B-C-D-A', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax1.transAxes, fontsize = 12,\
+#         color = 'white')
+#ax2.text(0.01, 0.1, 'Anisotropic A-D-C-B-A', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax2.transAxes, fontsize = 12,\
+#         color = 'white')
+#ax3.text(0.01, 0.1, 'Isotropic', horizontalalignment='left', \
+#         verticalalignment='center', transform=ax3.transAxes, fontsize = 12,\
+#         color = 'white')
+ax1.set_title('Anisotropic A-B-C-D-A')
+ax2.set_title('Anisotropic A-D-C-B-A')
+ax3.set_title('Isotropic')
+#ax1.legend()
+     
+for ax in (ax1,ax2,ax3):
+    cc = ax.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
+    ax.scatter(posA[0], posA[1], facecolor = 'r', edgecolor='black', s=60)
+    ax.text(posA[0]-1, posA[1],'A',color = 'white')
+    ax.scatter(posB[0], posB[1], facecolor = 'r', edgecolor='black', s=60)
+    ax.text(posB[0]+1, posB[1],'B',color = 'white')
+    ax.scatter(posC[0], posC[1], facecolor = 'r', edgecolor='black', s=60)
+    ax.text(posC[0]-1, posC[1],'C',color = 'white')
+    ax.scatter(posD[0], posD[1], facecolor = 'r', edgecolor='black', s=60)
+    ax.text(posD[0]+1, posD[1],'D',color = 'white')
+    ax.set_xlim([env.xMap[0,2], env.xMap[-1,-4]])
+    ax.set_ylim([env.yMap[0,0], env.yMap[-1,-1]])
+    ax.set_aspect('equal')
+#cc = ax4.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, cmap = cm.gist_earth,s=60)
+#ax4.plot(-1,-1,'lime')
+#ax4.plot(-1,-1,'c')
+#ax4.plot(-1,-1,'r')
+#ax4.legend(('A-B-C-D-A', 'A-D-C-B-A', 'Isotropic equivalent'))
+#plt.axis('off')
+#cc.set_visible(False)
+#fig.colorbar(cc, ax=ax4, loc='left')
+#plt.subplots_adjust(left = 0.00, right = 0.1, bottom = 0.0, top = 0.1, wspace = -1.0, hspace = -1.0)
+fig.tight_layout()
+
+cbar_ax = fig.add_axes([0.05, 0.18, 0.2, 0.02])
+legend_ax = fig.add_axes([0.55, 0.17, 0.4, 0.05])
+legend_ax.plot(0,0,'r',label='$W_ϕ = 1$')
+legend_ax.plot(0,0,'m',label='$W_ϕ = 1 + 3 tan_{α}$')
+legend_ax.plot(0,0,'b',label='$W_ϕ = 1 + 6 tan_{α}$')
+plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+plt.grid(b=False)
+plt.axis('off')
+cbar = fig.colorbar(cc, cax=cbar_ax, orientation = 'horizontal')
+cbar.set_label('Elevation [m]',color='w')
+cbar.ax.tick_params(colors='w')
+cbar.outline.set_edgecolor('w')
+#cbar.ax.yaxis.set_tick_params(color='w')
+legend_ax.legend(ncol=5)
+plt.show()
+
+
+############### ORIENTATION ###############
+
+def showOrientation(env,ax,color,name):
+    for i in range(8):
+        if i == 0:
+            offSet = 0
+        else:
+            offSet = offSet + env[i-1].pathTravDist[-1]
+        if i == 0:
+            pointName = 'Xa'
+        elif i == 1 or i == 5:
+            pointName = 'Xd'
+        elif i == 3:
+            pointName = 'Xb'
+        elif i == 2 or i == 4:
+            pointName = 'Xc'
+        ax.axvline(x=offSet, color='w', linewidth=4)
+        ax.axvline(x=offSet, color='steelblue', linewidth=1)
+        ax.annotate(pointName,
+                    xy=(offSet, 15),
+                    xytext=(2, 0),
+                    textcoords="offset points",
+                    ha='left', va='bottom',color='steelblue')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*np.asarray(env[i].pathSlope), facecolor = 'y',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  -180.0/np.pi*np.asarray(env[i].pathSlope), facecolor = 'y',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      -180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*np.asarray(env[i].pathPitch), facecolor = 'c',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*np.asarray(env[i].pathPitch), 'c')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*env[i].pathRoll*np.sign(env[i].pathBeta), facecolor = 'r',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*env[i].pathRoll*np.sign(env[i].pathBeta), 'r')
+    ax.axvspan(offSet + env[-1].pathTravDist[-1], 180, alpha=1.0, color='w')
+    ax.axvline(x=offSet + env[-1].pathTravDist[-1],color='w', linewidth=4)
+    ax.axvline(x=offSet + env[-1].pathTravDist[-1],color='steelblue', linewidth=1)
+    ax.annotate('Xa',
+                xy=(offSet + env[-1].pathTravDist[-1], 15),
+                xytext=(2, 0),
+                textcoords="offset points",
+                ha='left', va='bottom',color='steelblue')
+    ax.annotate(name,
+                xy=(179, 5),
+                xytext=(15, -15),  # 3 points vertical offset
+                textcoords="offset points",
+                ha='right', va='bottom',color=color)
+
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, rowaxes = plt.subplots(figsize=(7, 6), nrows = 8, ncols = 1, \
+     sharex = 'all', sharey = 'all')
+
+rowaxes[0].set_box_aspect(0.001)
+rowaxes[0].set_visible(False)
+rowaxes[1].set_title('Anisotropic')
+rowaxes[5].set_title('Isotropic')
+rowaxes[4].set_visible(False)
+rowaxes[7].set_xlabel('Traversed Distance [m]')
+
+plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, top = 0.95, wspace = 0.1, hspace = 0.075)
+fig.text(0.02, 0.5, 'Orientation Angle [deg]', va='center', rotation='vertical')
+rowaxes[0].set_xlim([0,179])
+
+showOrientation(env_CUAD01_scene01, rowaxes[1], 'r', '$W_ϕ = 1$')
+showOrientation(env_CUAD02_scene01, rowaxes[2], 'm', '$W_ϕ = 1 + 3 tan_{α}$')
+showOrientation(env_CUAD03_scene01, rowaxes[3], 'b', '$W_ϕ = 1 + 6 tan_{α}$')
+#showOrientation(env_CUAD06_scene01, rowaxes[5], 'c', 'CORI02')
+
+showOrientation(env_isoCUAD01_scene01, rowaxes[5], 'r', '$W_ϕ = 1$')
+showOrientation(env_isoCUAD02_scene01, rowaxes[6], 'm', '$W_ϕ = 1 + 3 tan_{α}$')
+showOrientation(env_isoCUAD03_scene01, rowaxes[7], 'b', '$W_ϕ = 1 + 6 tan_{α}$')
+#showOrientation(env_isoCUAD06_scene01, rowaxes[11], 'y', 'isoCORI02')
+
+plt.grid(b=True, which = 'minor')
+legend_ax = fig.add_axes([0.2, 0.92, 0.6, 0.07])
+plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+plt.grid(b=False)
+xArray = np.arange(0, 2*np.pi, 0.01)
+legend_ax.plot(xArray, np.sin(xArray),'y')
+legend_ax.plot(xArray, -np.sin(xArray),'y')
+legend_ax.fill_between(xArray, -np.sin(xArray), \
+                  np.sin(xArray), facecolor = 'y',\
+                  alpha = 0.5)
+legend_ax.plot(xArray+2*np.pi, np.sin(xArray),'c')
+legend_ax.fill_between(xArray+2*np.pi, 0, \
+                  np.sin(xArray), facecolor = 'c',\
+                  alpha = 0.5)
+legend_ax.plot(xArray+4*np.pi, np.sin(xArray),'r')
+legend_ax.fill_between(xArray+4*np.pi, 0, \
+                  np.sin(xArray), facecolor = 'r',\
+                  alpha = 0.5)
+legend_ax.text(np.pi/2, 0.0, 'Steepness', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(3*np.pi/2, -0.5, '-α', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 12,\
+         color = 'white')
+legend_ax.text(3*np.pi/2, 0.5, 'α', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 12,\
+         color = 'white')
+legend_ax.text(5*np.pi/2, 0.5, 'Pitch', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(7*np.pi/2, -0.5, 'θ', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(9*np.pi/2, 0.5, 'Roll', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(11*np.pi/2, -0.5, 'Φ', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.set_facecolor('w')
+plt.show()
+
+
+
+################ ORIENTATION PER TRAVERSE ANALYSIS ##################
+def computeaboveRoll(env_input, linearGradient):
+    aboveRoll = np.zeros_like(linearGradient)
+    for i,rolllim in enumerate(linearGradient):
+        for k,anisomap in enumerate(env_input):
+            segmentArray = env_input[k].pathSegment
+            rollArray = np.abs(180.0/np.pi*np.asarray(env_input[k].pathRoll))
+            for j, roll in enumerate(rollArray):
+                if (roll >= rolllim):
+                    aboveRoll[i] = aboveRoll[i] + segmentArray[j]
+    return aboveRoll
+linearGradient = np.linspace(0,30,301) 
+## ROLL ##  
+fig, ax = plt.subplots(figsize=(4.5,3.6), constrained_layout=True)
+p1, = ax.plot(linearGradient,computeaboveRoll(env_CUAD01_scene01, linearGradient))
+p2, = ax.plot(linearGradient,computeaboveRoll(env_CUAD02_scene01, linearGradient))
+p3, = ax.plot(linearGradient,computeaboveRoll(env_CUAD03_scene01, linearGradient))
+p4, = ax.plot(linearGradient,computeaboveRoll(env_isoCUAD01_scene01, linearGradient), linestyle='dashed')
+p5, = ax.plot(linearGradient,computeaboveRoll(env_isoCUAD02_scene01, linearGradient), linestyle='dashed')
+p6, = ax.plot(linearGradient,computeaboveRoll(env_isoCUAD03_scene01, linearGradient), linestyle='dashed')
+p7, = ax.plot([0], marker='None',
+           linestyle='None', label='Model A')
+l1 = ax.legend([p7,p1,p2,p3,p7,p7,p4,p5,p6], ['Anisotropic'] + \
+               ['$W_ϕ = 1$', '$W_ϕ = 1 + 3 tan_{α}$', \
+                '$W_ϕ = 1 + 6 tan_{α}$'] + ['']  + \
+                ['Isotropic'] + \
+                ['$W_ϕ = 1$', '$W_ϕ = 1 + 3 tan_{α}$', \
+                 '$W_ϕ = 1 + 6 tan_{α}$'])
+ax.set_xlabel('Absolute Roll Threshold [degrees]')
+ax.set_ylabel('Traversed distance above absolute roll threshold [m]')
+ax.set_xlim([0,16])
+
+
+
+######################## SHOW PATHS 3D ##################
+XX = np.zeros_like(localDEM)
+YY = np.zeros_like(localDEM)
+for i in range(250):
+    for j in range(250):
+        XX[j,i] = i*0.1
+        YY[j,i] = j*0.1
+
+interpolator = interpolate.RectBivariateSpline(XX[0], YY[:,0], \
+                        env.processedElevationMap)
+z_aniso_B2C = interpolator(path_aniso_B2C[1], path_aniso_B2C[0], grid = False)
+
+fig = go.Figure(data=[go.Surface(contours = {"z": {"show": True, "size": 0.01, "color":"white"}},\
+                                 x=XX,y=YY,z=env.processedElevationMap, colorscale = 'haline'), \
+    go.Scatter3d(
+    x=env_CUAD03_scene01[1].path[:,0], y=env_CUAD03_scene01[1].path[:,1], \
+    z=env_CUAD03_scene01[1].pathElevation,
+    marker=dict(
+        size=2,
+        color='red'
+    )), \
+    go.Scatter3d(
+    x=env_CUAD03_scene01[3].path[:,0], y=env_CUAD03_scene01[3].path[:,1], \
+    z=env_CUAD03_scene01[3].pathElevation,
+    marker=dict(
+        size=2,
+        color='red'
+    )), \
+    go.Scatter3d(
+    x = path_aniso_B2C[0], y = path_aniso_B2C[1], \
+    z = interpolator(path_aniso_B2C[1], path_aniso_B2C[0], grid = False),
+    marker=dict(
+        size=2,
+        color='green'
+    )), \
+    go.Scatter3d(
+    x = path_aniso_A2D[0], y = path_aniso_A2D[1], \
+    z = interpolator(path_aniso_A2D[1], path_aniso_A2D[0], grid = False),
+    marker=dict(
+        size=2,
+        color='green'
+    )) 
+])
+
+scene=dict(camera=dict(up=dict(x=0, y=0, z=1),\
+                       center=dict(x=0, y=0, z=0),\
+                       eye=dict(x=-1.4, y=-1.4, z=1.4)), #the default values are 1.25, 1.25, 1.25
+           xaxis=dict(),
+           yaxis=dict(),
+           zaxis=dict(),
+           aspectmode='data', #this string can be 'data', 'cube', 'auto', 'manual'
+           #a custom aspectratio is defined as follows:
+           aspectratio=dict(x=1, y=1, z=1)
+           )
+
+fig.update_layout(autosize=False,
+                  width=1024, height=512,
+                  margin=dict(l=0, r=0, b=0, t=0), scene = scene)
+fig.show(renderer="iframe")
+fig.write_image("terrain_test_paths.pdf")
+
+
+
+
+
+##################ROLL COMPARATIVE######################
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.cumsum(env_CUAD03_scene01[4].pathSegment)*2, \
+        np.asarray(env_CUAD03_scene01[4].pathCost)*0.5) # This is because it was already being divided in Kmg as well
+cost = path_aniso_A2D[6]*np.append(0,np.diff(path_aniso_A2D[2]))/path_aniso_A2D[7]
+ax.plot(path_aniso_A2D[2], cost)
+ax.plot(path_aniso_A2D_02[2], \
+        path_aniso_A2D_02[6]*np.append(0,np.diff(path_aniso_A2D_02[2]))/path_aniso_A2D_02[7])
+
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.cumsum(env_CUAD03_scene01[3].pathSegment)*2, \
+        np.asarray(env_CUAD03_scene01[3].pathCost)*0.5)
+ax.plot(path_aniso_D2A[2], \
+        path_aniso_D2A[6]*np.append(0,np.diff(path_aniso_D2A[2]))/path_aniso_D2A[7])
+ax.plot(path_aniso_D2A_02[2], \
+        path_aniso_D2A_02[6]*np.append(0,np.diff(path_aniso_D2A_02[2]))/path_aniso_D2A_02[7])
+
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.asarray(env_CUAD03_scene01[1].pathTravDist)*2, \
+        np.asarray(env_CUAD03_scene01[1].pathCost)*0.5)
+ax.plot(path_aniso_B2C[2], \
+        path_aniso_B2C[6]*np.append(0,np.diff(path_aniso_B2C[2]))/path_aniso_B2C[7])
+ax.plot(path_aniso_B2C_02[2], \
+        path_aniso_B2C_02[6]*np.append(0,np.diff(path_aniso_B2C_02[2]))/path_aniso_B2C_02[7])
+
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.asarray(env_CUAD03_scene01[6].pathTravDist)*2, \
+        np.asarray(env_CUAD03_scene01[6].pathCost)*0.5)
+ax.plot(path_aniso_C2B[2], \
+        path_aniso_C2B[6]*np.append(0,np.diff(path_aniso_C2B[2]))/path_aniso_C2B[7])
+ax.plot(path_aniso_C2B_02[2], \
+        path_aniso_C2B_02[6]*np.append(0,np.diff(path_aniso_C2B_02[2]))/path_aniso_C2B_02[7])
+
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.asarray(env_isoCUAD07_scene01[4].pathTravDist)*2, \
+        np.asarray(env_isoCUAD07_scene01[4].pathCost)*0.5)
+ax.plot(path_iso_A2D[2], \
+        path_iso_A2D[6]*np.append(0,np.diff(path_aniso_A2D[2]))/path_aniso_A2D[7])
+ax.plot(path_iso_A2D_02[2], \
+        path_iso_A2D_02[6]*np.append(0,np.diff(path_aniso_A2D_02[2]))/path_aniso_A2D_02[7])
+
+fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
+ax.plot(np.asarray(env_isoCUAD07_scene01[3].pathTravDist)*2, \
+        np.asarray(env_isoCUAD07_scene01[3].pathCost)*0.5)
+ax.plot(path_iso_D2A[2], path_iso_D2A[6])
+ax.plot(path_iso_D2A_02[2], path_iso_D2A_02[6])
+
+
+
+#ax.plot(path_aniso_B2C[2], path_aniso_B2C[3])
+#ax.plot(np.asarray(env_CUAD03_scene01[1].pathTravDist)*2, \
+#        180.0/np.pi*env_CUAD03_scene01[1].pathRoll)
+
+#ax.plot(path_aniso_D2A[2], path_aniso_D2A[3])
+#ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[3])
+#ax.plot(np.asarray(env_CUAD03_scene01[3].pathTravDist)*2, \
+#        180.0/np.pi*env_CUAD03_scene01[3].pathRoll)
+
+
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[6])
+
+ax.plot(path_aniso_A2D[2], path_aniso_A2D[4])
+ax.plot(path_aniso_A2D_02[2], np.cumsum(path_aniso_A2D_02[6]))
+ax.plot(np.asarray(env_CUAD03_scene01[4].pathTravDist)*2, \
+        env_CUAD03_scene01[4].pathComputedTotalCost)
+
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, rowaxes = plt.subplots(figsize=(7, 6), nrows = 4, ncols = 1, \
+     sharex = 'all', sharey = 'all')
+for i,path in enumerate((path_aniso_A2D,path_aniso_D2A)):
+    #ax.fill_between(path_aniso_A2D_02[2], 0, \
+    #                path_aniso_A2D[4], facecolor = 'y',\
+    #                alpha = 0.5)
+    #ax.plot(path_aniso_A2D_02[2], \
+    #                      180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
+    #ax.fill_between(path_aniso_A2D_02[2], 0, \
+    #                path_aniso_A2D[4], facecolor = 'y',\
+    #                alpha = 0.5)
+    #ax.plot(path_aniso_A2D_02[2], \
+    #        path_aniso_A2D[4], 'y')
+    rowaxes[i].fill_between(path[2], 0, \
+                    path[4], facecolor = 'c',\
+                      alpha = 0.5)
+    rowaxes[i].plot(path[2], \
+                    path[4], 'c')
+    rowaxes[i].fill_between(path[2], 0, \
+                      path[3], facecolor = 'r',\
+                      alpha = 0.5)
+    rowaxes[i].plot(path[2], \
+                          path[3], 'r')
+
+
+def showOrientation(env,ax,color,name):
+    for i in range(8):
+        if i == 0:
+            offSet = 0
+        else:
+            offSet = offSet + env[i-1].pathTravDist[-1]
+        if i == 0:
+            pointName = 'Xa'
+        elif i == 1 or i == 5:
+            pointName = 'Xd'
+        elif i == 3:
+            pointName = 'Xb'
+        elif i == 2 or i == 4:
+            pointName = 'Xc'
+        ax.axvline(x=offSet, color='w', linewidth=4)
+        ax.axvline(x=offSet, color='steelblue', linewidth=1)
+        ax.annotate(pointName,
+                    xy=(offSet, 15),
+                    xytext=(2, 0),
+                    textcoords="offset points",
+                    ha='left', va='bottom',color='steelblue')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*np.asarray(env[i].pathSlope), facecolor = 'y',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  -180.0/np.pi*np.asarray(env[i].pathSlope), facecolor = 'y',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      -180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*np.asarray(env[i].pathPitch), facecolor = 'c',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*np.asarray(env[i].pathPitch), 'c')
+        ax.fill_between(offSet + np.asarray(env[i].pathTravDist), 0, \
+                  180.0/np.pi*env[i].pathRoll*np.sign(env[i].pathBeta), facecolor = 'r',\
+                  alpha = 0.5)
+        ax.plot(offSet + np.asarray(env[i].pathTravDist), \
+                      180.0/np.pi*env[i].pathRoll*np.sign(env[i].pathBeta), 'r')
+    ax.axvspan(offSet + env[-1].pathTravDist[-1], 180, alpha=1.0, color='w')
+    ax.axvline(x=offSet + env[-1].pathTravDist[-1],color='w', linewidth=4)
+    ax.axvline(x=offSet + env[-1].pathTravDist[-1],color='steelblue', linewidth=1)
+    ax.annotate('Xa',
+                xy=(offSet + env[-1].pathTravDist[-1], 15),
+                xytext=(2, 0),
+                textcoords="offset points",
+                ha='left', va='bottom',color='steelblue')
+    ax.annotate(name,
+                xy=(179, 5),
+                xytext=(15, -15),  # 3 points vertical offset
+                textcoords="offset points",
+                ha='right', va='bottom',color=color)
+
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, rowaxes = plt.subplots(figsize=(7, 6), nrows = 8, ncols = 1, \
+     sharex = 'all', sharey = 'all')
+
+rowaxes[0].set_box_aspect(0.001)
+rowaxes[0].set_visible(False)
+rowaxes[1].set_title('Anisotropic')
+rowaxes[5].set_title('Isotropic')
+rowaxes[4].set_visible(False)
+rowaxes[7].set_xlabel('Traversed Distance [m]')
+
+plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, top = 0.95, wspace = 0.1, hspace = 0.075)
+fig.text(0.02, 0.5, 'Orientation Angle [deg]', va='center', rotation='vertical')
+rowaxes[0].set_xlim([0,179])
+
+showOrientation(env_CUAD01_scene01, rowaxes[1], 'r', '$W_ϕ = 1$')
+showOrientation(env_CUAD02_scene01, rowaxes[2], 'm', '$W_ϕ = 1 + 3 tan_{α}$')
+showOrientation(env_CUAD03_scene01, rowaxes[3], 'b', '$W_ϕ = 1 + 6 tan_{α}$')
+#showOrientation(env_CUAD06_scene01, rowaxes[5], 'c', 'CORI02')
+
+showOrientation(env_isoCUAD01_scene01, rowaxes[5], 'r', '$W_ϕ = 1$')
+showOrientation(env_isoCUAD02_scene01, rowaxes[6], 'm', '$W_ϕ = 1 + 3 tan_{α}$')
+showOrientation(env_isoCUAD03_scene01, rowaxes[7], 'b', '$W_ϕ = 1 + 6 tan_{α}$')
+#showOrientation(env_isoCUAD06_scene01, rowaxes[11], 'y', 'isoCORI02')
+
+plt.grid(b=True, which = 'minor')
+legend_ax = fig.add_axes([0.2, 0.92, 0.6, 0.07])
+plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+plt.grid(b=False)
+xArray = np.arange(0, 2*np.pi, 0.01)
+legend_ax.plot(xArray, np.sin(xArray),'y')
+legend_ax.plot(xArray, -np.sin(xArray),'y')
+legend_ax.fill_between(xArray, -np.sin(xArray), \
+                  np.sin(xArray), facecolor = 'y',\
+                  alpha = 0.5)
+legend_ax.plot(xArray+2*np.pi, np.sin(xArray),'c')
+legend_ax.fill_between(xArray+2*np.pi, 0, \
+                  np.sin(xArray), facecolor = 'c',\
+                  alpha = 0.5)
+legend_ax.plot(xArray+4*np.pi, np.sin(xArray),'r')
+legend_ax.fill_between(xArray+4*np.pi, 0, \
+                  np.sin(xArray), facecolor = 'r',\
+                  alpha = 0.5)
+legend_ax.text(np.pi/2, 0.0, 'Steepness', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(3*np.pi/2, -0.5, '-α', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 12,\
+         color = 'white')
+legend_ax.text(3*np.pi/2, 0.5, 'α', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 12,\
+         color = 'white')
+legend_ax.text(5*np.pi/2, 0.5, 'Pitch', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(7*np.pi/2, -0.5, 'θ', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(9*np.pi/2, 0.5, 'Roll', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.text(11*np.pi/2, -0.5, 'Φ', horizontalalignment='center', \
+         verticalalignment='center', fontsize = 10,\
+         color = 'white')
+legend_ax.set_facecolor('w')
+plt.show()
+
+#fig = plt.figure(figsize=plt.figaspect(0.5)) #Adjusts the aspect ratio and enlarges the figure (text does not enlarge)
+#ax = fig.gca(projection='3d')
+#XX = np.zeros_like(localDEM)
+#YY = np.zeros_like(localDEM)
+#for i in range(250):
+#    for j in range(250):
+#        XX[j,i] = offset[0] + i*0.1
+#        YY[j,i] = offset[1] + j*0.1
+#
+#surf = ax.plot_surface(XX,YY,localDEM, cmap=cm.gist_earth,
+#                       linewidth=0, antialiased=False)
+#for i,anisomap in enumerate(env_CUAD03_scene01):
+#    if i==0 or i==2 or i==5 or i==7:
+#        pass
+#    else:
+#        ax.plot(anisomap.path[:,0]+offset[0],
+#                anisomap.path[:,1]+offset[1],
+#                anisomap.pathElevation,linestyle='solid')    
+#
+##XYpoints = np.zeros((XX.size,2))
+##XYpoints[:,0] = XX.flatten()
+##XYpoints[:,1] = YY.flatten()
+
+#ax.scatter(offset[0] + path_aniso_C2B[0], offset[1] + path_aniso_C2B[1], \
+#           z_aniso_C2B, facecolor = 'r',s=60)
+#ax2.scatter3(path_aniso_C2B_02[0], path_aniso_C2B_02[1], facecolor = 'orange',s=60)
+##ax2.scatter(posX_B2C - env.offset[0], posY_B2C - env.offset[1], facecolor = 'b',s=60)
+#ax2.scatter3(path_aniso_B2C[0], path_aniso_B2C[1], facecolor = 'b',s=60)
+#ax2.scatter3(path_aniso_B2C_02[0], path_aniso_B2C_02[1], facecolor = 'c',s=60)
+#
+#MAX = 6
+#for direction in (-1, 1):
+#    for point in np.diag(direction * MAX * np.array([1,1,1])):
+#        ax.plot([point[0]+offset[0]+12.5], [point[1]+offset[1]+12.5], [point[2]+55.5], 'w')
+
+
+
+
+
+
 ### Visualizing paths
 env = copy.deepcopy(env_CUAD03_scene01[0])
 
@@ -430,8 +1006,8 @@ ax1.plot(env_CUAD03_scene01[4].path[:,0], env_CUAD03_scene01[4].path[:,1],'k')
 ax1.plot(env_CUAD03_scene01[3].path[:,0], env_CUAD03_scene01[3].path[:,1],'k')
 ax2.plot(env_CUAD03_scene01[6].path[:,0], env_CUAD03_scene01[6].path[:,1],'k')
 ax2.plot(env_CUAD03_scene01[1].path[:,0], env_CUAD03_scene01[1].path[:,1],'k')
-ax1.plot(env_isoCUAD07_scene01[4].path[:,0], env_isoCUAD07_scene01[4].path[:,1],'k')
-ax2.plot(env_isoCUAD07_scene01[6].path[:,0], env_isoCUAD07_scene01[6].path[:,1],'k')
+#ax1.plot(env_isoCUAD07_scene01[4].path[:,0], env_isoCUAD07_scene01[4].path[:,1],'k')
+#ax2.plot(env_isoCUAD07_scene01[6].path[:,0], env_isoCUAD07_scene01[6].path[:,1],'k')
 
 def computeGradient(Roll, Pitch):
     deg2rad = np.pi/180

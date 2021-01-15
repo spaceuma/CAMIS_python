@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Sep 23 16:35:43 2020
-
-@author: Richi
+Numerical Test for CAMIS paper
 """
 
 import numpy as np
@@ -18,6 +16,7 @@ try:
 except:
     raise ImportError('ERROR: scipy module could not be imported')
 import plotly.graph_objects as go
+from matplotlib.colors import LightSource
 
 # =============================================================================
 ## LOADING DEM
@@ -44,11 +43,13 @@ plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax1 = plt.subplots(figsize=(2.6, 4),nrows = 1, ncols = 1, constrained_layout=True)
+fig, ax1 = plt.subplots(figsize=(3, 4),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(xmesh, ymesh, c = z, 
                  cmap=cm.gist_earth,s=16.0)
 cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
 cbar.set_label('Elevation [deg]')
+ax1.set_xlabel('X [m]')
+ax1.set_ylabel('Y [m]')
 ax1.set_aspect('equal')
 
 hiRes = 1.0
@@ -66,14 +67,17 @@ plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax1 = plt.subplots(figsize=(3.2, 4),nrows = 1, ncols = 1, constrained_layout=True)
+fig, ax1 = plt.subplots(figsize=(3.2, 3.9),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(env.hexXmap, env.hexYmap, c = 180/np.pi*env.hexSlopeMap, 
-                 cmap="nipy_spectral",s=16.0)
-cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
+                 cmap="nipy_spectral",s=16.0, vmin = 0.0, vmax = 25.0)
+cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top', \
+                    ticks=[0,5,10,15,20,25])
 #cc.set_clim(0,50.0)
 cbar.set_label('Steepness α [deg]')
 ax1.set_xlim([0,48.0])
 ax1.set_ylim([0,48.0])
+ax1.set_xlabel('X [m]')
+ax1.set_ylabel('Y [m]')
 ax1.set_aspect('equal')
 
 
@@ -81,13 +85,15 @@ plt.style.use('default')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax1 = plt.subplots(figsize=(3.2, 4),nrows = 1, ncols = 1, constrained_layout=True)
-cc = ax1.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, 
-                 cmap=cm.gist_earth,s=16.0)
-cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top')
-cbar.set_label('Elevation [m]')
+fig, ax1 = plt.subplots(figsize=(3.2, 3.9),nrows = 1, ncols = 1, constrained_layout=True)
+cc = ax1.scatter(env.hexXmap, env.hexYmap, c = 180/np.pi*np.arctan2(env.hexAspectMap[1],env.hexAspectMap[0]),
+                 cmap="gist_rainbow",s=16.0, vmin = -180.0, vmax = 180.0)
+cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top', ticks=[-180, -90, 0, 90, 180])
+cbar.set_label('Aspect Angle [deg]')
 ax1.set_xlim([0,48.0])
 ax1.set_ylim([0,48.0])
+ax1.set_xlabel('X [m]')
+ax1.set_ylabel('Y [m]')
 ax1.set_aspect('equal')
 
 
@@ -242,7 +248,7 @@ plt.style.use('seaborn-darkgrid')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-fig, ax = plt.subplots(figsize=(5,3.5),constrained_layout=True)
+fig, ax = plt.subplots(figsize=(5,3),constrained_layout=True)
 p1 = aniso_01.showModelData('anisotropy',fig,ax,'r','solid',25)
 p2 = aniso_02.showModelData('anisotropy',fig,ax,'m','solid',25)
 p3 = aniso_03.showModelData('anisotropy',fig,ax,'orange','solid',25)
@@ -258,7 +264,7 @@ l1 = ax.legend([p7,p1,p2,p3,p7,p7,p4,p5,p6], [r'$Model A$'] + \
                 '$ρ = 0.9$'] + ['']  + \
                 [r'$Model B$'] + \
                 [r'$ρ = 0.3$', r'$ρ = 0.6$', \
-                r'$ρ = 0.9$'])
+                r'$ρ = 0.9$'], ncol = 2)
 plt.show()
 
 
@@ -267,8 +273,8 @@ def plotModels(model, fig, axes,label,modelname):
     model.showModelData('lateral-cost',fig,axes,'g','dashed',25)
     model.showModelData('descent-cost',fig,axes,'b','dashed',25)
     axes.legend(('$C(α,\pm π)$','$C(α,\pm π/2)$','$C(α, 0)$'), loc = 2)
-    axes.set_ylabel(label)
-    axes.text(0.95, 1.0, modelname, horizontalalignment='right', \
+#    axes.set_ylabel(label)
+    axes.text(0.05, 0.35, modelname, horizontalalignment='left', \
          verticalalignment='bottom', transform=axes.transAxes, fontsize = 10,\
          color = 'k')
 plt.style.use('seaborn-darkgrid')
@@ -276,14 +282,13 @@ plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
 fig,(axes1, axes2, axes3) = plt.subplots(figsize=(6, 6), \
-      nrows = 3, ncols = 2, \
-      sharex = 'all')
-plotModels(aniso_01,fig,axes1[0],'Power/Speed [As/m]','ρ = 0.3')
-plotModels(aniso_02,fig,axes2[0],'Power/Speed [As/m]','ρ = 0.6')
-plotModels(aniso_03,fig,axes3[0],'Power/Speed [As/m]','ρ = 0.9')
-plotModels(aniso_04,fig,axes1[1],'Power/Speed [As/m]','ρ = 0.3')
-plotModels(aniso_05,fig,axes2[1],'Power/Speed [As/m]','ρ = 0.6')
-plotModels(aniso_06,fig,axes3[1],'Power/Speed [As/m]','ρ = 0.9')
+      nrows = 3, ncols = 2)
+plotModels(aniso_01,fig,axes1[0],'Power/Speed [As/m]','$ρ = 0.3$')
+plotModels(aniso_02,fig,axes2[0],'Power/Speed [As/m]','$ρ = 0.6$')
+plotModels(aniso_03,fig,axes3[0],'Power/Speed [As/m]','$ρ = 0.9$')
+plotModels(aniso_04,fig,axes1[1],'Power/Speed [As/m]','$ρ = 0.3$')
+plotModels(aniso_05,fig,axes2[1],'Power/Speed [As/m]','$ρ = 0.6$')
+plotModels(aniso_06,fig,axes3[1],'Power/Speed [As/m]','$ρ = 0.9$')
 for ax in axes1:
 #    ax.set_ylim([0,300])
     ax.grid(True, which='both') 
@@ -295,8 +300,10 @@ for ax in axes3:
     ax.grid(True, which='both')
 axes1[0].set_title('Model A')
 axes1[1].set_title('Model B')
-plt.subplots_adjust(left = 0.1, right = 0.99, bottom = 0.075, top = 0.95, wspace = 0.3, hspace = 0.1)
+plt.subplots_adjust(left = 0.1, right = 0.99, bottom = 0.075, top = 0.95, \
+                    wspace = 0.15, hspace = 0.15)
 fig.text(0.5, 0.0075, 'Steepness α [deg]', ha='center')
+axes2[0].set_ylabel('Power/Speed [As/m]')
 plt.minorticks_on() 
 #axes.set_xlabel('Steepness [deg]')
 
@@ -446,24 +453,26 @@ plt.style.use('seaborn-darkgrid')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-coeffsLabels = ['CUAD01','CUAD02','CUAD03','CUAD04','CUAD05','CUAD06']
+coeffsLabels = ['Model A\n$ρ= 0.3$','Model A\n$ρ = 0.6$',\
+                'Model A\n$ρ = 0.9$','Model B\n$ρ = 0.3$',\
+                'Model B\n$ρ = 0.6$','Model B\n$ρ = 0.9$']
 anisoTotalCost = [0,0,0,0,0,0]
 isoTotalCost = [0,0,0,0,0,0]
 anisoTR = [0,0]
 isoTR = [0,0]
 for i in range(2):
-    anisoTotalCost[0] = anisoTotalCost[0] + env_CUAD01_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[1] = anisoTotalCost[1] + env_CUAD02_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[2] = anisoTotalCost[2] + env_CUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[3] = anisoTotalCost[3] + env_CUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[4] = anisoTotalCost[4] + env_CUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
-    anisoTotalCost[5] = anisoTotalCost[5] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[0] = isoTotalCost[0] + env_isoCUAD01_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[1] = isoTotalCost[1] + env_isoCUAD02_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[2] = isoTotalCost[2] + env_isoCUAD03_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[3] = isoTotalCost[3] + env_isoCUAD04_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[4] = isoTotalCost[4] + env_isoCUAD05_scene01[i].pathComputedTotalCost[-1]/3600.0
-    isoTotalCost[5] = isoTotalCost[5] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]/3600.0
+    anisoTotalCost[0] = anisoTotalCost[0] + env_CUAD01_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    anisoTotalCost[1] = anisoTotalCost[1] + env_CUAD02_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    anisoTotalCost[2] = anisoTotalCost[2] + env_CUAD03_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    anisoTotalCost[3] = anisoTotalCost[3] + env_CUAD04_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    anisoTotalCost[4] = anisoTotalCost[4] + env_CUAD05_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    anisoTotalCost[5] = anisoTotalCost[5] + env_CUAD06_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[0] = isoTotalCost[0] + env_isoCUAD01_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[1] = isoTotalCost[1] + env_isoCUAD02_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[2] = isoTotalCost[2] + env_isoCUAD03_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[3] = isoTotalCost[3] + env_isoCUAD04_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[4] = isoTotalCost[4] + env_isoCUAD05_scene01[i].pathComputedTotalCost[-1]#/3600.0
+    isoTotalCost[5] = isoTotalCost[5] + env_isoCUAD06_scene01[i].pathComputedTotalCost[-1]#/3600.0
 #    anisoTR[0] = anisoTR[0] + env_CUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
 #    anisoTR[1] = anisoTR[1] + env_CUAD03_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
 #    isoTR[0] = isoTR[0] + env_isoCUAD02_scene01[i].pathComputedTotalCostwithRisk[-1]/3600.0
@@ -473,7 +482,7 @@ x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
 width = 0.4  # the width of the bars
 
-fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+fig, ax = plt.subplots(figsize=(7.5,4.5), constrained_layout=True)
 #rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
 #rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
 rects1 = ax.bar(x - width/2, anisoTotalCost, width, label='Isotropic (ρ = 0.8)', color='r')
@@ -529,8 +538,8 @@ for i,rect in enumerate(rects2):
 ax.grid(True, which='both')   
 #autolabel(rects1)
 #autolabel(rects2)
-ax.set_ylabel('Total Cost [Ah]')
-ax.set_xlabel('CAMIS')
+ax.set_ylabel('Total Cost [As]')
+#ax.set_xlabel('CAMIS')
 ax.set_xticks(x)
 ax.set_xticklabels(coeffsLabels)
 ax.legend(('Anisotropic Total Cost','Isotropic Total Cost'))
@@ -538,7 +547,121 @@ plt.minorticks_on()
 plt.show()
 
 
+####3d PATHS###
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig = plt.figure(figsize=(13.2, 4.5))
+ax1 = fig.add_subplot(1, 3, 1, projection='3d')
+ax2 = fig.add_subplot(1, 3, 2, projection='3d')
+ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
+XX = np.zeros_like(z)
+YY = np.zeros_like(z)
+for i in range(50):
+    for j in range(50):
+        XX[j,i] = i
+        YY[j,i] = j
+ls = LightSource(270, 45)
+rgb = ls.shade(z, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
+surf1 = ax1.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
+                       linewidth=0, antialiased=False, shade=False)
+surf2 = ax2.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
+                       linewidth=0, antialiased=False, shade=False)
+surf3 = ax3.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
+                       linewidth=0, antialiased=False, shade=False)
+ax1.plot(env_CUAD01_scene01[0].path[:,0], env_CUAD01_scene01[0].path[:,1], \
+        env_CUAD01_scene01[0].pathElevation,linestyle='dashed',color = 'r')
+ax1.plot(env_CUAD02_scene01[0].path[:,0], env_CUAD02_scene01[0].path[:,1], \
+        env_CUAD02_scene01[0].pathElevation,linestyle='dashed',color = 'm')
+ax1.plot(env_CUAD03_scene01[0].path[:,0], env_CUAD03_scene01[0].path[:,1], \
+        env_CUAD03_scene01[0].pathElevation,linestyle='dashed',color = 'orange')
+ax1.plot(env_CUAD04_scene01[0].path[:,0], env_CUAD04_scene01[0].path[:,1], \
+        env_CUAD04_scene01[0].pathElevation,linestyle='dashed',color = 'b')
+ax1.plot(env_CUAD05_scene01[0].path[:,0], env_CUAD05_scene01[0].path[:,1], \
+        env_CUAD05_scene01[0].pathElevation,linestyle='dashed',color = 'c')
+ax1.plot(env_CUAD06_scene01[0].path[:,0], env_CUAD06_scene01[0].path[:,1], \
+        env_CUAD06_scene01[0].pathElevation,linestyle='dashed',color = 'lime')
+ax1.set_xlabel('X [m]')
+ax1.set_ylabel('Y [m]')
+ax1.set_zlabel('Z [m]')
+ax1.set_zticks([-0.6, 0.1, 0.8])
+ax1.view_init(78.0, -150.0)
+ax1.set_facecolor('w')
+ax2.plot(env_CUAD01_scene01[1].path[:,0], env_CUAD01_scene01[1].path[:,1], \
+        env_CUAD01_scene01[1].pathElevation,linestyle='dashed',color = 'r')
+ax2.plot(env_CUAD02_scene01[1].path[:,0], env_CUAD02_scene01[1].path[:,1], \
+        env_CUAD02_scene01[1].pathElevation,linestyle='dashed',color = 'm')
+ax2.plot(env_CUAD03_scene01[1].path[:,0], env_CUAD03_scene01[1].path[:,1], \
+        env_CUAD03_scene01[1].pathElevation,linestyle='dashed',color = 'orange')
+ax2.plot(env_CUAD04_scene01[1].path[:,0], env_CUAD04_scene01[1].path[:,1], \
+        env_CUAD04_scene01[1].pathElevation,linestyle='dashed',color = 'b')
+ax2.plot(env_CUAD05_scene01[1].path[:,0], env_CUAD05_scene01[1].path[:,1], \
+        env_CUAD05_scene01[1].pathElevation,linestyle='dashed',color = 'c')
+ax2.plot(env_CUAD06_scene01[1].path[:,0], env_CUAD06_scene01[1].path[:,1], \
+        env_CUAD06_scene01[1].pathElevation,linestyle='dashed',color = 'lime')
+ax2.set_xlabel('X [m]')
+ax2.set_ylabel('Y [m]')
+ax2.set_zlabel('Z [m]')
+ax2.set_zticks([-0.6, 0.1, 0.8])
+ax2.view_init(78.0, -150.0)
+ax2.set_facecolor('w')
+
+ax3.plot(env_isoCUAD01_scene01[0].path[:,0], env_isoCUAD01_scene01[0].path[:,1], \
+         env_isoCUAD01_scene01[0].pathElevation,linestyle='dashed',color = 'r')
+ax3.plot(env_isoCUAD02_scene01[0].path[:,0], env_isoCUAD02_scene01[0].path[:,1], \
+         env_isoCUAD02_scene01[0].pathElevation,linestyle='dashed',color = 'm')
+ax3.plot(env_isoCUAD03_scene01[0].path[:,0], env_isoCUAD03_scene01[0].path[:,1], \
+         env_isoCUAD03_scene01[0].pathElevation,linestyle='dashed',color = 'orange')
+ax3.plot(env_isoCUAD04_scene01[0].path[:,0], env_isoCUAD04_scene01[0].path[:,1], \
+         env_isoCUAD04_scene01[0].pathElevation,linestyle='dashed',color = 'b')
+ax3.plot(env_isoCUAD05_scene01[0].path[:,0], env_isoCUAD05_scene01[0].path[:,1], \
+         env_isoCUAD05_scene01[0].pathElevation,linestyle='dashed',color = 'c')
+ax3.plot(env_isoCUAD06_scene01[0].path[:,0], env_isoCUAD06_scene01[0].path[:,1], \
+         env_isoCUAD06_scene01[0].pathElevation,linestyle='dashed',color = 'lime')
+ax3.set_xlabel('X [m]')
+ax3.set_ylabel('Y [m]')
+ax3.set_zlabel('Z [m]')
+ax3.set_zticks([-0.6, 0.1, 0.8])
+ax3.view_init(78.0, -150.0)
+ax3.set_facecolor('w')
+fig.tight_layout()
+
+#MAX = 6
+#for direction in (-1, 1):
+#    for point in np.diag(direction * MAX * np.array([1,1,1])):
+#        ax.plot([point[0]+12.5], [point[1]+12.5], [point[2]+2.0], 'w')
+        
+##### COMPUTATIONAL TIMES ###
+anisoTime = [0,0,0,0]
+isoTime = [0,0,0,0]
+for i in range(2):
+    print('Aniso')
+    print(env_CUAD01_scene01[i].elapsedTime)
+    print(env_CUAD02_scene01[i].elapsedTime)
+    print(env_CUAD03_scene01[i].elapsedTime)
+    print(env_CUAD04_scene01[i].elapsedTime)
+    print(env_CUAD05_scene01[i].elapsedTime)
+    print(env_CUAD06_scene01[i].elapsedTime)
+    print('Iso')
+    print(env_isoCUAD01_scene01[i].elapsedTime)
+    print(env_isoCUAD02_scene01[i].elapsedTime)
+    print(env_isoCUAD03_scene01[i].elapsedTime)
+    print(env_isoCUAD04_scene01[i].elapsedTime)
+    print(env_isoCUAD05_scene01[i].elapsedTime)
+    print(env_isoCUAD06_scene01[i].elapsedTime)
+    anisoTime[0] = anisoTime[0] + env_CUAD01_scene01[i].elapsedTime
+    anisoTime[1] = anisoTime[1] + env_CUAD02_scene01[i].elapsedTime
+    anisoTime[2] = anisoTime[2] + env_CUAD03_scene01[i].elapsedTime
+    anisoTime[3] = anisoTime[3] + env_CUAD04_scene01[i].elapsedTime
+    isoTime[0] = isoTime[0] + env_isoCUAD01_scene01[i].elapsedTime
+    isoTime[1] = isoTime[1] + env_isoCUAD02_scene01[i].elapsedTime
+    isoTime[2] = isoTime[2] + env_isoCUAD03_scene01[i].elapsedTime 
+    isoTime[3] = isoTime[3] + env_isoCUAD04_scene01[i].elapsedTime     
+
+print(anisoTime)
+print(isoTime)
 
 
 fig = go.Figure(data=[go.Surface(contours = {"z": {"show": True, "size": 0.01, "color":"white"}},\

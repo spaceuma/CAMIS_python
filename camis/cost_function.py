@@ -738,8 +738,8 @@ class CamisDrivingModel:
             R = 1
         else:
             R = self.getRRd(steepness_deg)
-        pv = self.speed*np.cos(steepness_deg*deg2rad)
-        return R * S / pv
+#        pv = self.speed*np.cos(steepness_deg*deg2rad)
+        return R * S / self.speed
     def getCd(self, steepness_deg):
         rawC = self.getRawCd(steepness_deg)
         W = (1 + self.descent_weight*np.tan(steepness_deg*deg2rad))
@@ -750,8 +750,8 @@ class CamisDrivingModel:
             R = 1
         else:
             R = self.getRRa(steepness_deg)
-        pv = self.speed*np.cos(steepness_deg*deg2rad)
-        return R * S / pv
+#        pv = self.speed*np.cos(steepness_deg*deg2rad)
+        return R * S / self.speed
     def getCa(self, steepness_deg):
         rawC = self.getRawCa(steepness_deg)
         W = (1 + self.ascent_weight*np.tan(steepness_deg*deg2rad))
@@ -763,8 +763,8 @@ class CamisDrivingModel:
             R = 1
         else:
             R = self.getRRl(steepness_deg)
-        pv = self.speed
-        return R * S / pv 
+#        pv = self.speed
+        return R * S / self.speed
 #        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
     def getCl(self, steepness_deg):
         rawC = self.getRawCl(steepness_deg)
@@ -890,12 +890,12 @@ class CamisDrivingModel:
         plt.rcParams["font.family"] = "Constantia"
         plt.rcParams['mathtext.fontset'] = 'cm'
         plt.rcParams['mathtext.rm'] = 'serif'
-        steepnessArray = np.linspace(0.0,45.0,90+2)
+        steepnessArray = np.linspace(0.0,40.0,90+2)
         descentRR = np.zeros_like(steepnessArray)
         for i,steepness in enumerate(steepnessArray):
             descentRR[i] = self.getRRd(steepness)
         descentFunction = np.abs(self.friction - np.tan(steepnessArray*deg2rad))*self.kmg
-        fig1, ax1 = plt.subplots(figsize=(5, 4),constrained_layout=True)
+        fig1, ax1 = plt.subplots(figsize=(5, 3),constrained_layout=True)
         ax1.plot(steepnessArray, descentFunction, linestyle = 'dashed', color = 'g')
         ax1.plot(steepnessArray, descentRR, color = 'g')
         ax1.plot(self.brakePoint01[0]*rad2deg, self.brakePoint01[1], 'o', color = 'g')
@@ -907,7 +907,7 @@ class CamisDrivingModel:
         ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint[0]*rad2deg, 
                         self.brakePoint[1]),
-                    xytext=(12, 3),  # 3 points vertical offset
+                    xytext=(12, -2),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='left', va='bottom')
         ax1.annotate('$arctan_{ρ} - α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',

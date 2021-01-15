@@ -20,14 +20,14 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import scipy.signal
 from scipy.optimize import curve_fit
 
-fittingMode = 'DEM'
-#fittingMode = 'IMU'
+#fittingMode = 'DEM'
+fittingMode = 'IMU'
 
 
 #if fittingMode == 'DEM':
     
-hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMATerrain_10cmDEM.csv",\
-                                         "rb"), delimiter=" ", skiprows=0)
+#hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMATerrain_10cmDEM.csv",\
+#                                         "rb"), delimiter=" ", skiprows=0)
 #hiRes_posX = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosX.csv",\
 #                                         "rb"), delimiter=" ", skiprows=0)
 #hiRes_posY = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosY.csv",\

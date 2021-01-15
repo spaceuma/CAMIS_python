@@ -2,7 +2,7 @@ name: Cuadriga
 mode: anisotropic
 occupancy_radius: 0.5
 tracking_error: 0.5
-speed: 0.5
+speed: 1.0
 rolling_resistance_mode: nominal
 friction: 0.6
 kmg: 1.0
