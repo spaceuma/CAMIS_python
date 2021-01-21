@@ -72,6 +72,8 @@ for i,x in enumerate(Roll):
 #heading = np.arctan2(vy,vx)*180.0/3.1416
 
 fig, ax = plt.subplots(figsize=(6,6), constrained_layout=True)
+#ax.plot(Roll)
+#ax.plot(Pitch)
 ax.plot(Yaw)
 #ax.scatter(Yaw,[x[2] for i,x in enumerate(Ximu)])
 #ax.scatter(Yaw,heading)
@@ -96,9 +98,10 @@ ax.scatter([x[0] for i,x in enumerate(Ximu)],\
 ax.scatter([x[0] for i,x in enumerate(Yimu)],\
            [x[1] for i,x in enumerate(Yimu)],\
            [x[2] for i,x in enumerate(Yimu)],c='orange')
+colors = np.arange(len(Zimu))
 ax.scatter([x[0] for i,x in enumerate(Zimu)],\
            [x[1] for i,x in enumerate(Zimu)],\
-           [x[2] for i,x in enumerate(Zimu)],c='m')
+           [x[2] for i,x in enumerate(Zimu)],c=colors, cmap = 'hsv')
 ax.scatter(-0.5,-0.5,0.0,c='g',alpha = 0.0)
 ax.scatter(0.5,0.5,0.0,c='g',alpha = 0.0)
 ax.scatter(0.0,0.0,1.0,c='g')
@@ -180,7 +183,7 @@ I2Cmatrix = R.from_matrix(Rcuad)
 I2Cmatrix.as_euler('ZYX',degrees=True)
 #I2Cmatrix = R.from_euler('Z',45.0,degrees=True)*I2Cmatrix
 #I2Cmatrix = I2Cmatrix.inv()
-I2Cmatrix.as_euler('ZYX',degrees=True)
+I2Cmatrix.inv().as_euler('ZYX',degrees=True)
 
 I2Cmatrix = I2Cmatrix.as_matrix()
 

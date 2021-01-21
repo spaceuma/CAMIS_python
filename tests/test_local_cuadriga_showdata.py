@@ -67,16 +67,6 @@ def buildPathInfo(posX, posY, time, roll, pitch, yaw, current, devAngle, fixAngl
     imuRot = I2Cmatrix.as_matrix()
     I2C_Z = [imuRot[0][2], imuRot[1][2], imuRot[2][2]]
     for index, waypoint in enumerate(pathInfo[0]):
-        # Slope compensation
-        imuRot = R.from_euler('Z', fixAngle, degrees=True) * R.from_euler('ZYX', [yaw[index], pitch[index], roll[index]], degrees=True) * R.from_euler('Z', devAngle, degrees=True)
-        imuRot = imuRot.as_matrix()
-        imuZ = [imuRot[0][2], imuRot[1][2], imuRot[2][2]]
-        pathInfo[9][index] = np.arccos(np.sum(np.dot(I2C_Z,imuZ)))*180.0/3.1416
-        # Roll, Pitch compensation
-        I2R = R.from_euler('Z', fixAngle, degrees=True) * R.from_euler('ZYX', [yaw[index], pitch[index], roll[index]], degrees=True) * R.from_euler('Z', devAngle, degrees=True)
-        C2R = I2Cmatrix.inv()*I2R
-        pathInfo[5][index],pathInfo[4][index],pathInfo[3][index] = \
-        C2R.as_euler('ZYX', degrees=True)
         # Segment length and heading angle
         if index == 0:
             A = [pathInfo[0][1] - pathInfo[0][0], pathInfo[1][1] - pathInfo[1][0]]
@@ -91,11 +81,40 @@ def buildPathInfo(posX, posY, time, roll, pitch, yaw, current, devAngle, fixAngl
             A2 = [pathInfo[0][index+1] - pathInfo[0][index], pathInfo[1][index+1] - pathInfo[1][index]]
             pathInfo[7][index] = np.linalg.norm(A1) * 0.5 + np.linalg.norm(A2) * 0.5
             pathInfo[8][index] = np.arctan2(A1[1]+A2[1],A1[0]+A1[0]) * 180.0/3.1416
+            
+        # Slope compensation
+        imuRot = \
+                 R.from_euler('Z', fixAngle, degrees=True) * \
+                 R.from_euler('ZYX', [yaw[index], pitch[index], roll[index]], degrees=True) * \
+                 R.from_euler('Z', devAngle, degrees=True)
+        imuRot = imuRot.inv().as_matrix()
+        imuZ = [imuRot[0][2], imuRot[1][2], imuRot[2][2]]
+        pathInfo[9][index] = np.arccos(np.sum(np.dot(I2C_Z,imuZ)))*180.0/3.1416
+        
+        # Roll, Pitch compensation
+        I2R = \
+              R.from_euler('Z', fixAngle, degrees=True) * \
+              R.from_euler('ZYX', [yaw[index], pitch[index], roll[index]], degrees=True) * \
+              R.from_euler('Z', devAngle, degrees=True)
+        C2R = I2Cmatrix.inv()*I2R
+        C2R2 = I2Cmatrix.inv()*I2R.inv()
+#        C2R2 = I2Cmatrix.inv()*R.from_euler('Z', 180.0, degrees=True) *\
+#               I2R * R.from_euler('Y', 180.0, degrees=True)
+        pathInfo[5][index],_,_ = \
+        C2R.as_euler('ZYX', degrees=True)
+        _,pathInfo[4][index],pathInfo[3][index] = \
+        C2R2.as_euler('ZYX', degrees=True)
+        
+        
     Ximu = []
     Yimu = []
     Zimu = []
     for i,x in enumerate(roll):
-        rot = R.from_euler('Z', fixAngle, degrees=True) * R.from_euler('ZYX', [yaw[i], pitch[i], roll[i]], degrees=True) * R.from_euler('Z', devAngle, degrees=True)
+        rot = \
+              R.from_euler('Z', fixAngle, degrees=True) * \
+              R.from_euler('ZYX', [yaw[i], pitch[i], roll[i]], degrees=True) * \
+              R.from_euler('Z', devAngle, degrees=True)*R.from_euler('Y', 0.0, degrees=True)
+        rot = rot.inv()      
         Ximu.append(rot.apply(np.array([1, 0, 0]),inverse = False))
         Yimu.append(rot.apply(np.array([0, 1, 0]),inverse = False))
         Zimu.append(rot.apply(np.array([0, 0, 1]),inverse = False))
@@ -106,9 +125,11 @@ def buildPathInfo(posX, posY, time, roll, pitch, yaw, current, devAngle, fixAngl
     #ax.quiver(np.zeros(len(Ximu)), np.zeros(len(Ximu)), np.zeros(len(Ximu)), \
     #          vx, vy, vz, arrow_length_ratio = 0.01,alpha=.2)
     ax.quiver(0.0, 0.0, 0.0, \
-              0.0, 0.0, 1.0, arrow_length_ratio = 0.05, color='c',linewidth = 5.0)
+              0.0, 0.0, 1.0, arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
     ax.quiver(0.0, 0.0, 0.0, \
-              0.0, -1.0, 0.0, arrow_length_ratio = 0.05, color='b',linewidth = 5.0)
+              0.0, 1.0, 0.0, arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
+    ax.quiver(0.0, 0.0, 0.0, \
+              1.0, 0.0, 0.0, arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
     colors = np.arange(len(Zimu))
     ax.scatter([x[0] for i,x in enumerate(Ximu)],\
                [x[1] for i,x in enumerate(Ximu)],\
@@ -120,19 +141,25 @@ def buildPathInfo(posX, posY, time, roll, pitch, yaw, current, devAngle, fixAngl
                [x[1] for i,x in enumerate(Zimu)],\
                [x[2] for i,x in enumerate(Zimu)],c=colors, cmap = 'hsv')
     ax.quiver(0.0, 0.0, 0.0, \
-          I2Cmatrix[0][0], I2Cmatrix[0][1], I2Cmatrix[0][2], arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
+          I2Cmatrix[0][0], I2Cmatrix[0][1], I2Cmatrix[0][2], arrow_length_ratio = 0.05, color='r',linewidth = 5.0)
     ax.quiver(0.0, 0.0, 0.0, \
-          I2Cmatrix[1][0], I2Cmatrix[1][1], I2Cmatrix[1][2], arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
+          I2Cmatrix[1][0], I2Cmatrix[1][1], I2Cmatrix[1][2], arrow_length_ratio = 0.05, color='b',linewidth = 5.0)
     ax.quiver(0.0, 0.0, 0.0, \
-          I2Cmatrix[2][0], I2Cmatrix[2][1], I2Cmatrix[2][2], arrow_length_ratio = 0.05, color='k',linewidth = 5.0)
+          I2Cmatrix[2][0], I2Cmatrix[2][1], I2Cmatrix[2][2], arrow_length_ratio = 0.05, color='g',linewidth = 5.0)
     ax.scatter(-0.5,-0.5,0.0,c='g',alpha = 0.0)
     ax.scatter(0.5,0.5,0.0,c='g',alpha = 0.0)
     ax.scatter(0.0,0.0,1.0,c='g')
     return pathInfo
-
-I2Cmatrix = R.from_euler('ZYX', [40.775069257688706 - 90.0,\
-                                     -12.1770199928157, \
-                                     0.0], degrees=True) * R.from_euler('Z', -40.775069257688706 + 90.0, degrees=True)
+#R.from_euler('ZYX', [40.775069257688706 - 90.0,\
+I2Cmatrix = \
+            R.from_euler('ZYX', [0.0,\
+                                     180.0-12.1770199928157, \
+                                     0.0], degrees=True) * \
+            R.from_euler('Z', 0.0, degrees=True)
+            #R.from_euler('Z', 40.775069257688706 - 90.0, degrees=True)
+#I2Cmatrix = R.from_euler('ZYX', [0.0,\
+#                                     -12.1770199928157, \
+#                                     0.0], degrees=True) * R.from_euler('Z', 0.0, degrees=True)
 
 ### A2D results
 posX_A2D, posY_A2D, _, Roll_A2D, Pitch_A2D, Yaw_A2D, \
@@ -141,12 +168,47 @@ Slope_A2D = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_0
  
 posX_A2D_02, posY_A2D_02, _, Roll_A2D_02, Pitch_A2D_02, Yaw_A2D_02, Current_A2D_02, _, Distance_A2D, Segment_A2D, _, \
  dTime_A2D, Time_A2D_02, Slope_A2D_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_19_51.txt',1)
-I2Cmatrix_A2D = R.from_euler('Y', -2.0, degrees=True)*I2Cmatrix
-I2Cmatrix_A2D = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_A2D
+I2Cmatrix_A2D = R.from_euler('Z', 180.0, degrees=True)*I2Cmatrix
 path_aniso_A2D = buildPathInfo(posX_A2D, posY_A2D, Time_A2D, \
-                               Roll_A2D, Pitch_A2D, Yaw_A2D, Current_A2D, -20.0, 10.0, I2Cmatrix_A2D)
+                               Roll_A2D, Pitch_A2D, Yaw_A2D, Current_A2D, 0.0, 90.0, I2Cmatrix_A2D)
 path_aniso_A2D_02 = buildPathInfo(posX_A2D_02, posY_A2D_02, Time_A2D_02, \
-                                  Roll_A2D_02, Pitch_A2D_02, Yaw_A2D_02,Current_A2D_02, -20.0, 10.0, I2Cmatrix_A2D)
+                                  Roll_A2D_02, Pitch_A2D_02, Yaw_A2D_02,Current_A2D_02, 0.0, 90.0, I2Cmatrix_A2D)
+
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[5])
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[8])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[5])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[8])
+ax.set_xlim([0,50])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+for i,roll in enumerate(path_aniso_A2D[3]):
+    if roll < 100:
+        path_aniso_A2D[3][i] = path_aniso_A2D[3][i] + 360.0
+for i,roll in enumerate(path_aniso_A2D_02[3]):
+    if roll < 100:
+        path_aniso_A2D_02[3][i] = path_aniso_A2D_02[3][i] + 360.0
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[3])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[3])
+ax.set_xlim([0,50])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[4])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[4])
+ax.set_xlim([0,50])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[9])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[9])
+ax.set_xlim([0,50])
+
+deg2rad = np.pi / 180.0
+pitcharray = path_aniso_A2D_02[4]*deg2rad
+slopearray = (180.0-path_aniso_A2D_02[9])*deg2rad
+rollarray = np.arccos(np.cos(slopearray)/np.cos(pitcharray))
+
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D_02[2],rollarray*180.0/np.pi)
+ax.plot(path_aniso_A2D_02[2],180.0-path_aniso_A2D_02[3])
+
 
 posX_isoA2D, posY_isoA2D, heading_A2D, Roll_isoA2D, Pitch_isoA2D, Yaw_A2D, \
 Current_isoA2D, Speed_A2D, Distance_A2D, Segment_A2D, GPSspeed_A2D, \
@@ -154,12 +216,26 @@ Current_isoA2D, Speed_A2D, Distance_A2D, Segment_A2D, GPSspeed_A2D, \
 posX_isoA2D_02, posY_isoA2D_02, heading_A2D, Roll_isoA2D_02, Pitch_isoA2D_02, Yaw_A2D_02, \
 Current_isoA2D_02, Speed_A2D, Distance_A2D, Segment_A2D, GPSspeed_A2D, \
  dTime_isoA2D, Time_isoA2D_02, Slope_isoA2D_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_24_59.txt',1)
-I2Cmatrix_isoA2D = R.from_euler('Y', -2.0, degrees=True)*I2Cmatrix
-I2Cmatrix_isoA2D = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_isoA2D 
+I2Cmatrix_isoA2D = R.from_euler('Z', 180.0, degrees=True)*I2Cmatrix
 path_iso_A2D = buildPathInfo(posX_isoA2D, posY_isoA2D, Time_isoA2D, \
-                             Roll_isoA2D, Pitch_isoA2D, Yaw_A2D, Current_isoA2D, -20.0, 10.0, I2Cmatrix_isoA2D)
+                             Roll_isoA2D, Pitch_isoA2D, Yaw_A2D, Current_isoA2D, 0.0, 90.0, I2Cmatrix_isoA2D)
 path_iso_A2D_02 = buildPathInfo(posX_isoA2D_02, posY_isoA2D_02, Time_isoA2D_02, \
-                             Roll_isoA2D_02, Pitch_isoA2D_02, Yaw_A2D_02, Current_isoA2D_02, -20.0, 10.0, I2Cmatrix_isoA2D)
+                             Roll_isoA2D_02, Pitch_isoA2D_02, Yaw_A2D_02, Current_isoA2D_02, 0.0, 90.0, I2Cmatrix_isoA2D)
+
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_iso_A2D[2],path_iso_A2D[5])
+ax.plot(path_iso_A2D[2],path_iso_A2D[8])
+ax.plot(path_iso_A2D_02[2],path_iso_A2D_02[5])
+ax.plot(path_iso_A2D_02[2],path_iso_A2D_02[8])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_iso_A2D[2],path_iso_A2D[4])
+ax.plot(path_iso_A2D_02[2],path_iso_A2D_02[4])
+ax.set_xlim([0,50])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_iso_A2D[2],path_iso_A2D[9])
+ax.plot(path_iso_A2D_02[2],path_iso_A2D_02[9])
+ax.set_xlim([0,50])
+
 
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
 ax.plot(path_aniso_A2D[2], path_aniso_A2D[3], 'b')
@@ -181,20 +257,10 @@ ax.plot(np.asarray(env_isoCUAD03_scene01[4].pathTravDist) / 0.5, \
 ax.set_xlabel('Traverse Time [s]')
 ax.set_ylabel('Roll [deg]')
 
+
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(Yaw_A2D)
-#ax.plot(Yaw_D2A)
-#fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-#ax.scatter(path_aniso_A2D[5],path_aniso_A2D[8])
-#ax.scatter(path_aniso_A2D_02[5],path_aniso_A2D_02[8])
-#ax.set_xlabel('Yaw - IMU reading')
-#ax.set_ylabel('Yaw - path tangent')
-#
-fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(path_aniso_A2D[9])
-ax.plot(path_aniso_A2D_02[9])
-ax.plot(path_iso_A2D[9])
-ax.plot(path_iso_A2D_02[9])
+ax.plot(path_aniso_A2D[2], path_aniso_A2D[9])
+ax.plot(path_aniso_A2D_02[2], path_aniso_A2D_02[9])
 ax.set_ylabel('Slope_A2D')
 
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
@@ -205,67 +271,103 @@ posX_D2A, posY_D2A, _, Roll_D2A, Pitch_D2A, Yaw_D2A, Current_D2A, _, Distance_D2
  dTime_D2A, Time_D2A, Slope_D2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_10_23.txt',1)
 posX_D2A_02, posY_D2A_02, _, Roll_D2A_02, Pitch_D2A_02, Yaw_D2A_02, Current_D2A_02, _, Distance_D2A, Segment_D2A, _, \
  dTime_D2A, Time_D2A_02, Slope_D2A_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_22_22.txt',1)
-I2Cmatrix_D2A = R.from_euler('Y', -8.0, degrees=True)*I2Cmatrix
-I2Cmatrix_D2A = R.from_euler('X', 4.0, degrees=True)*I2Cmatrix_D2A 
+I2Cmatrix_D2A = R.from_euler('Z', 180.0, degrees=True)*I2Cmatrix
 path_aniso_D2A = buildPathInfo(posX_D2A, posY_D2A, Time_D2A, \
-                               Roll_D2A, Pitch_D2A, Yaw_D2A, Current_D2A, 105.0, 160.0,I2Cmatrix_D2A)
+                               Roll_D2A, Pitch_D2A, Yaw_D2A, Current_D2A, 0.0, -220.0,I2Cmatrix_D2A)
 path_aniso_D2A_02 = buildPathInfo(posX_D2A_02, posY_D2A_02, Time_D2A_02, \
-                                  Roll_D2A_02, Pitch_D2A_02, Yaw_D2A_02, Current_D2A_02, 105.0,160.0,I2Cmatrix_D2A)
-
-
-
-### Isotropic Model D2A results
-posX_isoD2A, posY_isoD2A, heading, Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, \
-Current_isoD2A, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
- dTime_D2A, Time_isoD2A, Slope_isoD2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_27_26.txt',1)
-
-#posX_isoD2A, posY_isoD2A, heading, Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, \
-#Current_isoD2A, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
-# dTime_D2A, Time_isoD2A, Slope_isoD2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_16_13.txt',1)
-#path_iso_D2A = buildPathInfo(posX_isoD2A, posY_isoD2A, Time_isoD2A, \
-#                             Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, Current_isoD2A, 90.0, 10)
-posX_isoD2A_02, posY_isoD2A_02, heading_02, Roll_isoD2A_02, Pitch_isoD2A_02, Yaw_isoD2A_02, \
-Current_isoD2A_02, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
- dTime_D2A, Time_isoD2A_02, Slope_isoD2A_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_12_06_16.txt',1)
-I2Cmatrix_isoD2A = R.from_euler('Y', -8.0, degrees=True)*I2Cmatrix
-I2Cmatrix_isoD2A = R.from_euler('X', 4.0, degrees=True)*I2Cmatrix_isoD2A 
-path_iso_D2A_02 = buildPathInfo(posX_isoD2A_02, posY_isoD2A_02, Time_isoD2A_02, \
-                             Roll_isoD2A_02, Pitch_isoD2A_02, Yaw_isoD2A_02, Current_isoD2A_02, 100.0, -160.0,I2Cmatrix_isoD2A)
-path_iso_D2A = buildPathInfo(posX_isoD2A, posY_isoD2A, Time_isoD2A, \
-                             Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, Current_isoD2A, 100.0, -160.0,I2Cmatrix_isoD2A)
-
+                                  Roll_D2A_02, Pitch_D2A_02, Yaw_D2A_02, Current_D2A_02, 0.0, -220.0,I2Cmatrix_D2A)
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[5])
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[8])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[5])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[8])
+for i,roll in enumerate(path_aniso_D2A[3]):
+    if roll < 100:
+        path_aniso_D2A[3][i] = path_aniso_D2A[3][i] + 360.0
+for i,roll in enumerate(path_aniso_D2A_02[3]):
+    if roll < 100:
+        path_aniso_D2A_02[3][i] = path_aniso_D2A_02[3][i] + 360.0
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[3])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[3])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[4])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[4])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[9])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[9])
+#ax.plot(path_aniso_D2A[3])
+#ax.plot(path_aniso_D2A_02[3])
+ax.plot(path_aniso_D2A[4])
+ax.plot(path_aniso_D2A_02[4])
+#ax.plot(Roll_D2A)
+#ax.plot(Yaw_A2D)
+ax.plot(Yaw_D2A)
+#ax.plot(Yaw_B2C)
+#ax.plot(Yaw_C2B)
+#ax.plot(Yaw_D2A_02)
 
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(path_aniso_D2A[2], path_aniso_D2A[3], 'b')
-ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[3], 'b')
-f1 = interpolate.interp1d(path_aniso_D2A[2], path_aniso_D2A[3])
-f2 = interpolate.interp1d(path_aniso_D2A_02[2], path_aniso_D2A_02[3])
-timeVec = np.arange(0,np.min((path_aniso_D2A[2][-1],path_aniso_D2A_02[2][-1])), 0.02)
-ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'b', alpha = 0.5)
-ax.plot(path_iso_D2A[2], path_iso_D2A[3], 'orange')
-ax.plot(path_iso_D2A_02[2], path_iso_D2A_02[3], 'orange')
-f1 = interpolate.interp1d(path_iso_D2A[2], path_iso_D2A[3])
-f2 = interpolate.interp1d(path_iso_D2A_02[2], path_iso_D2A_02[3])
-timeVec = np.arange(0,np.min((path_iso_D2A[2][-1],path_iso_D2A_02[2][-1])), 0.02)
-ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'orange', alpha = 0.5)
-ax.plot(np.asarray(env_CUAD03_scene01[3].pathTravDist)  / 0.5, \
-        np.asarray(env_CUAD03_scene01[3].pathRoll)*180.0/3.1416, 'c')
-ax.plot(np.asarray(env_isoCUAD03_scene01[3].pathTravDist) / 0.5, \
-        np.asarray(env_isoCUAD03_scene01[3].pathRoll)*180.0/3.1416, 'r')
-ax.set_xlabel('Traverse Time [s]')
-ax.set_ylabel('Roll [deg]')
+ax.plot(path_aniso_D2A[2],path_aniso_D2A[8])
+ax.plot(path_aniso_D2A[2],path_aniso_D2A[5])
+ax.set_xlim([0,50])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_D2A_02[2],path_aniso_D2A_02[8])
+ax.plot(path_aniso_D2A_02[2],path_aniso_D2A_02[5])
+ax.set_xlim([0,50])   
+
+### Isotropic Model D2A results
+#posX_isoD2A, posY_isoD2A, heading, Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, \
+#Current_isoD2A, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
+# dTime_D2A, Time_isoD2A, Slope_isoD2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_27_26.txt',1)
+#
+##posX_isoD2A, posY_isoD2A, heading, Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, \
+##Current_isoD2A, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
+## dTime_D2A, Time_isoD2A, Slope_isoD2A = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_16_13.txt',1)
+##path_iso_D2A = buildPathInfo(posX_isoD2A, posY_isoD2A, Time_isoD2A, \
+##                             Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, Current_isoD2A, 90.0, 10)
+#posX_isoD2A_02, posY_isoD2A_02, heading_02, Roll_isoD2A_02, Pitch_isoD2A_02, Yaw_isoD2A_02, \
+#Current_isoD2A_02, Speed_D2A, Distance_D2A, Segment_D2A, GPSspeed, \
+# dTime_D2A, Time_isoD2A_02, Slope_isoD2A_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_12_06_16.txt',1)
+#I2Cmatrix_isoD2A = R.from_euler('Y', -8.0, degrees=True)*I2Cmatrix
+#I2Cmatrix_isoD2A = R.from_euler('X', 4.0, degrees=True)*I2Cmatrix_isoD2A 
+#path_iso_D2A_02 = buildPathInfo(posX_isoD2A_02, posY_isoD2A_02, Time_isoD2A_02, \
+#                             Roll_isoD2A_02, Pitch_isoD2A_02, Yaw_isoD2A_02, Current_isoD2A_02, 100.0, -160.0,I2Cmatrix_isoD2A)
+#path_iso_D2A = buildPathInfo(posX_isoD2A, posY_isoD2A, Time_isoD2A, \
+#                             Roll_isoD2A, Pitch_isoD2A, Yaw_isoD2A, Current_isoD2A, 100.0, -160.0,I2Cmatrix_isoD2A)
+#
+
+#fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+#ax.plot(path_aniso_D2A[2], path_aniso_D2A[3], 'b')
+#ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[3], 'b')
+#f1 = interpolate.interp1d(path_aniso_D2A[2], path_aniso_D2A[3])
+#f2 = interpolate.interp1d(path_aniso_D2A_02[2], path_aniso_D2A_02[3])
+#timeVec = np.arange(0,np.min((path_aniso_D2A[2][-1],path_aniso_D2A_02[2][-1])), 0.02)
+#ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'b', alpha = 0.5)
+#ax.plot(path_iso_D2A[2], path_iso_D2A[3], 'orange')
+#ax.plot(path_iso_D2A_02[2], path_iso_D2A_02[3], 'orange')
+#f1 = interpolate.interp1d(path_iso_D2A[2], path_iso_D2A[3])
+#f2 = interpolate.interp1d(path_iso_D2A_02[2], path_iso_D2A_02[3])
+#timeVec = np.arange(0,np.min((path_iso_D2A[2][-1],path_iso_D2A_02[2][-1])), 0.02)
+#ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'orange', alpha = 0.5)
+#ax.plot(np.asarray(env_CUAD03_scene01[3].pathTravDist)  / 0.5, \
+#        np.asarray(env_CUAD03_scene01[3].pathRoll)*180.0/3.1416, 'c')
+#ax.plot(np.asarray(env_isoCUAD03_scene01[3].pathTravDist) / 0.5, \
+#        np.asarray(env_isoCUAD03_scene01[3].pathRoll)*180.0/3.1416, 'r')
+#ax.set_xlabel('Traverse Time [s]')
+#ax.set_ylabel('Roll [deg]')
 
 #fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
 #ax.scatter(path_aniso_D2A[5],path_aniso_D2A[8])
 #ax.set_xlabel('Yaw - IMU reading')
 #ax.set_ylabel('Yaw - path tangent')
 #
-fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(path_aniso_D2A[2], path_aniso_D2A[9])
-ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[9])
-ax.plot(path_iso_D2A[2], path_iso_D2A[9])
-ax.plot(path_iso_D2A_02[2], path_iso_D2A_02[9])
-ax.set_ylabel('Slope_D2A')
+#fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+#ax.plot(path_aniso_D2A[2], path_aniso_D2A[9])
+#ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[9])
+#ax.plot(path_iso_D2A[2], path_iso_D2A[9])
+#ax.plot(path_iso_D2A_02[2], path_iso_D2A_02[9])
+#ax.set_ylabel('Slope_D2A')
 
 ### Anisotropic Model C2B results
 posX_C2B, posY_C2B, heading, Roll_C2B, Pitch_C2B, Yaw_C2B, \
@@ -274,52 +376,73 @@ Current_C2B, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
 posX_C2B_02, posY_C2B_02, heading, Roll_C2B_02, Pitch_C2B_02, Yaw_C2B_02, \
 Current_C2B_02, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
  dTime_C2B, Time_C2B_02, Slope_C2B_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_41_07.txt',1)
-I2Cmatrix_C2B = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
-I2Cmatrix_C2B = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_C2B 
+I2Cmatrix_C2B = R.from_euler('Z', 180.0, degrees=True)*I2Cmatrix
 path_aniso_C2B = buildPathInfo(posX_C2B, posY_C2B, Time_C2B, \
-                               Roll_C2B, Pitch_C2B, Yaw_C2B,Current_C2B, 180.0, 90.0, I2Cmatrix_C2B)
+                               Roll_C2B, Pitch_C2B, Yaw_C2B,Current_C2B, 0.0, 40.0, I2Cmatrix_C2B)
 path_aniso_C2B_02 = buildPathInfo(posX_C2B_02, posY_C2B_02, Time_C2B_02, \
-                                  Roll_C2B_02, Pitch_C2B_02, Yaw_C2B_02, Current_C2B_02, 180.0, 90.0, I2Cmatrix_C2B)
-
-posX_isoC2B, posY_isoC2B, heading, Roll_isoC2B, Pitch_isoC2B, Yaw_isoC2B, \
-Current_isoC2B, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
- dTime_C2B, Time_isoC2B, Slope_isoC2B = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_35_30.txt',1)
-posX_isoC2B_02, posY_isoC2B_02, heading, Roll_isoC2B_02, Pitch_isoC2B_02, Yaw_isoC2B_02, \
-Current_isoC2B_02, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
- dTime_C2B, Time_isoC2B_02, Slope_isoC2B_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_45_47.txt',1)
-I2Cmatrix_isoC2B = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
-I2Cmatrix_isoC2B = R.from_euler('X', 2.0, degrees=True)*I2Cmatrix_isoC2B 
-path_iso_C2B = buildPathInfo(posX_isoC2B, posY_isoC2B, Time_isoC2B, \
-                               Roll_isoC2B, Pitch_isoC2B, Yaw_isoC2B, Current_isoC2B, 30.0, 90.0, I2Cmatrix_isoC2B)
-path_iso_C2B_02 = buildPathInfo(posX_isoC2B_02, posY_isoC2B_02, Time_isoC2B_02, \
-                                  Roll_isoC2B_02, Pitch_isoC2B_02, Yaw_isoC2B_02, Current_isoC2B_02, 30.0, 90.0, I2Cmatrix_isoC2B)
+                                  Roll_C2B_02, Pitch_C2B_02, Yaw_C2B_02, Current_C2B_02, 0.0, 40.0, I2Cmatrix_C2B)
+path_aniso_C2B_02[2] = path_aniso_C2B_02[2] - 6
 
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(path_aniso_C2B[2], path_aniso_C2B[3], 'b')
-ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[3], 'b')
-f1 = interpolate.interp1d(path_aniso_C2B[2], path_aniso_C2B[3])
-f2 = interpolate.interp1d(path_aniso_C2B_02[2], path_aniso_C2B_02[3])
-timeVec = np.arange(0,np.min((path_aniso_C2B[2][-1],path_aniso_C2B_02[2][-1])), 0.02)
-ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'b', alpha = 0.5)
-ax.plot(path_iso_C2B[2], path_iso_C2B[3], 'orange')
-ax.plot(path_iso_C2B_02[2], path_iso_C2B_02[3], 'orange')
-f1 = interpolate.interp1d(path_iso_C2B[2], path_iso_C2B[3])
-f2 = interpolate.interp1d(path_iso_C2B_02[2], path_iso_C2B_02[3])
-timeVec = np.arange(0,np.min((path_iso_C2B[2][-1],path_iso_C2B_02[2][-1])), 0.02)
-ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'orange', alpha = 0.5)
-ax.plot(np.asarray(env_CUAD03_scene01[6].pathTravDist)  / 0.5, \
-        np.asarray(env_CUAD03_scene01[6].pathRoll)*180.0/3.1416, 'c')
-ax.plot(np.asarray(env_isoCUAD03_scene01[6].pathTravDist) / 0.5, \
-        np.asarray(env_isoCUAD03_scene01[6].pathRoll)*180.0/3.1416, 'r')
-ax.set_xlabel('Traverse Time [s]')
-ax.set_ylabel('Roll [deg]')
-
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[5])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[5])
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[8])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[8])
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
-ax.plot(path_aniso_C2B[9])
-ax.plot(path_aniso_C2B_02[9])
-ax.plot(path_iso_C2B[9])
-ax.plot(path_iso_C2B_02[9])
-ax.set_ylabel('Slope_C2B')
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[3])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[3])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[4])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[4])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_C2B[2],path_aniso_C2B[9])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[9])
+#ax.plot(path_aniso_C2B[2], path_aniso_C2B[4])
+#ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[4])
+#ax.plot(Roll_C2B)
+#ax.plot(Yaw_C2B)
+
+
+
+#posX_isoC2B, posY_isoC2B, heading, Roll_isoC2B, Pitch_isoC2B, Yaw_isoC2B, \
+#Current_isoC2B, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
+# dTime_C2B, Time_isoC2B, Slope_isoC2B = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_35_30.txt',1)
+#posX_isoC2B_02, posY_isoC2B_02, heading, Roll_isoC2B_02, Pitch_isoC2B_02, Yaw_isoC2B_02, \
+#Current_isoC2B_02, Speed, Distance_C2B, Segment_C2B, GPSspeed, \
+# dTime_C2B, Time_isoC2B_02, Slope_isoC2B_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_45_47.txt',1)
+#I2Cmatrix_isoC2B = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
+#I2Cmatrix_isoC2B = R.from_euler('X', 2.0, degrees=True)*I2Cmatrix_isoC2B 
+#path_iso_C2B = buildPathInfo(posX_isoC2B, posY_isoC2B, Time_isoC2B, \
+#                               Roll_isoC2B, Pitch_isoC2B, Yaw_isoC2B, Current_isoC2B, 30.0, 90.0, I2Cmatrix_isoC2B)
+#path_iso_C2B_02 = buildPathInfo(posX_isoC2B_02, posY_isoC2B_02, Time_isoC2B_02, \
+#                                  Roll_isoC2B_02, Pitch_isoC2B_02, Yaw_isoC2B_02, Current_isoC2B_02, 30.0, 90.0, I2Cmatrix_isoC2B)
+
+#fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+#ax.plot(path_aniso_C2B[2], path_aniso_C2B[3], 'b')
+#ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[3], 'b')
+#f1 = interpolate.interp1d(path_aniso_C2B[2], path_aniso_C2B[3])
+#f2 = interpolate.interp1d(path_aniso_C2B_02[2], path_aniso_C2B_02[3])
+#timeVec = np.arange(0,np.min((path_aniso_C2B[2][-1],path_aniso_C2B_02[2][-1])), 0.02)
+#ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'b', alpha = 0.5)
+#ax.plot(path_iso_C2B[2], path_iso_C2B[3], 'orange')
+#ax.plot(path_iso_C2B_02[2], path_iso_C2B_02[3], 'orange')
+#f1 = interpolate.interp1d(path_iso_C2B[2], path_iso_C2B[3])
+#f2 = interpolate.interp1d(path_iso_C2B_02[2], path_iso_C2B_02[3])
+#timeVec = np.arange(0,np.min((path_iso_C2B[2][-1],path_iso_C2B_02[2][-1])), 0.02)
+#ax.fill_between(timeVec, f1(timeVec), f2(timeVec), facecolor = 'orange', alpha = 0.5)
+#ax.plot(np.asarray(env_CUAD03_scene01[6].pathTravDist)  / 0.5, \
+#        np.asarray(env_CUAD03_scene01[6].pathRoll)*180.0/3.1416, 'c')
+#ax.plot(np.asarray(env_isoCUAD03_scene01[6].pathTravDist) / 0.5, \
+#        np.asarray(env_isoCUAD03_scene01[6].pathRoll)*180.0/3.1416, 'r')
+#ax.set_xlabel('Traverse Time [s]')
+#ax.set_ylabel('Roll [deg]')
+#
+#fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+#ax.plot(path_aniso_C2B[9])
+#ax.plot(path_aniso_C2B_02[9])
+#ax.plot(path_iso_C2B[9])
+#ax.plot(path_iso_C2B_02[9])
+#ax.set_ylabel('Slope_C2B')
 
 
  
@@ -330,27 +453,73 @@ Current_B2C, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
 posX_B2C_02, posY_B2C_02, heading, Roll_B2C_02, Pitch_B2C_02, Yaw_B2C_02, \
 Current_B2C_02, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
  dTime_B2C, Time_B2C_02, Slope_B2C_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_43_28.txt',1)
-I2Cmatrix_B2C = R.from_euler('Y', -6.0, degrees=True)*I2Cmatrix
-I2Cmatrix_B2C = R.from_euler('X', -1.0, degrees=True)*I2Cmatrix_B2C
+I2Cmatrix_B2C = R.from_euler('Z', 180.0, degrees=True)*I2Cmatrix
 path_aniso_B2C = buildPathInfo(posX_B2C, posY_B2C, Time_B2C, \
-                               Roll_B2C, Pitch_B2C, Yaw_B2C, Current_B2C, -140.0, -20.0, I2Cmatrix_B2C)
+                               Roll_B2C, Pitch_B2C, Yaw_B2C, Current_B2C, 0.0, -240.0, I2Cmatrix_B2C)
 path_aniso_B2C_02 = buildPathInfo(posX_B2C_02, posY_B2C_02, Time_B2C_02, \
-                                  Roll_B2C_02, Pitch_B2C_02, Yaw_B2C_02, Current_B2C_02, -140.0, -20.0, I2Cmatrix_B2C)
+                                  Roll_B2C_02, Pitch_B2C_02, Yaw_B2C_02, Current_B2C_02, 0.0, -240.0, I2Cmatrix_B2C)
+
+
+#path_aniso_B2C_02[2] = path_aniso_B2C_02[2] + 1.2
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[5])
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[8])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[3])
+ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[3])
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[4])
+ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[4])
+
+
+
+
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[3])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[3])
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[3])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[3])
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[3])
+ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[3])
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[3])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[3])
+
+fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
+ax.plot(path_aniso_A2D[2],path_aniso_A2D[4])
+ax.plot(path_aniso_A2D_02[2],path_aniso_A2D_02[4])
+ax.plot(path_aniso_D2A[2], path_aniso_D2A[4])
+ax.plot(path_aniso_D2A_02[2], path_aniso_D2A_02[4])
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[4])
+ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[4])
+ax.plot(path_aniso_C2B[2], path_aniso_C2B[4])
+ax.plot(path_aniso_C2B_02[2], path_aniso_C2B_02[4])
+
+
+
+#ax.plot(path_aniso_B2C[9])
+#ax.plot(path_aniso_B2C_02[9])
+#ax.plot(path_aniso_B2C[3])
+#ax.plot(path_aniso_B2C_02[3])
+ax.plot(path_aniso_B2C[2], path_aniso_B2C[4])
+ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[4])
+
 
 ### Isotropic Model B2C results
-posX_isoB2C, posY_isoB2C, heading, Roll_isoB2C, Pitch_isoB2C, Yaw_isoB2C, \
-Current_isoB2C, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
- dTime_isoB2C, Time_isoB2C, Slope_isoB2C = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_38_48.txt',1)
-posX_isoB2C_02, posY_isoB2C_02, heading, Roll_isoB2C_02, Pitch_isoB2C_02, Yaw_isoB2C_02, \
-Current_isoB2C_02, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
- dTime_B2C, Time_isoB2C_02, Slope_isoB2C_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_48_42.txt',1)
-I2Cmatrix_isoB2C = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
-I2Cmatrix_isoB2C = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_isoB2C
-path_iso_B2C = buildPathInfo(posX_isoB2C, posY_isoB2C, Time_isoB2C, \
-                               Roll_isoB2C, Pitch_isoB2C, Yaw_isoB2C,Current_isoB2C, 40.0, -20.0, I2Cmatrix_isoB2C)
-path_iso_B2C_02 = buildPathInfo(posX_isoB2C_02, posY_isoB2C_02, Time_isoB2C_02, \
-                                  Roll_isoB2C_02, Pitch_isoB2C_02, Yaw_isoB2C_02, Current_isoB2C_02, 0.0, -20.0, I2Cmatrix_isoB2C) 
- 
+#posX_isoB2C, posY_isoB2C, heading, Roll_isoB2C, Pitch_isoB2C, Yaw_isoB2C, \
+#Current_isoB2C, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
+# dTime_isoB2C, Time_isoB2C, Slope_isoB2C = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_38_48.txt',1)
+#posX_isoB2C_02, posY_isoB2C_02, heading, Roll_isoB2C_02, Pitch_isoB2C_02, Yaw_isoB2C_02, \
+#Current_isoB2C_02, Speed, Distance_B2C, Segment_B2C, GPSspeed, \
+# dTime_B2C, Time_isoB2C_02, Slope_isoB2C_02 = cr.readCuadrigaData('experimental_results/2020_11_03/2020_11_03_11_48_42.txt',1)
+#I2Cmatrix_isoB2C = R.from_euler('Y', -4.0, degrees=True)*I2Cmatrix
+#I2Cmatrix_isoB2C = R.from_euler('X', -2.0, degrees=True)*I2Cmatrix_isoB2C
+#path_iso_B2C = buildPathInfo(posX_isoB2C, posY_isoB2C, Time_isoB2C, \
+#                               Roll_isoB2C, Pitch_isoB2C, Yaw_isoB2C,Current_isoB2C, 40.0, -20.0, I2Cmatrix_isoB2C)
+#path_iso_B2C_02 = buildPathInfo(posX_isoB2C_02, posY_isoB2C_02, Time_isoB2C_02, \
+#                                  Roll_isoB2C_02, Pitch_isoB2C_02, Yaw_isoB2C_02, Current_isoB2C_02, 0.0, -20.0, I2Cmatrix_isoB2C) 
+
+
+
 fig, ax = plt.subplots(figsize=(8,6), constrained_layout=True)
 ax.plot(path_aniso_B2C[2], path_aniso_B2C[3], 'b')
 ax.plot(path_aniso_B2C_02[2], path_aniso_B2C_02[3], 'b')
@@ -382,6 +551,114 @@ ax.plot(path_aniso_B2C_02[9])
 ax.plot(path_iso_B2C[9])
 ax.plot(path_iso_B2C_02[9])
 ax.set_ylabel('Slope_B2C')
+
+
+#### CUADRIGA COMPARATIVE ####
+plannedDistA2D = np.cumsum(env_CUAD03_scene01[4].pathSegment)*2
+plannedDistD2A = np.cumsum(env_CUAD03_scene01[3].pathSegment)*2
+plannedDistB2C = np.cumsum(env_CUAD03_scene01[1].pathSegment)*2
+plannedDistC2B = np.cumsum(env_CUAD03_scene01[6].pathSegment)*2
+path_aniso_A2D[2] = path_aniso_A2D[2] - path_aniso_A2D[2][-1] + \
+                    plannedDistA2D[-1] - 2.0 #2.0 = lookahead?
+path_aniso_A2D_02[2] = path_aniso_A2D_02[2] - path_aniso_A2D_02[2][-1] + \
+                       plannedDistA2D[-1] - 2.0 #2.0 = lookahead?
+path_iso_A2D[2] = path_iso_A2D[2] - path_iso_A2D[2][-1] + \
+                    plannedDistA2D[-1] - 2.0 #2.0 = lookahead?
+path_iso_A2D_02[2] = path_iso_A2D_02[2] - path_iso_A2D_02[2][-1] + \
+                       plannedDistA2D[-1] - 2.0 #2.0 = lookahead?
+path_aniso_D2A[2] = path_aniso_D2A[2] - path_aniso_D2A[2][-1] + \
+                    plannedDistD2A[-1] - 2.0 #2.0 = lookahead?
+path_aniso_D2A_02[2] = path_aniso_D2A_02[2] - path_aniso_D2A_02[2][-1] + \
+                       plannedDistD2A[-1] - 2.0 #2.0 = lookahead?
+path_aniso_B2C[2] = path_aniso_B2C[2] - path_aniso_B2C[2][-1] + \
+                    plannedDistB2C[-1] - 2.0 - 1.2 #2.0 = lookahead?
+path_aniso_B2C_02[2] = path_aniso_B2C_02[2] - path_aniso_B2C_02[2][-1] + \
+                       plannedDistB2C[-1] - 2.0 #2.0 = lookahead?
+path_aniso_C2B[2] = path_aniso_C2B[2] - path_aniso_C2B[2][-1] + \
+                    plannedDistC2B[-1] - 2.0 #2.0 = lookahead?
+path_aniso_C2B_02[2] = path_aniso_C2B_02[2] - path_aniso_C2B_02[2][-1] + \
+                       plannedDistC2B[-1] - 2.0 #2.0 = lookahead?
+                       
+plt.style.use('seaborn-darkgrid')
+plt.rcParams["font.family"] = "Constantia"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['mathtext.rm'] = 'serif'
+fig, rowaxes = plt.subplots(figsize=(5, 6), nrows = 4, ncols = 1)
+plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, \
+                    top = 0.98, wspace = 0.1, hspace = 0.1)
+fig2, rowaxes2 = plt.subplots(figsize=(5, 6), nrows = 4, ncols = 1)
+plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, \
+                    top = 0.98, wspace = 0.1, hspace = 0.1)
+
+deg2rad = np.pi / 180.0
+
+for i,path in enumerate((path_aniso_A2D, path_aniso_A2D_02,\
+                        path_aniso_D2A, path_aniso_D2A_02,\
+                        path_aniso_B2C, path_aniso_B2C_02, \
+                        path_aniso_C2B, path_aniso_C2B_02)):
+    rowaxes[(int)(i/2)].plot(path[2], \
+                    path[4], 'c')
+    rollarray = np.arccos(np.cos((180.0-path[9])*deg2rad)/np.cos(path[4]*deg2rad))*180.0 / np.pi
+    rowaxes[(int)(i/2)].plot(path[2], \
+                          rollarray, 'r')
+    rowaxes2[(int)(i/2)].plot(path[2], \
+        path[6]*np.append(0,np.diff(path[2]))/path[7])
+
+#for i,path in enumerate((path_iso_A2D, path_iso_A2D_02,\
+#                        path_iso_D2A, path_iso_D2A_02,\
+#                        path_iso_B2C, path_iso_B2C_02, \
+#                        path_iso_C2B, path_iso_C2B_02)):
+#    rowaxes2[(int)(i/2)].plot(path[2], \
+#        path[6]*np.append(0,np.diff(path[2]))/path[7])
+
+rowaxes[3].set_xlabel('Elapsed Time [s]')
+rowaxes2[3].set_xlabel('Elapsed Time [s]')
+fig.text(0.01, 0.5, 'Orientation Angle [deg]', va='center', rotation='vertical')
+fig2.text(0.01, 0.5, 'Energy per meter [As/m]', va='center', rotation='vertical')
+
+rowaxes[0].plot(plannedDistA2D, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[4].pathRoll), 'orange')
+rowaxes[1].plot(plannedDistD2A, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[3].pathRoll), 'orange')
+rowaxes[2].plot(plannedDistB2C, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[1].pathRoll), 'orange')
+rowaxes[3].plot(plannedDistC2B, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[6].pathRoll), 'orange')
+rowaxes[0].plot(plannedDistA2D, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[4].pathPitch), 'b')
+rowaxes[1].plot(plannedDistD2A, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[3].pathPitch), 'b')
+rowaxes[2].plot(plannedDistB2C, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[1].pathPitch), 'b')
+rowaxes[3].plot(plannedDistC2B, \
+        180.0/np.pi*np.asarray(env_CUAD03_scene01[6].pathPitch), 'b')
+
+rowaxes2[0].plot(plannedDistA2D, \
+        np.asarray(env_CUAD03_scene01[4].pathCost)*0.5)
+rowaxes2[1].plot(plannedDistD2A, \
+        np.asarray(env_CUAD03_scene01[3].pathCost)*0.5)
+rowaxes2[2].plot(plannedDistB2C, \
+        np.asarray(env_CUAD03_scene01[1].pathCost)*0.5)
+rowaxes2[3].plot(plannedDistC2B, \
+        np.asarray(env_CUAD03_scene01[6].pathCost)*0.5)
+for ax in rowaxes:
+    ax.set_xlim([0,50])
+    ax.tick_params(axis="x",direction="in", pad=-3)
+for ax in rowaxes2:
+    ax.set_xlim([0,50])
+    ax.tick_params(axis="x",direction="in", pad=-3)
+
+
+
+
+
+
+
+
+
+
+
+
 
 ######################## SHOW PATHS ##################
 def showAnisoPath(mapList, color, ax1, ax2, mode):
@@ -702,8 +979,8 @@ fig.write_image("terrain_test_paths.pdf")
 fig, ax = plt.subplots(figsize=(4, 4),constrained_layout=True)
 ax.plot(np.cumsum(env_CUAD03_scene01[4].pathSegment)*2, \
         np.asarray(env_CUAD03_scene01[4].pathCost)*0.5) # This is because it was already being divided in Kmg as well
-cost = path_aniso_A2D[6]*np.append(0,np.diff(path_aniso_A2D[2]))/path_aniso_A2D[7]
-ax.plot(path_aniso_A2D[2], cost)
+ax.plot(path_aniso_A2D[2], \
+        path_aniso_A2D[6]*np.append(0,np.diff(path_aniso_A2D[2]))/path_aniso_A2D[7])
 ax.plot(path_aniso_A2D_02[2], \
         path_aniso_A2D_02[6]*np.append(0,np.diff(path_aniso_A2D_02[2]))/path_aniso_A2D_02[7])
 
@@ -763,35 +1040,7 @@ ax.plot(path_aniso_A2D[2], path_aniso_A2D[4])
 ax.plot(path_aniso_A2D_02[2], np.cumsum(path_aniso_A2D_02[6]))
 ax.plot(np.asarray(env_CUAD03_scene01[4].pathTravDist)*2, \
         env_CUAD03_scene01[4].pathComputedTotalCost)
-
-plt.style.use('seaborn-darkgrid')
-plt.rcParams["font.family"] = "Constantia"
-plt.rcParams['mathtext.fontset'] = 'cm'
-plt.rcParams['mathtext.rm'] = 'serif'
-fig, rowaxes = plt.subplots(figsize=(7, 6), nrows = 4, ncols = 1, \
-     sharex = 'all', sharey = 'all')
-for i,path in enumerate((path_aniso_A2D,path_aniso_D2A)):
-    #ax.fill_between(path_aniso_A2D_02[2], 0, \
-    #                path_aniso_A2D[4], facecolor = 'y',\
-    #                alpha = 0.5)
-    #ax.plot(path_aniso_A2D_02[2], \
-    #                      180.0/np.pi*np.asarray(env[i].pathSlope), 'y')
-    #ax.fill_between(path_aniso_A2D_02[2], 0, \
-    #                path_aniso_A2D[4], facecolor = 'y',\
-    #                alpha = 0.5)
-    #ax.plot(path_aniso_A2D_02[2], \
-    #        path_aniso_A2D[4], 'y')
-    rowaxes[i].fill_between(path[2], 0, \
-                    path[4], facecolor = 'c',\
-                      alpha = 0.5)
-    rowaxes[i].plot(path[2], \
-                    path[4], 'c')
-    rowaxes[i].fill_between(path[2], 0, \
-                      path[3], facecolor = 'r',\
-                      alpha = 0.5)
-    rowaxes[i].plot(path[2], \
-                          path[3], 'r')
-
+ 
 
 def showOrientation(env,ax,color,name):
     for i in range(8):

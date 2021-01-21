@@ -715,8 +715,10 @@ class CamisDrivingModel:
         elif steepness > self.brakePoint02[0]:
             return (- self.friction + np.tan(steepness))*self.kmg
         else:
-#            return self.getDescentBezier(steepness)
-            return self.getQuadraticBezierCost(steepness, self.brakePoint01, self.brakePoint, self.brakePoint02)
+            if (np.abs(self.brakePoint02[0] + self.brakePoint01[0] - 2*self.brakePoint[0]) > 0.0000001):
+                return self.getQuadraticBezierCost(steepness, self.brakePoint01, self.brakePoint, self.brakePoint02)
+            else:
+                return self.getDescentBezier(steepness)
     def getRRa(self, steepness_deg):
         steepness = steepness_deg*deg2rad
         if steepness < 0:
@@ -891,29 +893,33 @@ class CamisDrivingModel:
         plt.rcParams['mathtext.fontset'] = 'cm'
         plt.rcParams['mathtext.rm'] = 'serif'
         steepnessArray = np.linspace(0.0,40.0,90+2)
-        descentRR = np.zeros_like(steepnessArray)
+        descentRR = np.ones_like(steepnessArray)*np.nan
         for i,steepness in enumerate(steepnessArray):
-            descentRR[i] = self.getRRd(steepness)
-        descentFunction = np.abs(self.friction - np.tan(steepnessArray*deg2rad))*self.kmg
+            if steepness > self.brakePoint01[0]*rad2deg and \
+            steepness < self.brakePoint02[0]*rad2deg:
+                descentRR[i] = self.getRRd(steepness)
+        descentFunction = self.friction - np.tan(steepnessArray*deg2rad)*self.kmg
+        absoluteFunction = np.abs(self.friction - np.tan(steepnessArray*deg2rad))*self.kmg
         fig1, ax1 = plt.subplots(figsize=(5, 3),constrained_layout=True)
-        ax1.plot(steepnessArray, descentFunction, linestyle = 'dashed', color = 'g')
+        ax1.plot(steepnessArray, descentFunction, linestyle = 'dotted', color = 'g')
+        ax1.plot(steepnessArray, absoluteFunction, linestyle = 'dashed', color = 'g')
         ax1.plot(steepnessArray, descentRR, color = 'g')
         ax1.plot(self.brakePoint01[0]*rad2deg, self.brakePoint01[1], 'o', color = 'g')
         ax1.plot(self.brakePoint02[0]*rad2deg, self.brakePoint02[1], 'o', color = 'g')
         ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
         ax1.set_xlabel('Steepness α [degrees]')
-        ax1.set_ylabel('Energy [Ws/m]')
-        ax1.legend(('|ρ - tan α|','R(α,0)'))
+        ax1.set_ylabel('Energy per meter [J/m]')
+        ax1.legend(('ρ - tan α', '|ρ - tan α|', '$R_b(α)$'))
         ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint[0]*rad2deg, 
                         self.brakePoint[1]),
-                    xytext=(12, -2),  # 3 points vertical offset
+                    xytext=(15, -8),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='left', va='bottom')
         ax1.annotate('$arctan_{ρ} - α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint01[0]*rad2deg, 
                         self.brakePoint01[1]),
-                    xytext=(9, 3),  # 3 points vertical offset
+                    xytext=(9, -5),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='left', va='bottom')
         ax1.annotate('$arctan_{ρ} + α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
@@ -922,6 +928,9 @@ class CamisDrivingModel:
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='right', va='bottom')
+        plt.minorticks_on()
+        plt.grid(b=True,which='minor', linestyle = '--')
+        plt.grid(b=True,which='major', linewidth = 1)
         plt.style.use('default')
         
     def showDirCosts(self):
