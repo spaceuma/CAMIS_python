@@ -20,14 +20,14 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import scipy.signal
 from scipy.optimize import curve_fit
 
-fittingMode = 'DEM'
-#fittingMode = 'IMU'
+#fittingMode = 'DEM'
+fittingMode = 'IMU'
 
 
 #if fittingMode == 'DEM':
     
-hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMATerrain_10cmDEM.csv",\
-                                         "rb"), delimiter=" ", skiprows=0)
+#hiRes_elevationMap = np.loadtxt(open("data/terrainData/UMATerrain_10cmDEM.csv",\
+#                                         "rb"), delimiter=" ", skiprows=0)
 #hiRes_posX = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosX.csv",\
 #                                         "rb"), delimiter=" ", skiprows=0)
 #hiRes_posY = np.loadtxt(open("data/terrainData/UMARescueArea_10cmPosY.csv",\
@@ -133,7 +133,7 @@ ax3.tick_params(axis='both', which='major', labelsize=12)
 
 for index,file in enumerate(csvFiles):
     " Cost C according to robot orientation Roll-Pitch-Yaw "
-    posX, posY, heading, Roll, Pitch, Yaw, Current, Speed, Distance, Segment, GPSspeed, Time = cr.readCuadrigaData(file)
+    posX, posY, heading, Roll, Pitch, Yaw, Current, Speed, Distance, Segment, GPSspeed,_, Time,_ = cr.readCuadrigaData(file,1)
     " Conversion from Roll-Pitch-Yaw to Gradient-Beta_angle "
     if fittingMode == 'IMU':
         G, Bx, By = camis.rpy2ab(Roll,Pitch,Yaw)
@@ -165,13 +165,15 @@ for index,file in enumerate(csvFiles):
     Speed = Speed[5:-5]
     ax2.plot(Distance[5:-5],Speed)
     speedList = speedList + Speed.tolist()
-    pitch = camis.ab2pitch(G,B)
+    pitch = np.zeros_like(G)
+    for i,_ in enumerate(G):
+        pitch[i] = camis.ab2pitch(G[i],B[i])
     imuG = np.convolve(pitch, np.ones((10,))/10, mode='same')
     imuG = imuG[5:-5]
     imuGradientList = imuGradientList + imuG.tolist()
     B = B[5:-5]
     betaList = betaList + B.tolist()
-    sdList = sdList + sd
+#    sdList = sdList + sd
     currentCost = currentCost[5:-5]
     costList = costList + currentCost.tolist()
     ax1.plot(Distance[5:-5],imuG)
@@ -212,7 +214,7 @@ def fittingCost(x,Kmg,rho):
 bounds = ([0.0,0.0],[np.inf,1.0])
 popt,_ = curve_fit(fittingCost, (signedGradient), costList, bounds = bounds)
 
-plt.style.use('default')
+plt.style.use('seaborn-darkgrid')
 fig2 = plt.figure(figsize=(4, 4))
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
-
 #============================CAMIS library=====================================
 #           Continuous Anisotropic Model for Inclined Surfaces
 #          Author: J. Ricardo Sanchez Ibanez (ricardosan@uma.es)
 # -----------------------------------------------------------------------------
+#                           cost_function.py
 #   This file contains a library of python functions dedicated to the 
 #==============================================================================
 
@@ -468,34 +467,51 @@ def showCAMIS(CdRoots, CaRoots, Cl1Roots, Cl2Roots,beta,gradient,cost):
 # =============================================================================
     
 class CamisDrivingModel:
-    def __init__(self, robot_data, bezier_coeff):
-        self.slopeThreshold = robot_data['slope_threshold']
-        self.sdThreshold = robot_data['sd_threshold']
+    def __init__(self, robot_data):
         self.occupancy_radius = robot_data['occupancy_radius']
         self.tracking_error = robot_data['tracking_error']
-        self.camis_type = robot_data['camis_type']
+        self.speed = robot_data['speed']
         self.mode = robot_data['mode']
-        if self.camis_type == 'DrivingModel':
-            self.friction = robot_data['friction']
-            self.kmg = robot_data['kmg']
-            self.slip_parallel_ascent = robot_data['slip_parallel_ascent']
-            self.slip_parallel_descent = robot_data['slip_parallel_descent']
-            self.risk_roll = robot_data['risk_roll']*deg2rad
-            self.risk_pitch = robot_data['risk_pitch']*deg2rad
-            self.risk_block = robot_data['risk_block']*deg2rad
-            self.risk_gain = robot_data['risk_gain']
-            self.risk_margin = robot_data['risk_margin']*deg2rad
-            self.bezier_coeff = np.maximum(bezier_coeff, 0.15)
-        if self.camis_type == 'PolynomialRoots':
-            self.cdRoots = robot_data['cdRoots']
-            self.caRoots = robot_data['caRoots']
-            self.cl1Roots = robot_data['cl1Roots']
-            self.cl2Roots = robot_data['cl2Roots']
+        self.rolling_resistance_mode = robot_data['rolling_resistance_mode']
+        self.friction = robot_data['friction']
+        self.kmg = robot_data['kmg']
+        self.steepness_brake_margin = robot_data['steepness_brake_margin']
+        self.roll_weight = robot_data['roll_weight']
+        self.ascent_weight = robot_data['ascent_weight']
+        self.descent_weight = robot_data['descent_weight']
+        self.slip_ratio_A = robot_data['slip_ratio_A']
+        self.slip_ratio_B = robot_data['slip_ratio_B']
+        self.slip_angle_A = robot_data['slip_angle_A']
+        self.slip_angle_B = robot_data['slip_angle_B']
+        
+        # This is the angle from which the slip factor degenerates
+        if self.slip_ratio_A < 0.001 or self.slip_ratio_B < 0.001:
+            if self.slip_angle_A < 0.001 or self.slip_angle_A < 0.001:
+                self.limit_angle_deg = 89.0
+            else:
+                self.limit_angle_deg = (np.log(np.arccos(1.0 - 0.9) * rad2deg / self.slip_angle_A) / self.slip_angle_B)
+        else:
+            if self.slip_angle_A < 0.001 or self.slip_angle_A < 0.001:
+                self.limit_angle_deg = np.log(0.9 / self.slip_ratio_A) / self.slip_ratio_B
+            else:
+                self.limit_angle_deg = np.min(((np.log(0.9 / self.slip_ratio_A) / self.slip_ratio_B),\
+                                      (np.log(np.arccos(1.0 - 0.9) * rad2deg / self.slip_angle_A) / self.slip_angle_B)))
+        print("The limit angle is " + str(self.limit_angle_deg) + " deg")  
+        self.computeBezierPoints()
+        self.limit_cost = np.max((self.getCa(self.limit_angle_deg),\
+                                  self.getCl(self.limit_angle_deg),\
+                                  self.getCd(self.limit_angle_deg)))
+        print("The limit cost is " + str(self.limit_cost))
+        self.computeAniCoLUT()
+        
+    
+    def setAsIsotropic(self):
+        self.mode = 'isotropic'
         self.computeBezierPoints()
         self.computeAniCoLUT()
         
     def fitCAMIS(self, gradient,beta,cost,sigma):
-        bounds = ([0.01,0.01,0.01,0.0,0.0],[1.0,1.0,np.inf,self.slopeThreshold/45.0,self.slopeThreshold/45.0])
+        bounds = ([0.01,0.01,0.01,0.0,0.0],[1.0,1.0,np.inf,self.limit_angle_deg/45.0,self.limit_angle_deg/45.0])
         popt,_ = curve_fit(self.fittingDrivingCAMIS, (gradient,beta), cost, sigma=sigma, bounds = bounds,method='dogbox')
         self.friction_parallel = popt[0]
         self.friction_perp = popt[1]
@@ -524,9 +540,9 @@ class CamisDrivingModel:
            
     def getVectorialCostMap(self,slopeMap):
         vectorialCostMap = np.ones([5,slopeMap.shape[0],slopeMap.shape[1]])
-        Cobs = np.max((self.getCd(self.slopeThreshold),\
-                                   self.getCa(self.slopeThreshold),\
-                                   self.getCl(self.slopeThreshold)))*self.getAnisotropy(self.slopeThreshold)
+        Cobs = np.max((self.getCd(self.limit_angle_deg),\
+                       self.getCa(self.limit_angle_deg),\
+                       self.getCl(self.limit_angle_deg)))*self.getAnisotropy(self.limit_angle_deg)
         vectorialCostMap[1] = vectorialCostMap[1]*Cobs**2
         vectorialCostMap[2] = vectorialCostMap[2]*Cobs**2
         vectorialCostMap[3] = vectorialCostMap[3]*0.0
@@ -535,19 +551,18 @@ class CamisDrivingModel:
         for i in range(slopeMap.shape[1]):
             for j in range(slopeMap.shape[0]):
                 slope = slopeMap[j][i]
-                if (slope < self.slopeThreshold):
-                    if (self.mode == 'isotropic'):
+                if (self.mode == 'isotropic'):
                         Cn = self.getCn(slope)
                         vectorialCostMap[0][j][i] = 1
                         vectorialCostMap[1][j][i] = Cn**2 # Q1
                         vectorialCostMap[2][j][i] = Cn**2# Q2
                         vectorialCostMap[3][j][i] =  0
                         vectorialCostMap[4][j][i] = 0
-                    else:
-                        Cd = self.getCd(slope)
-                        Ca = self.getCa(slope)
-                        Cl1 = self.getCl(slope)
-                        Cl2 = self.getCl(slope)
+                else:
+                        Cd = np.min((self.limit_cost, self.getCd(slope)))
+                        Ca = np.min((self.limit_cost, self.getCa(slope)))
+                        Cl1 = np.min((self.limit_cost, self.getCl(slope)))
+                        Cl2 = np.min((self.limit_cost, self.getCl(slope)))
                         vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
                         vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
                         vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
@@ -555,6 +570,79 @@ class CamisDrivingModel:
                         vectorialCostMap[4][j][i] = (Cl2-Cl1)/2 # D2    
         return vectorialCostMap
     
+    def computeAnisotropy(self):
+            linearGradient = np.linspace(0,33,34)
+            heading = np.arange(0, 2*np.pi, 0.01)
+            aspect = [1,0]
+            Cd = np.zeros_like(linearGradient)
+            Ca = np.zeros_like(linearGradient)
+            Cl1 = np.zeros_like(linearGradient)
+            Cl2 = np.zeros_like(linearGradient)
+            for i,g in enumerate(linearGradient):
+                Cd[i] = self.getCd(linearGradient[i])
+                Ca[i] = self.getCa(linearGradient[i])
+                Cl1[i] = self.getCl(linearGradient[i])
+                Cl2[i] = self.getCl(linearGradient[i])
+                
+            Bs = []
+            Cs = []
+            Anisotropy = np.zeros_like(linearGradient)
+            AnisotropyAD = np.zeros_like(linearGradient)
+            AnisotropyAL = np.zeros_like(linearGradient)
+            AnisotropyDL = np.zeros_like(linearGradient)
+            for i,g in enumerate(linearGradient):
+                for theta in heading:
+                    B = computeBeta(aspect,theta)
+                    Bs.append(np.arctan2(B[1],B[0]))
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                    Cs.append(preCost)
+                Anisotropy[i] = max(Cs)/min(Cs)
+                AnisotropyAD[i] = Ca[i]/Cd[i]
+                AnisotropyAL[i] = Ca[i]/Cl1[i]
+                AnisotropyDL[i] = Cd[i]/Cl1[i]
+                Cs = []
+            self.Anisotropy = Anisotropy
+            self.AnisotropyAD = AnisotropyAD
+            self.AnisotropyAL = AnisotropyAL
+            self.AnisotropyDL = AnisotropyDL
+    def showModelData(self, opt, fig, axes, color, style, angle):
+        linearGradient = np.linspace(0,angle,20)
+        if   opt == 'ascent-cost':
+            ascentCostArray = [self.getCa(steepness) for steepness in linearGradient]
+            axes.plot(linearGradient, ascentCostArray, color, linestyle=style)
+        elif opt == 'descent-cost':
+            axes.plot(linearGradient, [self.getCd(steepness) for steepness in linearGradient], color, linestyle=style)
+        elif opt == 'lateral-cost':
+            axes.plot(linearGradient, [self.getCl(steepness) for steepness in linearGradient], color, linestyle=style)    
+        elif opt == 'nominal-cost':
+            axes.plot(linearGradient, [self.getCn(steepness) for steepness in linearGradient], color, linestyle=style)  
+        elif opt == 'anisotropy':
+            Anisotropy = np.zeros_like(linearGradient)
+            Ca = [self.getCa(steepness) for steepness in linearGradient]
+            Cd = [self.getCd(steepness) for steepness in linearGradient]
+            Cl1 = [self.getCl(steepness) for steepness in linearGradient]
+            Cl2 = [self.getCl(steepness) for steepness in linearGradient]
+            heading = np.arange(0, 2*np.pi, 0.01)
+            aspect = [1,0]
+            Bs = []
+            Cs = []
+            for i,g in enumerate(linearGradient):
+                for theta in heading:
+                    B = computeBeta(aspect,theta)
+                    Bs.append(np.arctan2(B[1],B[0]))
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                    Cs.append(preCost)
+                Anisotropy[i] = max(Cs)/min(Cs)
+                Cs = []
+                Bs = []
+            p1, = axes.plot(linearGradient, Anisotropy, color, linestyle=style)
+            return p1
+        elif opt == 'anisotropyAD':
+            axes.plot(linearGradient, self.AnisotropyAD, color, linestyle=style)
+        elif opt == 'anisotropyAL':
+            axes.plot(linearGradient, self.AnisotropyAL, color, linestyle=style)
+        elif opt == 'anisotropyDL':
+            axes.plot(linearGradient, self.AnisotropyDL, color, linestyle=style)
     def getQuadraticBezierCost(self,x, P0, P1, P2):
         X1 = P0[0] - P1[0]
         X2 = P2[0] - P1[0]
@@ -569,139 +657,122 @@ class CamisDrivingModel:
         else:
             if np.abs(X1 - X2) < 0.001:
                 t = (x - P0[0] - P1[0] + X1)/(2*X1)
+            elif np.abs(-X1 - X2) < 0.001:
+                t = (X1 + P1[0] - x)/(2*X1)
             else:
                 t = (-2*X1 - np.sqrt(4*X1**2 - 
                                      4*(x-P1[0]-X1)*(-X1-X2)))/(2*(-X1-X2))
             Cost = P1[1] + (1 - t)**2*Y1 + t**2*Y2
             return Cost
+    def getDescentBezier(self,steepness):
+        t = (self.brakePoint01[0] - steepness)/(-2*self.steepness_brake_margin*deg2rad)
+        return (1 - t)**2*self.brakePoint01[1] + t**2*self.brakePoint02[1]
     
     def getCubicBezierCost(self,steepness,P0,P1,P2,P3):
-        res = scipy.optimize.least_squares(lambda x : 
-        (1-x)**3*P0[0] + 3*(1-x)**2*x*P1[0] + 3*(1-x)*x**2*P2[0]+x**3*P3[0] - 
-            steepness,0.5, bounds = (0,1))
-        t = res.x
-        return (1-t)**3*P0[1] + 3*(1-t)**2*t*P1[1] + 3*(1-t)*t**2*P2[1] + t**3*P3[1]
+#        res = scipy.optimize.least_squares(lambda x : 
+#        (1-x)**3*P0[0] + 3*(1-x)**2*x*P1[0] + 3*(1-x)*x**2*P2[0]+x**3*P3[0] - 
+#            steepness,0.5, bounds = (0,1))
+        coeff = [-P0[0]+3*P1[0]-3*P2[0]+P3[0], 
+                 3*P0[0] - 6*P1[0] + 3*P2[0],
+                 -3*P0[0] + 3*P1[0],
+                 P0[0] - steepness]
+        results = np.roots(coeff)
+        for res in results:
+            if (res >= 0.0)and(res <=1.0)and(np.isreal(res)):
+                t = res.real
+#        t = res.x
+        return np.asscalar((1-t)**3*P0[1] + 3*(1-t)**2*t*P1[1] + 3*(1-t)*t**2*P2[1] + t**3*P3[1])
                 
     def computeBezierPoints(self):
         # The point at which the robot starts braking
-        self.brakeSteepness = np.arctan(self.friction)
-        self.brakePoint = np.array([self.brakeSteepness,0])
+        self.brakeSteepness_rad = np.arctan(self.friction)
+        self.brakePoint = np.array([self.brakeSteepness_rad,0])
         
-        #The intersection between risk function and ascent function
-        intersectionX = scipy.optimize.fsolve(lambda x : 
-        (x - np.minimum(self.risk_pitch, self.risk_block) + 
-         self.risk_margin)/self.risk_margin*self.risk_gain - np.tan(x) - 
-         self.friction,0)
-        intersectionY = self.friction + np.tan(intersectionX)
-        self.ascentIntersection = np.array([intersectionX,intersectionY])
+        # Computing the Bezier Braking points
+        if self.brakeSteepness_rad < self.steepness_brake_margin*deg2rad:
+            brake01X = 0
+        else:
+            brake01X = (self.brakeSteepness_rad - self.steepness_brake_margin*deg2rad)
+        brake01Y = self.kmg * (self.friction - np.tan(brake01X))
+        self.brakePoint01 = np.array([brake01X, brake01Y])
         
-        #The intersection between risk function and descent function
-        if self.brakeSteepness >= self.risk_pitch - self.risk_margin:
-            intersection2X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_pitch + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain + 
-                 np.tan(x) - self.friction, 0)
-            intersection2Y = self.friction - np.tan(intersection2X)
-        else:
-            intersection2X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_pitch + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain + 
-                -np.tan(x) + self.friction,0)
-            intersection2Y = - self.friction + np.tan(intersection2X)
-        self.descentIntersection = np.array([intersection2X,intersection2Y])
-        
-        #The intersection between risk function and lateral function 
-        if self.brakeSteepness >= self.risk_roll - self.risk_margin:
-            intersection3X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_roll + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain - 
-                np.sqrt(self.friction**2  - np.tan(x)**2), 0)
-            intersection3Y = np.sqrt(self.friction**2  - 
-                                     np.tan(intersection3X)**2)
-        else:
-            intersection3X = scipy.optimize.fsolve(lambda x : 
-                (x - self.risk_roll + 
-                 self.risk_margin)/self.risk_margin*self.risk_gain - 
-                np.sqrt(np.tan(x)**2 - self.friction**2 ), self.risk_roll)
-            intersection3Y = np.sqrt(np.tan(intersection3X)**2 - 
-                                     self.friction**2 )
-        self.lateralIntersection = np.array([intersection3X,intersection3Y])
-        
-        #The first Bezier points
-        self.initialPoint = np.array([(1-self.bezier_coeff)*intersectionX,
-                                 self.friction + 
-                                 np.tan((1-self.bezier_coeff)*intersectionX)])
-        
-        if self.brakeSteepness >= self.risk_pitch - self.risk_margin:
-            self.initial2Point = np.array([(1-self.bezier_coeff)*intersection2X,
-                                      self.friction - 
-                                      np.tan((1-self.bezier_coeff)*intersection2X)])
-        else:
-            self.initial2Point = np.array([(1-self.bezier_coeff)*self.brakeSteepness,
-                                      self.friction - np.tan((1-self.bezier_coeff)*self.brakeSteepness)])
-            
-        if self.brakeSteepness >= self.risk_roll - self.risk_margin:
-            self.initial3Point = np.array([(1-self.bezier_coeff)*intersection3X,
-                                      np.sqrt(self.friction**2  - np.tan((1-self.bezier_coeff)*intersection3X)**2)])
-        else:
-            self.initial3Point = np.array([(1-self.bezier_coeff)*self.brakeSteepness, 
-                                      np.sqrt(self.friction**2  - 
-                                              np.tan((1-self.bezier_coeff)*self.brakeSteepness)**2)])
-            
-        # The last Bezier points
-        self.riskPoint = np.array([intersectionX + self.bezier_coeff*(np.minimum(self.risk_block, self.risk_pitch) - intersectionX),
-                              intersectionY + self.bezier_coeff*(self.risk_gain-intersectionY)])
-        self.riskPoint2 = np.array([intersection2X + self.bezier_coeff*(self.risk_pitch - intersection2X),
-                               intersection2Y + self.bezier_coeff*(self.risk_gain-intersection2Y)])
-        self.riskPoint3 = np.array([intersection3X + self.bezier_coeff*(self.risk_roll - intersection3X),
-                               intersection3Y + self.bezier_coeff*(self.risk_gain-intersection3Y)])
-
-    def getCd(self, steepness):
-        steepness = steepness*deg2rad
-        if steepness < self.initial2Point[0]:
-            R = np.abs(self.friction - np.tan(steepness))
-        else:
-            if steepness >= self.riskPoint2[0]:
-                R = (steepness - self.risk_pitch + self.risk_margin)/self.risk_margin*self.risk_gain
-            else:
-                if self.brakeSteepness >= self.risk_pitch - self.risk_margin:
-                    R = self.getQuadraticBezierCost(steepness, self.initial2Point, 
-                                               self.descentIntersection, self.riskPoint2)
-                else:
-                    R = self.getCubicBezierCost(steepness, self.initial2Point, 
-                                        self.brakePoint,self.descentIntersection, 
-                                        self.riskPoint2)
-        S = 1 #TODO - Change this!!
-        return self.kmg * R * S
+        brake02X = (self.brakeSteepness_rad + self.steepness_brake_margin*deg2rad)
+        brake02Y = self.kmg * np.abs(self.friction - np.tan(brake02X))
+        self.brakePoint02 = np.array([brake02X, brake02Y]) 
     
-    def getCa(self, steepness):
-        steepness = steepness*deg2rad
-        if steepness < self.initialPoint[0]:
-            R = self.friction + np.tan(steepness)
+    def getSSa(self, steepness_deg):
+        return 1 / np.max((0.01,(1 - self.slip_ratio_A * np.exp(self.slip_ratio_B * steepness_deg))))
+    def getSSl(self, steepness_deg):
+        return 1.0 / np.cos(np.min((1.5607961601207294, self.slip_angle_A*np.exp(self.slip_angle_B*steepness_deg)*deg2rad)))         
+    def getSSd(self, steepness_deg):
+        return 1 / np.max((0.01,(1 - self.slip_ratio_A * np.exp(self.slip_ratio_B * steepness_deg))))           
+    def getRRd(self, steepness_deg):
+        steepness = steepness_deg*deg2rad
+        if steepness < 0:
+            raise ValueError('ERROR: input value of steepness is negative')
+        if steepness < self.brakePoint01[0]:
+            return (self.friction - np.tan(steepness))*self.kmg
+        elif steepness > self.brakePoint02[0]:
+            return (- self.friction + np.tan(steepness))*self.kmg
         else:
-            if steepness > self.riskPoint[0]:
-                R = (steepness - 
-                           np.minimum(self.risk_block, self.risk_pitch) + 
-                           self.risk_margin)/self.risk_margin*self.risk_gain
+            if (np.abs(self.brakePoint02[0] + self.brakePoint01[0] - 2*self.brakePoint[0]) > 0.0000001):
+                return self.getQuadraticBezierCost(steepness, self.brakePoint01, self.brakePoint, self.brakePoint02)
             else:
-                R = self.getQuadraticBezierCost(steepness, self.initialPoint, 
-                                                self.ascentIntersection, self.riskPoint)
-        S = 1 #TODO - Change this!!
-        return self.kmg * R * S
-    
-    def getCl(self, steepness):
-        steepness = steepness*deg2rad
-        if steepness < self.initial3Point[0]:
-            R = np.sqrt(self.friction**2  - np.tan(steepness)**2)
+                return self.getDescentBezier(steepness)
+    def getRRa(self, steepness_deg):
+        steepness = steepness_deg*deg2rad
+        if steepness < 0:
+            raise ValueError('ERROR: input value of steepness is negative')
         else:
-            if steepness >= self.riskPoint3[0]:
-                R = (steepness - self.risk_roll + self.risk_margin)/self.risk_margin*self.risk_gain
-            else:
-                R = self.getQuadraticBezierCost(steepness, self.initial3Point, 
-                                           self.lateralIntersection, self.riskPoint3)
+            return (self.friction + np.tan(steepness))*self.kmg     
+    def getRRl(self, steepness_deg):
+        steepness = steepness_deg*deg2rad
+        if steepness < 0:
+            raise ValueError('ERROR: input value of steepness is negative')
+        else:
+            return (self.friction * np.cos(steepness))*self.kmg
+#            return np.sqrt(self.getRRa(steepness_deg)*self.getRRd(steepness_deg))
+#            return (self.getRRa(steepness_deg) + self.getRRd(steepness_deg))/2
         
-        S = 1 #TODO - Change this!!
-        return self.kmg * R * S
+    def getRawCd(self, steepness_deg):
+        S = self.getSSd(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRd(steepness_deg)
+#        pv = self.speed*np.cos(steepness_deg*deg2rad)
+        return R * S / self.speed
+    def getCd(self, steepness_deg):
+        rawC = self.getRawCd(steepness_deg)
+        W = (1 + self.descent_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W  
+    def getRawCa(self,steepness_deg):
+        S = self.getSSa(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRa(steepness_deg)
+#        pv = self.speed*np.cos(steepness_deg*deg2rad)
+        return R * S / self.speed
+    def getCa(self, steepness_deg):
+        rawC = self.getRawCa(steepness_deg)
+        W = (1 + self.ascent_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W
+        
+    def getRawCl(self,steepness_deg):
+        S = self.getSSl(steepness_deg)
+        if self.rolling_resistance_mode == 'none':
+            R = 1
+        else:
+            R = self.getRRl(steepness_deg)
+#        pv = self.speed
+        return R * S / self.speed
+#        return 0.9*self.getRawCa(steepness_deg) + 0.1*R * S / pv
+    def getCl(self, steepness_deg):
+        rawC = self.getRawCl(steepness_deg)
+        W = (1 + self.roll_weight*np.tan(steepness_deg*deg2rad))
+        return rawC * W
+#        return np.max((self.getCd(steepness_deg), rawC * W)) # TODO: make this configurable?
     
     def getCn(self,slope): #TODO - check this
         cd = self.getCd(slope)
@@ -710,7 +781,7 @@ class CamisDrivingModel:
         return (ca + cd)/2*np.sqrt(cl/np.sqrt(ca*cd))
     
     def computeAniCoLUT(self):
-        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
+        linearGradient = np.linspace(0,89,90)
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0] 
         
@@ -760,8 +831,20 @@ class CamisDrivingModel:
         D2 = (Cl2-Cl1)/2
         return getCAMIScost(beta,Q1,Q2,D1,D2)
     
+    def getRawCost(self, slope, aspect, heading):
+        beta = computeBeta(aspect,heading)
+        Cd = self.getRawCd(slope)
+        Ca = self.getRawCa(slope)
+        Cl1 = self.getRawCl(slope)
+        Cl2 = self.getRawCl(slope)
+        Q1 = ((Ca+Cd)/2)**2
+        Q2 = ((Cl1+Cl2)/2)**2
+        D1 =  (Ca-Cd)/2
+        D2 = (Cl2-Cl1)/2
+        return getCAMIScost(beta,Q1,Q2,D1,D2)
+    
     def showAnisotropy(self):
-        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
+        linearGradient = np.linspace(0,89,90)
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0]
         Cd = np.zeros_like(linearGradient)
@@ -771,8 +854,8 @@ class CamisDrivingModel:
         for i,g in enumerate(linearGradient):
             Cd[i] = self.getCd(linearGradient[i])
             Ca[i] = self.getCa(linearGradient[i])
-            Cl1[i] = self.getCl1(linearGradient[i])
-            Cl2[i] = self.getCl2(linearGradient[i])
+            Cl1[i] = self.getCl(linearGradient[i])
+            Cl2[i] = self.getCl(linearGradient[i])
             
         Bs = []
         Cs = []
@@ -790,6 +873,7 @@ class CamisDrivingModel:
             AnisotropyAD[i] = Ca[i]/Cd[i]
             AnisotropyAL[i] = Ca[i]/Cl1[i]
             AnisotropyDL[i] = Cd[i]/Cl1[i]
+            Cs = []
             
         fig, axes = plt.subplots()
         l1 = axes.plot(linearGradient,Anisotropy,color='b', linestyle='dashed', label = '$Anisotropy$')
@@ -799,12 +883,64 @@ class CamisDrivingModel:
         lns = l1+l2+l3+l4
         labs = [l.get_label() for l in lns]
         axes.legend(lns, labs, fontsize='small')
-    def getMaxCost(self):
-        return np.max((self.getCd(self.slopeThreshold),\
-                       self.getCa(self.slopeThreshold),\
-                       self.getCl(self.slopeThreshold)))
+        axes.set_xlim([0.0, 30.0])
+        axes.set_ylim([0.0, 10.0])
+        
+    def showBraking(self):
+        plt.style.use('seaborn-darkgrid')
+        
+        plt.rcParams["font.family"] = "Constantia"
+        plt.rcParams['mathtext.fontset'] = 'cm'
+        plt.rcParams['mathtext.rm'] = 'serif'
+        steepnessArray = np.linspace(0.0,40.0,90+2)
+        descentRR = np.ones_like(steepnessArray)*np.nan
+        for i,steepness in enumerate(steepnessArray):
+            if steepness > self.brakePoint01[0]*rad2deg and \
+            steepness < self.brakePoint02[0]*rad2deg:
+                descentRR[i] = self.getRRd(steepness)
+        descentFunction = self.friction - np.tan(steepnessArray*deg2rad)*self.kmg
+        absoluteFunction = np.abs(self.friction - np.tan(steepnessArray*deg2rad))*self.kmg
+        fig1, ax1 = plt.subplots(figsize=(5, 2.4),constrained_layout=True)
+        ax1.plot(steepnessArray, descentFunction, linestyle = 'dotted', color = 'g')
+        ax1.plot(steepnessArray, absoluteFunction, linestyle = 'dashed', color = 'g')
+        ax1.plot(steepnessArray, descentRR, color = 'g')
+        ax1.plot(self.brakePoint01[0]*rad2deg, self.brakePoint01[1], 'o', color = 'g')
+        ax1.plot(self.brakePoint02[0]*rad2deg, self.brakePoint02[1], 'o', color = 'g')
+        ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
+        ax1.set_xlabel('Steepness α [degrees]', fontsize = 14)
+        ax1.set_xlim([0,40])
+        ax1.set_ylabel('Energy per meter [J/m]', fontsize = 14)
+        ax1.set_ylim([-0.2,0.5])
+        ax1.legend(('ρ - tan α', '|ρ - tan α|', '$R_b(α)$'), loc = 'lower left')
+        ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint[0]*rad2deg, 
+                        self.brakePoint[1]),
+                    xytext=(15, -8),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='left', va='bottom', fontsize = 12)
+        ax1.annotate('$arctan_{ρ} - α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint01[0]*rad2deg, 
+                        self.brakePoint01[1]),
+                    xytext=(9, -5),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='left', va='bottom', fontsize = 12)
+        ax1.annotate('$arctan_{ρ} + α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
+                    xy=(self.brakePoint02[0]*rad2deg, 
+                        self.brakePoint02[1]),
+                    xytext=(0, 3),  # 3 points vertical offset
+                    textcoords="offset points",
+                    ha='right', va='bottom', fontsize = 12)
+        plt.minorticks_on()
+        plt.grid(b=True,which='minor', linestyle = '--')
+        plt.grid(b=True,which='major', linewidth = 1)
+        plt.style.use('default')
         
     def showDirCosts(self):
+        plt.style.use('seaborn-darkgrid')
+        
+        plt.rcParams["font.family"] = "Constantia"
+        plt.rcParams['mathtext.fontset'] = 'cm'
+        plt.rcParams['mathtext.rm'] = 'serif'
         steepnessArray = np.linspace(0.0,45.0,90+2)*deg2rad
         
         ascentCAMIS = np.zeros_like(steepnessArray)
@@ -813,16 +949,12 @@ class CamisDrivingModel:
         
         descentFunction = np.abs(self.friction - np.tan(steepnessArray))
         ascentFunction = self.friction + np.tan(steepnessArray)
-        lateralFunction = np.sqrt(ascentFunction*descentFunction)
-        
-        pitchRiskFunction = (steepnessArray - self.risk_pitch + self.risk_margin)/self.risk_margin*self.risk_gain
-        rollRiskFunction = (steepnessArray - self.risk_roll + self.risk_margin)/self.risk_margin*self.risk_gain
-        blockRiskFunction = (steepnessArray - self.risk_block + self.risk_margin)/self.risk_margin*self.risk_gain
-        
+        lateralFunction = self.friction*np.cos(steepnessArray)
+       
         for i,steepness in enumerate(steepnessArray):
-            ascentCAMIS[i] = self.getCa(steepness*rad2deg)/self.kmg
-            descentCAMIS[i] = self.getCd(steepness*rad2deg)/self.kmg
-            lateralCAMIS[i] = self.getCl(steepness*rad2deg)/self.kmg
+            ascentCAMIS[i] = self.getCa(steepness*rad2deg)
+            descentCAMIS[i] = self.getCd(steepness*rad2deg)
+            lateralCAMIS[i] = self.getCl(steepness*rad2deg)
         
         fig1, ax1 = plt.subplots(figsize=(5, 4),constrained_layout=True)
         ax1.plot(steepnessArray*rad2deg, ascentFunction, linestyle = 'dashed', color = 'b')
@@ -831,30 +963,43 @@ class CamisDrivingModel:
         ax1.plot(steepnessArray*rad2deg, ascentCAMIS, color = 'b')
         ax1.plot(steepnessArray*rad2deg, descentCAMIS, color = 'g')
         ax1.plot(steepnessArray*rad2deg, lateralCAMIS, color = 'orange')
-        ax1.plot(steepnessArray*rad2deg, blockRiskFunction, linestyle = 'dotted', color = 'y')
-        ax1.plot(steepnessArray*rad2deg, pitchRiskFunction, linestyle = 'dotted', color = 'r')
-        ax1.plot(steepnessArray*rad2deg, rollRiskFunction, linestyle = 'dotted', color = 'm')
-        ax1.plot(self.initialPoint[0]*rad2deg, self.initialPoint[1], 'o', color = 'b')
-        ax1.plot(self.initial2Point[0]*rad2deg, self.initial2Point[1], 'o', color = 'g')
-        ax1.plot(self.initial3Point[0]*rad2deg, self.initial3Point[1], 'o', color = 'orange')
-        ax1.plot(self.ascentIntersection[0]*rad2deg, self.ascentIntersection[1], 'o', color = 'b')
-        ax1.plot(self.descentIntersection[0]*rad2deg, self.descentIntersection[1], 'o', color = 'g')
-        ax1.plot(self.lateralIntersection[0]*rad2deg, self.lateralIntersection[1], 'o', color = 'orange')
-        ax1.plot(self.riskPoint3[0]*rad2deg, self.riskPoint3[1], 'o', color = 'orange')
-        ax1.plot(self.riskPoint[0]*rad2deg, self.riskPoint[1], 'o', color = 'b')
-        ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
-        ax1.plot(self.riskPoint2[0]*rad2deg, self.riskPoint2[1], 'o', color = 'g')
-        ax1.plot(self.riskPoint3[0]*rad2deg, self.riskPoint3[1], 'o', color = 'orange')
-        ax1.legend(('ρ + tan α','|ρ - tan α|','((ρ + tan α)|ρ - tan α|)^.5','$R_a$','$R_d$','$R_l$','Block Risk Line', 
-                    'Pitch Risk Line','Roll Risk Line','Ascent Bezier points', 'Descent Bezier points', 'Lateral Bezier points'))
-        ax1.set_xlim([0.0, 30.0])
-        ax1.set_ylim([0.0, self.risk_gain])
-        ax1.set_xlabel('Steepness [degrees]')
-        ax1.set_ylabel('R')
+#        ax1.plot(steepnessArray*rad2deg, blockRiskFunction, linestyle = 'dotted', color = 'y')
+#        ax1.plot(steepnessArray*rad2deg, pitchRiskFunction, linestyle = 'dotted', color = 'r')
+#        ax1.plot(steepnessArray*rad2deg, rollRiskFunction, linestyle = 'dotted', color = 'm')
+#        ax1.plot(self.ascentBezierPoint_initial[0]*rad2deg,
+#                 self.ascentBezierPoint_initial[1], 'o', color = 'b')
+#        ax1.plot(self.descentBezierPoint_initial[0]*rad2deg,
+#                 self.descentBezierPoint_initial[1], 'o', color = 'g')
+#        ax1.plot(self.lateralBezierPoint_initial[0]*rad2deg,
+#                 self.lateralBezierPoint_initial[1], 'o', color = 'orange')
+#        ax1.plot(self.ascentBezierPoint_intersection1[0]*rad2deg,
+#                 self.ascentBezierPoint_intersection1[1], 'o', color = 'b')
+#        ax1.plot(self.ascentBezierPoint_intersection2[0]*rad2deg,
+#                 self.ascentBezierPoint_intersection2[1], 'o', color = 'b')
+#        ax1.plot(self.descentBezierPoint_intersection1[0]*rad2deg,
+#                 self.descentBezierPoint_intersection1[1], 'o', color = 'g')
+#        ax1.plot(self.descentBezierPoint_intersection2[0]*rad2deg,
+#                 self.descentBezierPoint_intersection2[1], 'o', color = 'g')
+#        ax1.plot(self.lateralBezierPoint_intersection1[0]*rad2deg,
+#                 self.lateralBezierPoint_intersection1[1], 'o', color = 'orange')
+#        ax1.plot(self.lateralBezierPoint_intersection2[0]*rad2deg,
+#                 self.lateralBezierPoint_intersection2[1], 'o', color = 'orange')
+#        ax1.plot(self.lateralBezierPoint_risk[0]*rad2deg,
+#                 self.lateralBezierPoint_risk[1], 'o', color = 'orange')
+#        ax1.plot(self.ascentBezierPoint_risk[0]*rad2deg,
+#                 self.ascentBezierPoint_risk[1], 'o', color = 'b')
+#        ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
+#        ax1.plot(self.descentBezierPoint_risk[0]*rad2deg, 
+#                 self.ascentBezierPoint_risk[1], 'o', color = 'g')
+        ax1.legend(('ρ + tan α','|ρ - tan α|','ρ cos α','$R_a/ν_∥$','$R_d/ν_∥$','$R_l/ν_⟂$(1 + 1/ρ tan α)'))
+        ax1.set_xlim([0.0, 35.0])
+        ax1.set_ylim([0.0, self.getCa(35.0)])
+        ax1.set_xlabel('Steepness α [degrees]')
+        ax1.set_ylabel('Cost [Ws/m]')
+        plt.style.use('default')
+    def showCAMIS(self,limAngle):
         
-    def showCAMIS(self):
-        
-        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
+        linearGradient = np.linspace(0,limAngle,limAngle+1)
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0]
         
@@ -870,23 +1015,21 @@ class CamisDrivingModel:
         Cl2 = np.zeros_like(linearGradient)
          
         for i,g in enumerate(linearGradient):
-            Cd[i] = self.getCd(linearGradient[i])
-            Ca[i] = self.getCa(linearGradient[i])
-            Cl1[i] = self.getCl(linearGradient[i])
-            Cl2[i] = self.getCl(linearGradient[i])
+            Cd[i] = np.min((self.limit_cost, self.getCd(linearGradient[i])))
+            Ca[i] = np.min((self.limit_cost, self.getCa(linearGradient[i])))
+            Cl1[i] = np.min((self.limit_cost, self.getCl(linearGradient[i])))
+            Cl2[i] = np.min((self.limit_cost, self.getCl(linearGradient[i])))
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Xs.append(B[0]*preCost)
                 Ys.append(B[1]*preCost)
-            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.slopeThreshold))
+            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.limit_angle_deg))
             Xs = []
             Ys = []
-            
-        CMax = np.max((Ca[-1],Cl1[-1]))
         
-        axes3.set_xlim(-CMax,CMax)
-        axes3.set_ylim(-CMax,CMax)
+        axes3.set_xlim(-self.limit_cost,self.limit_cost)
+        axes3.set_ylim(-self.limit_cost,self.limit_cost)
         axes3.set_zlim(0,1.2*linearGradient[-1])
         axes3.set_xlabel('Parallel Cost',fontsize='medium')
         axes3.set_ylabel('Perpendicular Cost',fontsize='medium')
@@ -897,7 +1040,7 @@ class CamisDrivingModel:
         axes3.view_init(elev=30, azim=-50)
         axes3.tick_params(axis="x",direction="in", pad=-6)
         axes3.tick_params(axis="y",direction="in", pad=-6)
-        axes3.set_aspect('equal')
+#        axes3.set_aspect('equal')
         axes3.dist = 7
         for spine in axes3.spines.values():
             spine.set_visible(False)
@@ -917,8 +1060,8 @@ class CamisDrivingModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
                 Ps.append(1/preCost)
-            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
-            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
+            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
+            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
             Cs = []
             Ps = []
             Bs = []
@@ -974,225 +1117,4 @@ class CamisDrivingModel:
         labs = [l.get_label() for l in lns]
         ax3.legend(lns, labs, fontsize='small',\
             loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
-        fig.tight_layout()
-        
-        
-        
-
-class CamisModel:
-    def __init__(self, robot_data):
-        self.slopeThreshold = robot_data['slope_threshold']
-        self.sdThreshold = robot_data['sd_threshold']
-        self.occupancy_radius = robot_data['occupancy_radius']
-        self.tracking_error = robot_data['tracking_error']
-        self.cdRoots = robot_data['cdRoots']
-        self.caRoots = robot_data['caRoots']
-        self.cl1Roots = robot_data['cl1Roots']
-        self.cl2Roots = robot_data['cl2Roots']
-        self.anicoLUT = computeAniCoLUT(self.cdRoots, self.caRoots, \
-                                        self.cl1Roots, self.cl2Roots,\
-                                        self.slopeThreshold)
-    
-    @classmethod
-    def fromFile(cls, camis_file):
-        return cls(*readCamis(camis_file))
-    
-    @classmethod
-    def fromRoots(cls, cdRoots, caRoots, cl1Roots, cl2Roots, slopeThreshold):
-        anicoLUT = computeAniCoLUT(cdRoots, caRoots, cl1Roots, cl2Roots,\
-                                        slopeThreshold)
-        return cls(cdRoots, caRoots, cl1Roots, cl2Roots, anicoLUT)
-    
-    def getCost(self, slope, aspect, heading):
-        beta = computeBeta(aspect,heading)
-        Cd = dirCost(slope, self.cdRoots)
-        Ca = dirCost(slope, self.caRoots)
-        Cl1 = dirCost(slope, self.cl1Roots)
-        Cl2 = dirCost(slope, self.cl2Roots)
-        Q1 = ((Ca+Cd)/2)**2
-        Q2 = ((Cl1+Cl2)/2)**2
-        D1 =  (Ca-Cd)/2
-        D2 = (Cl2-Cl1)/2
-        return getCAMIScost(beta,Q1,Q2,D1,D2)
-    
-    def getIsoCost(self, slope):
-        Cd = dirCost(slope, self.cdRoots)
-        Ca = dirCost(slope, self.caRoots)
-        Cl1 = dirCost(slope, self.cl1Roots)
-        Cl2 = dirCost(slope, self.cl2Roots)
-        return np.sqrt((Ca+Cd)*(Cl1+Cl2)/4)
-    
-    def getMaxCost(self):
-        return np.max((dirCost(self.slopeThreshold, self.caRoots),\
-                       dirCost(self.slopeThreshold, self.cl1Roots),\
-                       dirCost(self.slopeThreshold, self.cl2Roots),\
-                       dirCost(self.slopeThreshold, self.cdRoots)))
-        
-    def printSlopeThreshold(self):
-        print("The slope threshold is " + str(self.slopeThreshold) \
-              + " degrees")
-    def printCostRoots(self):
-        print("Descent Cost Roots:   " + ''.join(str(c)+" " for c in \
-                                               self.cdRoots))
-        print("Ascent Cost Roots:    " + ''.join(str(c)+" " for c in \
-                                               self.caRoots))
-        print("Lateral 1 Cost Roots: " + ''.join(str(c)+" " for c in \
-                                               self.cl1Roots))
-        print("Lateral 2 Cost Roots: " + ''.join(str(c)+" " for c in \
-                                               self.cl2Roots))
-    def printAnicoLUT(self):
-        print("Linear Gradient Array is:  " + ''.join(str(c)+" " for c in \
-                                               self.anicoLUT[:][0]))
-        print("Anisotropy Array is:       " + ''.join(str(c)+" " for c in \
-                                               self.anicoLUT[:][1]))
-    def showCAMIS(self):
-        linearGradient = np.linspace(0,self.slopeThreshold,self.slopeThreshold+1)
-        heading = np.arange(0, 2*np.pi, 0.01)
-        aspect = [1,0]
-        
-        plt.rcParams["font.family"] = "Constantia"
-        plt.rcParams['mathtext.fontset'] = 'cm'
-        plt.rcParams['mathtext.rm'] = 'serif'
-        
-        Cd = dirCost(linearGradient, self.cdRoots)
-        Ca = dirCost(linearGradient, self.caRoots)
-        Cl1 = dirCost(linearGradient, self.cl1Roots)
-        Cl2 = dirCost(linearGradient, self.cl2Roots)
-    
-        CMax = max(Ca[-2],Cl1[-2])
-        CMax = max(CMax,Cl2[-2])
-        
-        fig = plt.figure()
-        
-        ax3 = fig.add_subplot(223)
-        sqrtQ1 = np.zeros_like(linearGradient)
-        sqrtQ2 = np.zeros_like(linearGradient)
-        D1 = np.zeros_like(linearGradient)
-        D2 = np.zeros_like(linearGradient)
-        Cn = np.zeros_like(linearGradient)
-        for i,g in enumerate(linearGradient):
-            sqrtQ1[i] = (Ca[i]+Cd[i])/2
-            sqrtQ2[i] = (Cl2[i]+Cl1[i])/2
-            D1[i] = (Ca[i]-Cd[i])/2
-            D2[i] = (Cl2[i]-Cl1[i])/2
-#            Cn[i] = math.sqrt((Ca[i]+Cd[i])*(Cl1[i]+Cl2[i])/4)
-        l1 = ax3.plot(linearGradient,sqrtQ1,color='b', label = '$K_∥$')
-        l2 = ax3.plot(linearGradient,sqrtQ2,color='g', label = '$K_⊥$')
-        l3 = ax3.plot(linearGradient,D1,color='m', label = '$D_∥$')
-        l4 = ax3.plot(linearGradient,D2,color='y', label = '$D_⊥$')
-        l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C_a$')
-        l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C_d$')
-        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C_{l1}$')
-        l8 = ax3.plot(linearGradient,Cl2,color='y', linestyle='dashed', label = '$C_{l2}$')
-#        box = ax3.get_position()
-#        ax3.set_position([box.x0, box.y0, box.width * 0.5, box.height])
-        
-        plt.ylabel('Cost [As/m]')
-        plt.xlabel('Slope Gradient [degrees]')
-        plt.grid('True')
-        Bs = []
-        Cs = []
-        Anisotropy = np.zeros_like(linearGradient)
-        for i,g in enumerate(linearGradient):
-            for theta in heading:
-                B = computeBeta(aspect,theta)
-                Bs.append(np.arctan2(B[1],B[0]))
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-                Cs.append(preCost)
-            Anisotropy[i] = max(Cs)/min(Cs)
-            Cn[i] = .5*math.sqrt((Ca[i]*Cd[i]*(Cl1[i]**2+Cl2[i]**2)+Cl1[i]*Cl2[i]*(Ca[i]**2+Cd[i]**2))/math.sqrt(Cd[i]*Ca[i]*Cl1[i]*Cl2[i]))/Cd[0]
-            Cs = []
-            Bs = []
-        ax3b = ax3.twinx()
-        l9 = ax3b.plot(linearGradient,Anisotropy,color='r', label = '$ϒ$')
-        l10 = ax3b.plot(linearGradient,Cn,color='r', linestyle='dashed', label = '$C_n/C_o$')
-        ax3b.set_ylabel('Ratio', color='r')
-        ax3b.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
-        ax3b.tick_params('y', colors='r')
-        lns = l1+l2+l3+l4+l5+l6 + l7 + l8 + l9 + l10
-        labs = [l.get_label() for l in lns]
-        ax3.legend(lns, labs, fontsize='small',\
-            loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
-        fig.tight_layout()
-    
-#            
-        
-        
-        
-        
-        
-        
-        axes3 = fig.add_subplot(221, projection='3d')
-#        cx = np.arange(-CMax, CMax, 1.)
-#        cy = np.arange(-CMax, CMax, 1.)
-#        xx, yy = np.meshgrid(cx, cy)
-#        zz = xx**2 + yy**2
-#        axes3.contour(xx,yy,zz,zdir='z', offset=0, colors = 'k', alpha = .5)
-#        dummyplot = axes3.scatter(linearGradient, linearGradient, linearGradient, c = linearGradient, cmap = plt.cm.jet, s = 0)
-#        axes3.plot(Cd, np.zeros_like(linearGradient), linearGradient, color = 'r')
-#        axes3.plot(-Ca, np.zeros_like(linearGradient), linearGradient, color = 'r')
-#        axes3.plot(np.zeros_like(linearGradient), Cl1, linearGradient, color = 'r')
-#        axes3.plot(np.zeros_like(linearGradient), -Cl2, linearGradient, color = 'r')
-        Xs = []
-        Ys = []
-         
-        for i,g in enumerate(linearGradient):
-            for theta in heading:
-                B = computeBeta(aspect,theta)
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-                Xs.append(B[0]*preCost)
-                Ys.append(B[1]*preCost)
-            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.slopeThreshold))
-            Xs = []
-            Ys = []
-        
-        axes3.set_xlim(-CMax,CMax)
-        axes3.set_ylim(-CMax,CMax)
-        axes3.set_zlim(0,1.2*linearGradient[-1])
-        axes3.set_xlabel('Parallel Cost',fontsize='medium')
-        axes3.set_ylabel('Perpendicular Cost',fontsize='medium')
-        axes3.set_zlabel('Steepness (deg)',fontsize='medium')
-        axes3.xaxis.labelpad=-12
-        axes3.yaxis.labelpad=-12
-        axes3.zaxis.labelpad=-14
-        axes3.view_init(elev=30, azim=-50)
-        axes3.tick_params(axis="x",direction="in", pad=-6)
-        axes3.tick_params(axis="y",direction="in", pad=-6)
-#        axes3.grid(False)
-#        axes3.set_xticks([])
-#        axes3.set_yticks([])
-#        axes3.set_zticks([])
-#        axes3.set_axis_off()
-        
-        
-#        cbar = fig.colorbar(dummyplot,orientation='vertical',shrink=0.5)
-#        cbar.set_label('Steepness')
-        axes3.set_aspect('equal')
-        axes3.dist = 7
-        for spine in axes3.spines.values():
-            spine.set_visible(False)
-#        fig.tight_layout()
-    
-    
-    
-#        ax = fig.add_subplot(1, 1, 1)
-        axes5 = plt.subplot(222, projection='polar')
-        axes6 = plt.subplot(224, projection='polar')
-        axes5.set_facecolor('xkcd:light blue')
-        axes6.set_facecolor('xkcd:light sage')
-        Bs = []
-        Ps = []
-        Cs = []
-        for i,g in enumerate(linearGradient):
-            for theta in heading:
-                B = computeBeta(aspect,theta)
-                Bs.append(np.arctan2(B[1],B[0]))
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
-                Cs.append(preCost)
-                Ps.append(1/preCost)
-            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
-            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.slopeThreshold))
-            Cs = []
-            Ps = []
-            Bs = []
         fig.tight_layout()

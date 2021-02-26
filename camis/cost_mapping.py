@@ -1,12 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Sep 23 16:56:51 2019
-
-@author: rsanchez
-"""
+#============================CAMIS library=====================================
+#           Continuous Anisotropic Model for Inclined Surfaces
+#          Author: J. Ricardo Sanchez Ibanez (ricardosan@uma.es)
+# -----------------------------------------------------------------------------
+#                           cost_mapping.py
+#   This file contains a library of python functions dedicated to the 
+#==============================================================================
 
 import numpy as np
 import math
+import sys
 try:
     import matplotlib
     import matplotlib.pyplot as plt
@@ -20,6 +22,7 @@ try:
     import scipy.interpolate as interp
     from scipy import signal
     from scipy import ndimage
+    import scipy.linalg
 except:
     raise ImportError('ERROR: scipy module could not be imported')
 
@@ -43,9 +46,13 @@ rad2deg = 180/np.pi
 
 
 # Proccessed DEM
-class PDEM:
-    def __init__(self, DEM, demRes, planRes, offset):
+class AnisotropicMap:
+    def __init__(self, DEM, demRes, planRes, offset, occupancy_radius, tracking_error):
+        init = time()
         self.elevationMap = DEM
+        self.nx = np.zeros_like(self.elevationMap)
+        self.ny = np.zeros_like(self.elevationMap)
+        self.nz = np.zeros_like(self.elevationMap)
         self.size = DEM.shape
         xMap, yMap = \
           np.meshgrid(np.linspace(0,self.size[1]-1,self.size[1]), \
@@ -55,80 +62,36 @@ class PDEM:
         self.demRes = demRes
         self.planRes = planRes
         self.offset = offset
-        self.computeSlope()
-        self.computeLaplacian()
-        self.maxSlope = np.max(self.slopeMap)
         self.xMin = self.xMap[0][0]
         self.yMin = self.yMap[0][0]
         self.proximityMap = np.ones_like(xMap)*np.inf
-        self.rawElevationMap = self.elevationMap
-        self.rawSlopeMap = self.slopeMap
-    
-    def computeSlope(self):
-        self.gradientY, self.gradientX = np.gradient(self.elevationMap,\
-                                                     self.demRes,\
-                                                     self.demRes)
-        self.gradientMap = np.sqrt(self.gradientX**2+self.gradientY**2)
-        self.slopeMap = np.arctan(self.gradientMap)
-        self.aspectMap = np.arctan2(self.gradientY,self.gradientX)+np.pi
-        self.aspectX = np.cos(self.aspectMap)
-        self.aspectY = np.sin(self.aspectMap)
-        
-    def computeLaplacian(self):
-        self.laplacianY, self.laplacianX = np.gradient(self.gradientMap,\
-                                                     self.demRes,\
-                                                     self.demRes)
-        self.laplacianMap = self.laplacianX + self.laplacianY
-    
-    def getBeta(self, xPos, yPos, heading):
-        slope = []
-        beta = []
-        for index, waypoint in enumerate(xPos):
-            try:
-                aspectX = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectX)
-                aspectY = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectY)
-            except:
-                print('ERROR')
-            aspect = np.arctan2(aspectY,aspectX)
-            slope.append(ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.slopeMap))
-            b = np.arccos(np.cos(heading[index])*np.cos(aspect)+np.sin(heading[index])*np.sin(aspect))
-            crossDirection = np.sin(heading[index])*np.cos(aspect)-np.cos(heading[index])*np.sin(aspect)
-            if crossDirection >= 0.:
-                beta.append(b)
-            else:
-                beta.append(-b)
-        return slope,beta
-    def getSD(self, xPos, yPos):
-        sd = []
-        for index, waypoint in enumerate(xPos):
-            try:
-                sd.append(ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.sdMap))
-            except:
-                print('ERROR')
-        return sd    
+        self.computeHexGrid()
+        print('Anisotropic Map created in ' + str(time()-init))
+        init = time()   
+        self.occupancy_radius = occupancy_radius
+        self.tracking_error = tracking_error
+        self.computeOccupancyMatrix()
+        print('Elapsed time to compute the Occupancy Matrix: '+str(time()-init)) 
+        init = time()   
+        self.computeHexXYPoints()
+        print('Elapsed time to compute the hexXY flattening: '+str(time()-init)) 
+        init = time() 
+        self.computeHexElevationMap()
+        print('Elapsed time to compute the Hex Elevation Map: '+str(time()-init)) 
+        init = time() 
+        self.computeHexSlopeMap()
+        print('Elapsed time to compute the Hex Slope Map: '+str(time()-init)) 
+      
     def show3dDEM(self):
-#        ls = LightSource(40, 60)
-#        rgb = ls.shade(self.elevationMap, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
-#        fig = plt.figure()
-#        ax = fig.add_subplot(111, projection='3d')
-#        ax.set_aspect('equal')
-#        ax.plot_surface(self.xMap, self.yMap, self.elevationMap, rstride=1, cstride=1, facecolors=rgb,
-#                       linewidth=0, antialiased=False, shade=False)
-#        max_range = np.array([self.xMap.max()-self.xMap.min(), 
-#                              self.yMap.max()-self.yMap.min(), 
-#                              self.elevationMap.max()-self.elevationMap.min()]).max() / 2.0
-#        mid_x = (self.xMap.max()+self.xMap.min()) * 0.5
-#        mid_y = (self.yMap.max()+self.yMap.min()) * 0.5
-#        mid_z = (self.elevationMap.max()+self.elevationMap.min()) * 0.5
-#        ax.set_xlim(mid_x - max_range, mid_x + max_range)
-#        ax.set_ylim(mid_y - max_range, mid_y + max_range)
-#        ax.set_zlim(self.elevationMap.min(),self.elevationMap.min()+ 2*max_range)
-#        ax.auto_scale_xyz([self.xMap.min(), self.xMap.max()], [self.yMap.min(), self.yMap.max()], [self.elevationMap.min(), self.elevationMap.max()])
         if isMayavi:
-            mlab.figure(size=(800, 640),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
-            mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.elevationMap), colormap='gist_earth')
-            mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
-                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,50,0,100,0,15))
+            mlab.figure(size=(800, 400),bgcolor=(1,1,1), fgcolor=(0.,0.,0.))
+            mlab.mesh(np.rot90(self.xMap), np.rot90(self.yMap), np.rot90(self.processedElevationMap), colormap='gist_earth')
+            axes = mlab.axes(x_axis_visibility = True, y_axis_visibility = True, color = (0,0,0), 
+                      xlabel = 'X-axis [m]', ylabel = 'Y-axis [m]', zlabel = 'Z-axis [m]', extent = (0,25,0,80,53,57))
+            axes.label_text_property.font_family = 'times'
+            axes.label_text_property.font_size = 10
+            axes.axes.label_format='%.1f'
+            axes.axes.axis_label_text_property.bold = 0
 #            mlab.view(-59, 58, 1773, [-.5, -.5, 512])
         else:
             raise ImportError('show3dDEM: Mayavi is not available')
@@ -139,144 +102,81 @@ class PDEM:
 #            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
             cbar = fig.colorbar(cc)
             cbar.set_label('Elevation (m)')
-        if   opt == 'raw-elevation':
-#            levels = np.linspace(47.0,55.0,25)
-#            cc = axes.contourf(self.xMap, self.yMap, self.oldElevationMap, levels=levels, cmap = cm.gist_earth, extend='both')
-            cc = axes.contourf(self.xMap, self.yMap, self.rawElevationMap, 50, cmap = cm.gist_earth, extend='both')
-            axes.contour(self.xMap, self.yMap, self.rawElevationMap, 50, colors = 'k', alpha=.3)
-#            cc.set_clim(47.0,55.0)
+        elif opt == 'conv-slope':
+#            cc = axes.contourf(self.xMap, self.yMap, 180/3.1416*np.arccos(self.nz), 50, cmap="nipy_spectral")
+            cc = axes.contourf(self.xMap, self.yMap, self.aspectY, 50, cmap = cm.gist_earth, extend='both')
+#            axes.contour(self.xMap, self.yMap, 180/3.1416*np.arccos(self.nz), 10, colors = 'k', alpha=.3)
+#            cc.set_clim(0,30.0)
+#            cbar = fig.colorbar(cc, orientation="horizontal",fraction=0.046, pad=0.04)
             cbar = fig.colorbar(cc)
-            cbar.set_label('Height (m)')
-        if   opt == 'elevation-contour':
-            cc = axes.contourf(self.xMap, self.yMap, self.elevationMap, 100, cmap = cm.gist_earth)
-            axes.contour(self.xMap, self.yMap, self.elevationMap, 100, colors = 'k', alpha=.3)
-        elif opt == 'slope-rad':
-            cc = axes.contourf(self.xMap, self.yMap, self.slopeMap, 100, cmap = 'plasma')
-        elif opt == 'slope-cos':
-            levels = np.linspace(0.0,0.5,46)
-            cc = axes.contourf(self.xMap, self.yMap, 1-np.cos(self.slopeMap), levels=levels, cmap = 'nipy_spectral', extend='both')
+            cbar.set_label('Slope')
+        elif opt == 'hex-elevation':
+            cc = axes.contourf(self.hexXmap, self.hexYmap, self.hexElevationMap, 50, cmap = cm.gist_earth, extend='both')
+            axes.contour(self.hexXmap, self.hexYmap, rad2deg*self.hexElevationMap, 20, colors = 'k', alpha=.3)
             cbar = fig.colorbar(cc)
-            cbar.set_label('1 - cos(slope)')
-        elif opt == 'slope-deg':
-            levels = np.linspace(0.0,45,46.0)
-            cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.slopeMap, levels=levels, cmap = 'nipy_spectral', extend='both')
-#            axes.quiver(self.xMap, self.yMap,self.aspectX, self.aspectY,scale = 40)
-#            cc.set_clim(0,45.0)
+            cbar.set_label('Elevation (m)')
+            axes.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+            axes.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+            axes.set_aspect('equal')
+            axes.set_xlabel('X-axis [m]')
+            axes.set_ylabel('Y-axis [m]')
+        elif opt == 'hex-slope':
+            cc = axes.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=20)
+            axes.set_aspect('equal')
             cbar = fig.colorbar(cc)
             cbar.set_label('Slope (deg)')
-        elif opt == 'roughness':
-            cc = axes.contourf(self.xMap, self.yMap, 1-self.roughnessMap/self.occupancyMatrix.sum(), 100, cmap = 'nipy_spectral')
-            cbar = fig.colorbar(cc)
-        elif opt == 'standard-deviation':
-            levels = np.linspace(0.0,45,46.0)
-            cc = axes.contourf(self.xMap, self.yMap, self.sdMap, levels=levels, cmap = 'nipy_spectral', extend='both')
-            cbar = fig.colorbar(cc)
-            cbar.set_label('Standard Deviation (degrees)')
-        elif opt == 'dispersion':
-            levels = np.linspace(0.0,2-2*np.cos(np.pi/8),46)
-            cc = axes.contourf(self.xMap, self.yMap, self.dispersionMap, levels=levels, cmap = 'nipy_spectral', extend='both')
-            cbar = fig.colorbar(cc)
-            cbar.set_label('Vector Dispersion')
-        elif opt == 'old-slope-deg':
-            cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.oldSlopeMap, 100, cmap = 'nipy_spectral')
-            cc.set_clim(0,45.0)
-            cbar = fig.colorbar(cc)
-            cbar.set_label('Steepness (degrees)')
-#            axes.quiver(self.xMap, self.yMap,self.normalX, self.normalY,scale = 40)
-        elif opt == 'aspect-rad':
-            cc = axes.contourf(self.xMap, self.yMap, self.aspectMap, 20,cmap = 'hsv')
-            cc.set_clim(0,2*np.pi)
-        elif opt == 'aspect-deg':
-            cc = axes.contourf(self.xMap, self.yMap, rad2deg*self.aspectMap, 20,cmap = 'hsv')
-            cc.set_clim(0,360)
-        elif opt == 'laplacian':
-            cc = axes.contourf(self.xMap, self.yMap, self.laplacianMap, 100, cmap = 'plasma')
-        elif opt == 'laplacian-abs':
-            cc = axes.contourf(self.xMap, self.yMap, np.abs(self.laplacianMap), 100, cmap = 'nipy_spectral')
-            cc.set_clim(0,5.0)
+            axes.set_aspect('equal')
+            axes.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+            axes.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+            axes.set_xlabel('X-axis [m]')
+            axes.set_ylabel('Y-axis [m]')
+            plt.show()
         elif opt == 'proximity':
             cc = axes.contourf(self.xMap, self.yMap, self.proximityMap, 100, cmap = 'nipy_spectral')
             cc.set_clim(0,5.0)
             cbar = fig.colorbar(cc)
             cbar.set_label('Proximity to obstacles (m)')
+        else:
+            raise ValueError(opt + ' is not a valid option')
         axes.set_aspect('equal')
         plt.show()
+#    @classmethod
+#    def from_pdem(cls, parentPdem, costModel):
+#        return cls(parentPdem.elevationMap, parentPdem.demRes,\
+#                   parentPdem.planRes, parentPdem.offset, costModel)
 
 
-
-class AnisotropicMap(PDEM):
-    @classmethod
-    def from_pdem(cls, parentPdem, costModel):
-        return cls(parentPdem.elevationMap, parentPdem.demRes,\
-                   parentPdem.planRes, parentPdem.offset, costModel)
-    
-    def __init__(self, DEM, demRes, planRes, offset):
-        init = time()
-        super().__init__(DEM, demRes, planRes, offset)
-        self.computeHexGrid()
-        print('Hexagonal Grid created in ' + str(time()-init))
-        
     def computeOccupancyMatrix(self):
-        radius = self.costModel.occupancy_radius + \
-                 self.costModel.tracking_error
+        radius = self.occupancy_radius + \
+                 self.tracking_error
+        print('Occupancy radius is: ', radius, ' meters')
         r = int(radius/self.demRes)
         r = r + 1 - r%2
         y,x = np.ogrid[-r: r+1, -r: r+1]
+        print('Occupancy radius in nodes is: ', r, ' meters')
         convMatrix = x**2+y**2 <= r**2
         convMatrix = convMatrix.astype(float)
         self.occupancyMatrix = convMatrix
         self.occupancyMatrixNorm = convMatrix/convMatrix.sum()
         self.radius = radius
         
-    def smoothMap(self):
-        self.elevationMap = ndimage.median_filter(self.elevationMap, footprint=self.occupancyMatrixNorm, mode='nearest')
-        self.elevationMap = signal.convolve2d(self.elevationMap, self.occupancyMatrixNorm, \
-                                      mode='same', boundary='symm')
-        self.computeSlope()
-        
-    def computeRoughness(self):
-        
-        self.normalX = np.cos(self.aspectMap)*np.sin(self.slopeMap)
-        self.normalY = np.sin(self.aspectMap)*np.sin(self.slopeMap)
-        self.normalZ = np.cos(self.slopeMap)
-        
-        
-        sumNormalX = signal.convolve2d(self.normalX, self.occupancyMatrix, \
-                                      mode='same', boundary='symm')
-        sumNormalY = signal.convolve2d(self.normalY, self.occupancyMatrix, \
-                                      mode='same', boundary='symm')
-        sumNormalZ = signal.convolve2d(self.normalZ, self.occupancyMatrix, \
-                                      mode='same', boundary='symm')
-        
-        #Roughness TODO: this is not roughness!! This is vector length!!
-        self.roughnessMap = np.sqrt( sumNormalX**2 + sumNormalY**2 + sumNormalZ**2 )
-        
-        #Standard Deviation
-        self.sdMap = np.sqrt( -2*np.log(self.roughnessMap/self.occupancyMatrix.sum()))*180/np.pi
-        
-        #Dispersion
-        self.dispersionMap = (self.occupancyMatrix.sum()-self.roughnessMap)/(self.occupancyMatrix.sum()-1)
-        
     def computeObstacles(self):
                         
         # We define the forbidden areas
-        obstacleMap = np.zeros_like(self.slopeMap)
+        obstacleMap = np.zeros_like(self.elevationMap)
         obstacleMap[0,:] = 1
         obstacleMap[-1,:] = 1
         obstacleMap[:,0] = 1
         obstacleMap[:,-1] = 1
         
-#        obstacleMap[np.where(self.slopeMap > self.costModel.slopeThreshold*np.pi/180.0)] = 1
         obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, structure = self.occupancyMatrix).astype(obstacleMap.dtype)
         
-#        obstacleMap2 = np.zeros_like(obstacleMap)
-#        
-#        obstacleMap2[np.where(self.sdMap > self.costModel.sdThreshold)] = 1
-#        
-#        obstacleMap[np.where(obstacleMap2 == 1)] = 1
-        
         proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
-        proximityMap = proximityMap*self.demRes              
+        proximityMap = proximityMap*self.demRes 
+        
+        self.hexProximityMap = interp.griddata(self.hexXYpoints, self.proximityMap.flatten(),\
+                                       (self.hexXmap, self.hexYmap), method='nearest')
+        self.hexProximityMap[np.where(np.isnan(self.hexProximityMap))] = 0.0  
         
         self.obstacleMap = obstacleMap
         self.proximityMap = proximityMap
@@ -289,118 +189,179 @@ class AnisotropicMap(PDEM):
         II,JJ = np.meshgrid(np.linspace(0,IMax,IMax+1),np.linspace(0,JMax,JMax+1))
         self.hexXmap = self.xMap[0,0] + self.planRes*(II + .5*JJ) - DY/math.sqrt(3)
         self.hexYmap = self.yMap[0,0] + self.planRes*math.sqrt(3)/2*JJ
-        XX,YY = np.meshgrid(np.linspace(0,np.ceil(DX),np.ceil(DX)+1),np.linspace(0,np.ceil(DY),np.ceil(DY)+1))
+        XX,YY = np.meshgrid(np.linspace(0,int(np.ceil(DX)),int(np.ceil(DX))+1),np.linspace(0,int(np.ceil(DY)),int(np.ceil(DY))+1))
         self.xy2J = 2*YY/(np.sqrt(3)*self.planRes)
         self.xy2I = (DY/np.sqrt(3)+ XX)/self.planRes-0.5*self.xy2J
         
+    def computeHexXYPoints(self):
+        self.hexXYpoints = np.zeros((self.xMap.size,2))
+        self.hexXYpoints[:,0] = self.xMap.flatten()
+        self.hexXYpoints[:,1] = self.yMap.flatten()
+    
+    def computeHexElevationMap(self):
+        processedElevationMap = self.elevationMap
+        #processedElevationMap = ndimage.median_filter(self.elevationMap, \
+         #                                             footprint = \
+          #                                           self.occupancyMatrixNorm,\
+           #                                          mode='nearest')
+        processedElevationMap = signal.convolve2d(processedElevationMap, \
+                                                  self.occupancyMatrixNorm, \
+                                                  mode='same', boundary='symm')
+        self.processedElevationMap = processedElevationMap
+        self.hexElevationMap = interp.griddata(self.hexXYpoints, \
+                                              processedElevationMap.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='cubic')
+        r = int(self.radius/self.demRes)
+        r = np.max((3,r + 1 - r%2))
+        r2 = int((r - 1) / 2)
+        print('Occupancy radius in nodes is: ', r, ' nodes')
+        print('Half occupancy radius in nodes is: ', r2, ' nodes')
+        XX,YY = np.meshgrid(np.linspace(-0.5,0.5,r), np.linspace(-0.5,0.5,r))       
+        Xarray = XX.flatten()
+        Yarray = YY.flatten()
+#        print(Xarray.shape)
+        Zarray = np.zeros_like(Xarray)
+        self.aspectX = np.zeros_like(self.elevationMap)
+        self.aspectY = np.zeros_like(self.elevationMap)
+        self.slope = np.ones_like(self.elevationMap)*np.nan
+        
+        for j in range(r2,processedElevationMap.shape[0] - r2 - 1):
+            for i in range(r2,processedElevationMap.shape[1] - r2 - 1):
+                for l in range(-r2,r2+1):
+                    for k in range(-r2,r2+1):
+                        Zarray[k+r2 + (l+r2)*r] = self.processedElevationMap[j+l][i+k] - self.processedElevationMap[j][i]
+                A = np.c_[Xarray, Yarray, np.ones(Xarray.size)]
+                C,_,_,_ = scipy.linalg.lstsq(A, Zarray)
+#                print(C)
+                self.nx[j][i] = -C[0] / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.ny[j][i] = -C[1] / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.nz[j][i] = 1.0 / np.linalg.norm([-C[0], -C[1], 1.0])
+                self.aspectX[j][i] = self.nx[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
+                self.aspectY[j][i] = self.ny[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
+                self.slope[j][i] = np.abs(np.arccos(self.nz[j][i]))
+                
+                
+                
+                
+#        for j in range(0,processedElevationMap.shape[1]):
+#            for i in range(0,6):
+#                self.nx[j][i] = 1.0
+#                self.ny[j][i] = 0.0
+#                self.slope = 1.57;
+#        for j in range(0,6):
+#            for i in range(0,processedElevationMap.shape[1]):
+#                self.nx[j][i] = 0.0
+#                self.ny[j][i] = 1.0
+#                self.slope = 1.57;
+#        for j in range(0,processedElevationMap.shape[1]):
+#            for i in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
+#                self.nx[j][i] = -1.0
+#                self.ny[j][i] = 0.0
+#                self.slope = 1.57;
+#        for j in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
+#            for i in range(0,processedElevationMap.shape[1]):
+#                self.nx[j][i] = 0.0
+#                self.ny[j][i] = -1.0
+#                self.slope = 1.57;
+#        self.aspectX = self.nx / np.sqrt(self.nx**2 + self.ny**2)
+#        self.aspectY = self.ny / np.sqrt(self.nx**2 + self.ny**2)
+#        self.slope = np.abs(np.arccos(self.nz))
     def computeHexSlopeMap(self):
         hexSlopeMap = np.ones([self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
-        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
-        h = np.sqrt(3)/2.0
-        for i in range(self.hexElevationMap.shape[1]):
-            for j in range(self.hexElevationMap.shape[0]):
-                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
-                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
-                (self.hexYmap[j,i] > self.yMap[0,0]) and \
-                (self.hexYmap[j,i] < self.yMap[-1,-1]):
-#                    Z0 = self.hexElevationMap[j,i]
-                    Z1 = self.hexElevationMap[j,i+1]
-                    Z2 = self.hexElevationMap[j+1,i]
-                    Z3 = self.hexElevationMap[j-1,i-1]
-                    Z4 = self.hexElevationMap[j,i-1]
-                    Z5 = self.hexElevationMap[j-1,i]
-                    Z6 = self.hexElevationMap[j-1,i+1]
-                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
-                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
-                    nn1 = np.cross(n1,n2)
-                    nn1 = nn1/np.linalg.norm(nn1)
-                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
-                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
-                    nn2 = np.cross(n3,n4)
-                    nn2 = nn2/np.linalg.norm(nn2)
-                    
-                    nn = nn1 + nn2
-                    nn = nn/np.linalg.norm(nn)
-                    
-#                    n1 = np.asarray([1.0*self.planRes,0.0*self.planRes,(Z1-Z0)])
-#                    n1 = n1/np.linalg.norm(n1)
-#                    n2 = np.asarray([0.5*self.planRes,h*self.planRes,(Z2-Z0)])
-#                    n2 = n2/np.linalg.norm(n2)
-#                    n3 = np.asarray([-0.5*self.planRes,h*self.planRes,(Z3-Z0)])
-#                    n3 = n3/np.linalg.norm(n3)
-#                    n4 = np.asarray([-1.0*self.planRes,0.0*self.planRes,(Z4-Z0)])
-#                    n4 = n4/np.linalg.norm(n4)
-#                    n5 = np.asarray([-0.5*self.planRes,-h*self.planRes,(Z5-Z0)])
-#                    n5 = n5/np.linalg.norm(n5)
-#                    n6 = np.asarray([0.5*self.planRes,-h*self.planRes,(Z6-Z0)])
-#                    n6 = n6/np.linalg.norm(n6)
-#                    nn = (n1 + n2 + n3 + n4 + n5 + n6)/6.0
-                    aspect = np.arctan2(nn[1],nn[0])
-                    hexAspectMap[0,j,i] = np.cos(aspect)
-                    hexAspectMap[1,j,i] = np.sin(aspect)
-                    hexSlopeMap[j,i] = np.arccos(nn[2])#(nn[2],np.sqrt(nn[0]**2+nn[1]**2))
-        self.hexSlopeMap = np.abs(hexSlopeMap)
-        self.hexAspectMap = hexAspectMap
+#        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+        self.hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
+        hexSlopeMap = np.abs(interp.griddata(self.hexXYpoints, \
+                                              self.slope.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='linear'))
+        hexAspectMapX = interp.griddata(self.hexXYpoints, \
+                                              self.aspectX.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='linear')
+        
+        hexAspectMapY = interp.griddata(self.hexXYpoints, \
+                                              self.aspectY.flatten(),\
+                                              (self.hexXmap, self.hexYmap), \
+                                              method='linear')
+        self.hexSlopeMap = hexSlopeMap
+        self.hexAspectMap[0] = hexAspectMapX / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
+        self.hexAspectMap[1] = hexAspectMapY / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
+#        self.hexAspectMap[0,:,:] = hexAspectMap[0,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
+#        self.hexAspectMap[1,:,:] = hexAspectMap[1,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
+#        h = np.sqrt(3)/2.0
+#        for i in range(1,self.hexElevationMap.shape[1]-2):
+#            for j in range(1,self.hexElevationMap.shape[0]-2):
+#                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
+#                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
+#                (self.hexYmap[j,i] > self.yMap[0,0]) and \
+#                (self.hexYmap[j,i] < self.yMap[-1,-1]):
+#                    Z1 = self.hexElevationMap[j,i+1]
+#                    Z2 = self.hexElevationMap[j+1,i]
+#                    Z3 = self.hexElevationMap[j-1,i-1]
+#                    Z4 = self.hexElevationMap[j,i-1]
+#                    Z5 = self.hexElevationMap[j-1,i]
+#                    Z6 = self.hexElevationMap[j-1,i+1]
+##                    Z1 = self.hexElevationMap[j+1,i+1]
+##                    Z2 = self.hexElevationMap[j+2,i-1]
+##                    Z3 = self.hexElevationMap[j+1,i-2]
+##                    Z4 = self.hexElevationMap[j-1,i-1]
+##                    Z5 = self.hexElevationMap[j-2,i+1]
+##                    Z6 = self.hexElevationMap[j-1,i+2]
+#                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
+#                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
+##                    n1 = np.array([3.0*self.planRes,0.0,Z6-Z4])
+##                    n2 = np.array([1.5*self.planRes,3.0*h*self.planRes,Z2-Z4])
+#                    nn1 = np.cross(n1,n2)
+#                    nn1 = nn1/np.linalg.norm(nn1)
+#                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
+#                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
+##                    n3 = np.array([-3.0*self.planRes,0.0,Z3-Z1])
+##                    n4 = np.array([-1.5*self.planRes,-3.0*h*self.planRes,Z5-Z1])
+#                    nn2 = np.cross(n3,n4)
+#                    nn2 = nn2/np.linalg.norm(nn2)                
+#                    nn = nn1 + nn2
+#                    nn = nn/np.linalg.norm(nn)
+#                    aspect = np.arctan2(nn[1],nn[0])
+#                    hexAspectMap[0,j,i] = np.cos(aspect)
+#                    hexAspectMap[1,j,i] = np.sin(aspect)
+#                    hexSlopeMap[j,i] = np.arccos(nn[2])
+#        self.hexSlopeMap = np.abs(hexSlopeMap)
+#        self.hexAspectMap = hexAspectMap
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel
-        self.computeOccupancyMatrix()
-        self.computeRoughness()
-        self.smoothMap()
+        init = time() 
         self.computeObstacles()
+        print('Elapsed time to compute the Hex Obstacle Map: '+str(time()-init)) 
         
-        points = np.zeros((self.xMap.size,2))
-        points[:,0] = self.xMap.flatten()
-        points[:,1] = self.yMap.flatten()
-        self.hexElevationMap = interp.griddata(points, self.elevationMap.flatten(),\
-                                      (self.hexXmap, self.hexYmap), \
-                                      method='cubic')
-        
-        self.computeHexSlopeMap()
-        init = time()
-#        hexSlopeMap = interp.griddata(points, self.slopeMap.flatten(),\
-#                                      (self.hexXmap, self.hexYmap), \
-#                                      method='nearest')
-#        hexSlopeMap[np.where(self.hexXmap < self.xMap[0,0])] = np.nan
-#        hexSlopeMap[np.where(self.hexXmap > self.xMap[-1,-1])] = np.nan
-#        hexSlopeMap[np.where(self.hexYmap < self.yMap[0,0])] = np.nan
-#        hexSlopeMap[np.where(self.hexYmap > self.yMap[-1,-1])] = np.nan
-        
-        
+        init = time()        
 
         vectorialData = costModel.getVectorialCostMap(rad2deg*self.hexSlopeMap)
         
         print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
         init = time()
         
-#        AspectMap = np.zeros([2,self.hexSlopeMap.shape[0],self.hexSlopeMap.shape[1]])
-#        AspectMap[0] = interp.griddata(points, self.aspectX.flatten(),\
-#                 (self.hexXmap, self.hexYmap), method='nearest')
-#        AspectMap[1] = interp.griddata(points, self.aspectY.flatten(),\
-#                 (self.hexXmap, self.hexYmap), method='nearest')
-        ProximityMap = interp.griddata(points, self.proximityMap.flatten(),\
-                                       (self.hexXmap, self.hexYmap), method='nearest')
-#        AspectMap[0][np.where(np.isnan(hexSlopeMap))] = np.nan
-#        AspectMap[1][np.where(np.isnan(hexSlopeMap))] = np.nan
-        ProximityMap[np.where(np.isnan(self.hexSlopeMap))] = np.nan
-        obstacleMask = ProximityMap == 0.0
+        obstacleMask = self.hexProximityMap <= self.costModel.occupancy_radius + self.costModel.tracking_error + sys.float_info.epsilon
         
         AnisotropyMap = vectorialData[0][:][:]
         AnisotropyMap[obstacleMask] = np.inf
         
         VCMap = np.zeros([4,AnisotropyMap.shape[0],AnisotropyMap.shape[1]])
         
+        Cmax = self.costModel.limit_cost
+        
         Q1 = vectorialData[1][:][:]
-        Q1[np.where(ProximityMap[:]<self.radius)] = 2*self.costModel.getMaxCost()**2
+        Q1[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
         Q1[obstacleMask] = np.inf
         Q2 = vectorialData[2][:][:]
-        Q2[np.where(ProximityMap[:]<self.radius)] = 2*self.costModel.getMaxCost()**2
+        Q2[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
         Q2[obstacleMask] = np.inf
         D1 = vectorialData[3][:][:]
-        D1[np.where(ProximityMap[:]<self.radius)] = 0
+        D1[np.where(self.hexProximityMap[:]<self.radius)] = 0
         D1[obstacleMask] = 0
         D2 = vectorialData[4][:][:]
-        D2[np.where(ProximityMap[:]<self.radius)] = 0
+        D2[np.where(self.hexProximityMap[:]<self.radius)] = 0
         D2[obstacleMask] = 0
         
         VCMap[0] = Q1
@@ -409,8 +370,6 @@ class AnisotropicMap(PDEM):
         VCMap[3] = D2
         
         self.VCMap = VCMap
-#        self.hexSlopeMap = hexSlopeMap
-#        self.hexAspectMap = AspectMap
         self.hexAnisotropyMap = AnisotropyMap
         
         print('Elapsed time to compute the Vectorial Cost Map: '+str(time()-init))
@@ -429,7 +388,8 @@ class AnisotropicMap(PDEM):
         self.Tmap, dirMap, stateMap = \
         ap.computeTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
                        ijGoal, ijStart, self.hexXmap, self.hexYmap, self.planRes)
-        print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
+        elapsedTime = time()-init
+        print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         
         
 #        startWaypoint = IJ2XY[:,start[1],start[0]]
@@ -440,6 +400,7 @@ class AnisotropicMap(PDEM):
         path,uu = ap.getPath(dirMap, IJ2XY, XY2IJ, start, goal, self.xMin, self.yMin, self.planRes)
         self.path = np.asarray(path)
         self.getPathData()
+        return elapsedTime
     
     # Executing BiOUM to compute the path faster
     def executeBiPlanning(self, goal, start):
@@ -452,16 +413,20 @@ class AnisotropicMap(PDEM):
         XY2IJ[1] = self.xy2J
         ijStart = np.round(XY2IJ[:,start[1],start[0]]).astype(int)
         ijGoal = np.round(XY2IJ[:,goal[1],goal[0]]).astype(int)
-        # TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS
-        self.TmapG, self.TmapS, self.dirMapG, self.dirMapS, nodeLink, stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
-        ap.computeBiTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
-                       ijGoal, ijStart, self.hexXmap, self.hexYmap, self.planRes)
-        print('Elapsed time to compute the Total Cost Map: '+str(time()-init))
-        self.linkNode = nodeLink
-        linkCoord = IJ2XY[:,nodeLink[1],nodeLink[0]]
         
-        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, linkCoord, goal, self.xMin, self.yMin, self.planRes)
-        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, linkCoord, start, self.xMin, self.yMin, self.planRes)
+        # TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS
+        self.TmapG, self.TmapS, self.dirMapG, self.dirMapS, nodeLink,\
+        stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
+        ap.computeBiTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
+                       ijGoal, ijStart, self.hexXmap, self.hexYmap,\
+                       self.planRes)
+        elapsedTime = time()-init
+        print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
+        self.linkNode = nodeLink
+        self.linkPos = IJ2XY[:,nodeLink[1],nodeLink[0]]
+        
+        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, self.linkPos, goal, self.xMin, self.yMin, self.planRes)
+        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, self.linkPos, start, self.xMin, self.yMin, self.planRes)
         
         self.IJ2XY = IJ2XY
         self.XY2IJ = XY2IJ
@@ -469,13 +434,33 @@ class AnisotropicMap(PDEM):
         TlinkG = self.TmapG[nodeLink[1],nodeLink[0]]
         TlinkS = self.TmapS[nodeLink[1],nodeLink[0]]
         
+        self.pathS = self.pathS[1:-1]
+        
         self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),np.asarray(self.pathG)))
         self.Tmap = np.zeros_like(self.TmapG)
         self.Tmap[:] = self.TmapG
         self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
         self.Tmap[np.where(self.Tmap < 0.0)] = np.inf
         self.getPathData()
-        self.linkPos = linkCoord
+        self.elapsedTime = elapsedTime
+        return elapsedTime
+        
+    def getBeta(self, xPos, yPos, heading):
+        beta = []
+        for index, waypoint in enumerate(xPos):
+            try:
+                aspectX = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectX)
+                aspectY = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectY)
+            except:
+                print('ERROR')
+            aspect = np.arctan2(aspectY,aspectX)
+            b = np.arccos(np.cos(heading[index])*np.cos(aspect)+np.sin(heading[index])*np.sin(aspect))
+            crossDirection = np.sin(heading[index])*np.cos(aspect)-np.cos(heading[index])*np.sin(aspect)
+            if crossDirection >= 0.:
+                beta.append(b)
+            else:
+                beta.append(-b)
+        return beta
         
     def getPathData(self):
         pathElevation = []
@@ -484,18 +469,16 @@ class AnisotropicMap(PDEM):
         pathAspectY = []
         pathTravDist = []
         pathPitch = []
-        pathRoll = []
         pathHeading = []
         pathAspect = []
-        pathBeta = []
         pathCost = []
+        pathCostwithRisk = []
         pathSegment = []
         pathEstimatedTotalCost = []
         pathComputedTotalCost = []
+        pathComputedTotalCostwithRisk = []
         for index, waypoint in enumerate(self.path):
-            pathElevation.append(ap.interpolatePoint(waypoint,self.elevationMap))
-#            pathSlope.append(ap.interpolatePoint(waypoint,self.slopeMap))
-#            pathAspect.append(np.arctan2(ap.interpolatePoint(waypoint,self.aspectY), ap.interpolatePoint(waypoint,self.aspectX)))
+            pathElevation.append(ap.getTriInterpolation(waypoint,self.hexElevationMap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             pathSlope.append(ap.getTriInterpolation(waypoint,self.hexSlopeMap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             pathAspectX.append(ap.getTriInterpolation(waypoint,self.hexAspectMap[0],self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             pathAspectY.append(ap.getTriInterpolation(waypoint,self.hexAspectMap[1],self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
@@ -510,46 +493,53 @@ class AnisotropicMap(PDEM):
                 pathTravDist.append(pathTravDist[index-1] + np.linalg.norm(A-B))
         for index, waypoint in enumerate(self.path):
             if index == self.path.shape[0]-1:
-                pathPitch.append(np.nan) #Fix this!
-                pathHeading.append(pathHeading[-1])
-                pathSegment.append(0)
+                A = self.path[index] - self.path[index-1]
+                pathHeading.append(np.arctan2(A[1],A[0]))
+                pathSegment.append(np.linalg.norm(A)/2)
             elif index == 0:
-                pathPitch.append(np.nan)
                 A = self.path[index+1] - self.path[index]
-                pathSegment.append(np.linalg.norm(A))
+                pathSegment.append(np.linalg.norm(A)/2)
                 pathHeading.append(np.arctan2(A[1],A[0]))
             else:
-                pathPitch.append((pathElevation[index]-pathElevation[index+1])/(pathTravDist[index+1]-pathTravDist[index]))
-                A = self.path[index+1] - self.path[index]
-                pathSegment.append(np.linalg.norm(A))
-                pathHeading.append(np.arctan2(A[1],A[0]))
-            pathCost.append(self.costModel.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
-#        N = 5
-#        pathPitch = np.convolve(pathPitch, np.ones((N,))/N, mode='same')
-        for index, waypoint in enumerate(self.path):
-            pathRoll.append(np.arccos(np.cos(pathSlope[index])/np.cos(pathPitch[index])))
-            pathBeta.append(np.arccos(np.cos(pathHeading[index])*np.cos(pathAspect[index])+np.sin(pathHeading[index])*np.sin(pathAspect[index])))
-            if np.isnan(pathRoll[index]): #This can happen due to numerical errors
-                pathRoll[index] = 0.0
-            if (index == self.path.shape[0] - 1):
-                print('stop')
+                A1 = self.path[index+1] - self.path[index]
+                A2 = self.path[index] - self.path[index-1]
+                pathSegment.append((np.linalg.norm(A1) + \
+                                    np.linalg.norm(A2))/2)
+                pathHeading.append(np.arctan2(A1[1]+A2[1],A1[0]+A2[0]))
+            pathCost.append(self.costModel.getRawCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
+            pathCostwithRisk.append(self.costModel.getCost(rad2deg*pathSlope[index],pathAspect[index],pathHeading[index]))
             pathEstimatedTotalCost.append(ap.getTriLowest(waypoint,self.Tmap,self.XY2IJ,self.IJ2XY,self.planRes, self.xMin, self.yMin))
             if index == 0:
                 pathComputedTotalCost.append(0)
+                pathComputedTotalCostwithRisk.append(0)
             else:
-                pathComputedTotalCost.append(pathComputedTotalCost[index-1]+0.5*(pathCost[index-1]+pathCost[index])*pathSegment[index-1])
+                pathComputedTotalCost.append(pathComputedTotalCost[index-1] + pathCost[index]*pathSegment[index])
+                pathComputedTotalCostwithRisk.append(pathComputedTotalCostwithRisk[index-1] + pathCostwithRisk[index]*pathSegment[index])
+#                pathComputedTotalCost.append(pathComputedTotalCost[index-1]+0.5*(pathCost[index-1]+pathCost[index])*pathSegment[index-1])
             
+        b = np.arccos(np.cos(pathHeading)*np.cos(pathAspect)+np.sin(pathHeading)*np.sin(pathAspect))
+        crossDirection = np.sin(pathHeading)*np.cos(pathAspect)-np.cos(pathHeading)*np.sin(pathAspect)
+        for i,x in enumerate(b):
+            if crossDirection[i] < 0.0:
+                b[i] = - b[i]
+        
+        pathPitch = np.arccos(np.cos(pathSlope)/np.sqrt(np.cos(b)**2+np.cos(pathSlope)**2*np.sin(b)**2))
+        for i,x in enumerate(pathPitch):
+            if b[i] > np.pi/2 or b[i] < -np.pi/2:
+                pathPitch[i] = - pathPitch[i]
+        self.pathPitch = pathPitch
+        self.pathRoll = np.arccos(np.cos(pathSlope)/np.cos(pathPitch))
         self.pathElevation = pathElevation
         self.pathSlope = pathSlope
         self.pathTravDist = pathTravDist
-        self.pathPitch = pathPitch
-        self.pathRoll = pathRoll
         self.pathAspect = pathAspect
         self.pathHeading = pathHeading
-        self.pathBeta = pathBeta
+        self.pathBeta = b
         self.pathCost = pathCost
+        self.pathCostwithRisk = pathCostwithRisk
         self.pathSegment = pathSegment
         self.pathComputedTotalCost = pathComputedTotalCost
+        self.pathComputedTotalCostwithRisk = pathComputedTotalCostwithRisk
         self.pathEstimatedTotalCost = pathEstimatedTotalCost
         
     def showVecCostMap(self, index):
@@ -571,25 +561,45 @@ class AnisotropicMap(PDEM):
         plt.show()
     def showHexElevationMap(self):
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.hexElevationMap, cmap=cm.gist_earth,s=50)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.hexElevationMap, cmap=cm.gist_earth,s=20)
         cbar = fig.colorbar(cc)
+        cbar.set_label('Elevation (m)')
         ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
     def showHexSlopeMap(self):
         levels = np.linspace(0.0,45,46.0)
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=50)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=20)
         ax.set_aspect('equal')
         
 #        fig, ax = plt.subplots(constrained_layout=True)
 #        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
-        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
+#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
         cbar = fig.colorbar(cc)
         cbar.set_label('Slope (deg)')
         ax.set_aspect('equal')
-#        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
-#        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
+        plt.show()
+    def showHexAspectMap(self):
+        levels = np.linspace(0.0,45.0,46)
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.hexXmap, self.hexYmap, c = rad2deg*np.arctan2(self.hexAspectMap[1],self.hexAspectMap[0]), cmap="hsv",s=20)
+        ax.set_aspect('equal')
+        
+#        fig, ax = plt.subplots(constrained_layout=True)
+#        cc = ax.contourf(self.hexXmap, self.hexYmap, rad2deg*self.hexSlopeMap, levels = levels, cmap = 'nipy_spectral', extend = 'max')
+#        ax.quiver(self.hexXmap, self.hexYmap,self.hexAspectMap[0], self.hexAspectMap[1],scale = 100)
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Aspect (deg)')
+        ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
         plt.show()
@@ -652,9 +662,9 @@ class AnisotropicMap(PDEM):
         plt.show()
         
         fig, ax = plt.subplots()
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathSlope], linestyle='solid')
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathPitch], linestyle='dotted')
-        ax.plot(self.pathTravDist, [x*rad2deg for x in self.pathRoll], linestyle='dashed')
+        ax.plot(self.pathTravDist, np.asarray(self.pathSlope)*rad2deg, linestyle='solid')
+        ax.plot(self.pathTravDist, np.asarray(self.pathPitch)*rad2deg, linestyle='dotted')
+        ax.plot(self.pathTravDist, np.asarray(self.pathRoll)*rad2deg, linestyle='dashed')
         ax.set_aspect('equal')
         ax.legend(('Slope','Pitch','Roll'))
         plt.show()
@@ -677,16 +687,22 @@ class AnisotropicMap(PDEM):
 #        ax.set_title('T Map G')
 #        
         
-    def showPath(self, fig, axes, color, style):
-        axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style)
+    def showPath(self, fig, axes, color, style, alpha=1.0):
+        axes.plot(self.path[:,0],self.path[:,1], color, linestyle=style, alpha = alpha)
 #        axes.scatter(self.linkPos[0], self.linkPos[1], c=color)
         plt.show()
         
     def showPathData(self, opt, fig, axes, color, style):
         if   opt == 'elevation':
             axes.plot(self.pathTravDist, self.pathElevation, color)
+        elif opt == 'segment':
+            axes.plot(self.pathTravDist, self.pathSegment, color, linestyle=style)
         elif opt == 'slope':
             axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathSlope], color, linewidth = 2)
+        elif opt == 'heading':
+            axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathHeading], color, linestyle=style)
+        elif opt == 'beta':
+            axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathBeta], color, linestyle=style)
         elif opt == 'pitch':
             axes.plot(self.pathTravDist, [x*rad2deg for x in self.pathPitch], color)
         elif opt == 'roll':
