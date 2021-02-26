@@ -5,7 +5,7 @@ tracking_error: 0.5
 speed: 1.0
 rolling_resistance_mode: nominal
 friction: 0.6
-kmg: 1.0
+kmg: 9.81
 steepness_brake_margin: 15.0
 slip_ratio_A: 0.04
 slip_ratio_B: 0.07

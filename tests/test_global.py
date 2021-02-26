@@ -69,7 +69,7 @@ plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
 fig, ax1 = plt.subplots(figsize=(3.2, 3.9),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(env.hexXmap, env.hexYmap, c = 180/np.pi*env.hexSlopeMap, 
-                 cmap="nipy_spectral",s=16.0, vmin = 0.0, vmax = 25.0)
+                 cmap="nipy_spectral",s=16.0, vmin = 0.0, vmax = 25.0, rasterized=True)
 cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top', \
                     ticks=[0,5,10,15,20,25])
 #cc.set_clim(0,50.0)
@@ -79,6 +79,7 @@ ax1.set_ylim([0,48.0])
 ax1.set_xlabel('X [m]')
 ax1.set_ylabel('Y [m]')
 ax1.set_aspect('equal')
+plt.savefig('numerical_tests_steepnessMap_reduced.pdf',dpi=300)
 
 
 plt.style.use('default')
@@ -87,7 +88,7 @@ plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
 fig, ax1 = plt.subplots(figsize=(3.2, 3.9),nrows = 1, ncols = 1, constrained_layout=True)
 cc = ax1.scatter(env.hexXmap, env.hexYmap, c = 180/np.pi*np.arctan2(env.hexAspectMap[1],env.hexAspectMap[0]),
-                 cmap="gist_rainbow",s=16.0, vmin = -180.0, vmax = 180.0)
+                 cmap="gist_rainbow",s=16.0, vmin = -180.0, vmax = 180.0, rasterized=True)
 cbar = fig.colorbar(cc, ax=ax1,shrink=0.6, location = 'top', ticks=[-180, -90, 0, 90, 180])
 cbar.set_label('Aspect Angle [deg]')
 ax1.set_xlim([0,48.0])
@@ -95,6 +96,7 @@ ax1.set_ylim([0,48.0])
 ax1.set_xlabel('X [m]')
 ax1.set_ylabel('Y [m]')
 ax1.set_aspect('equal')
+plt.savefig('numerical_tests_aspectMap_reduced.pdf',dpi=300)
 
 
 #cc.set_clim(0,50.0)
@@ -257,14 +259,15 @@ p5 = aniso_05.showModelData('anisotropy',fig,ax,'c','solid',25)
 p6 = aniso_06.showModelData('anisotropy',fig,ax,'lime','solid',25)
 p7, = ax.plot([0], marker='None',
            linestyle='None', label='Wheel Model')
-ax.set_xlabel('Steepness α [degrees]')
-ax.set_ylabel('Anisotropy ϒ',{'family':'DejaVu Sans'})
+ax.set_xlabel('Steepness α [degrees]', fontsize = 12)
+ax.set_ylabel('Anisotropy', fontsize = 12)
+ax.text(-1.8,5.7,'ϒ',{'family':'DejaVu Sans'},rotation = 'vertical', fontsize = 12)
 l1 = ax.legend([p7,p1,p2,p3,p7,p7,p4,p5,p6], [r'$Wheel \ Model$'] + \
                ['$ρ = 0.3$', '$ρ = 0.6$', \
                 '$ρ = 0.9$'] + ['']  + \
                 [r'$Track \ Model$'] + \
                 [r'$ρ = 0.3$', r'$ρ = 0.6$', \
-                r'$ρ = 0.9$'], ncol = 2)
+                r'$ρ = 0.9$'], ncol = 2, fontsize = 10)
 ax.set_xlim([0,25])
 plt.minorticks_on()
 plt.grid(b=True,which='minor', linestyle = '--')
@@ -278,7 +281,8 @@ def plotModels(model, fig, axes,label,modelname):
     model.showModelData('lateral-cost',fig,axes,'g','dashed',25)
     model.showModelData('descent-cost',fig,axes,'b','dashed',25)
     model.showModelData('nominal-cost',fig,axes,'orange','dashed',25)
-    axes.legend((modelname,'$C(α, β = \pm π)$','$C(α, β = \pm π/2)$','$C(α, β = 0)$', '$C_n(α)$'), loc = 2, ncol = 2)
+    axes.legend((modelname,'$C(α, β = \pm π)$','$C(α, β = \pm π/2)$',\
+                 '$C(α, β = 0)$', '$C_n(α)$'), loc = 2, ncol = 2, fontsize = 10)
 #    axes.set_ylabel(label)
 #    axes.text(0.05, 0.35, modelname, horizontalalignment='left', \
 #         verticalalignment='bottom', transform=axes.transAxes, fontsize = 10,\
@@ -319,14 +323,14 @@ for ax in (axes1, axes2, axes3):
     ax[1].grid(True, which='both')
     ax[0].set_xlim([0,25])
     ax[1].set_xlim([0,25])
-    ax[0].set_ylim([0,9.0])
-    ax[1].set_ylim([0,2.8])
-axes1[0].set_title('Wheel Model')
-axes1[1].set_title('Track Model')
-plt.subplots_adjust(left = 0.1, right = 0.99, bottom = 0.075, top = 0.95, \
+#    ax[0].set_ylim([0,9.0])
+    ax[1].set_ylim([0, 25.0])
+axes1[0].set_title('Wheel Model', fontsize = 14)
+axes1[1].set_title('Track Model', fontsize = 14)
+plt.subplots_adjust(left = 0.07, right = 0.99, bottom = 0.075, top = 0.95, \
                     wspace = 0.15, hspace = 0.15)
-fig.text(0.5, 0.0075, 'Steepness α [deg]', ha='center')
-axes2[0].set_ylabel('Energy per meter [J/m]')
+fig.text(0.5, 0.0075, 'Steepness α [deg]', ha='center', fontsize = 14)
+axes2[0].set_ylabel('Energy per Distance [J/m]', fontsize = 14)
 plt.grid(b=True,which='minor', linestyle = '--')
 plt.grid(b=True,which='major', linewidth = 1)
 plt.minorticks_on() 
@@ -478,9 +482,9 @@ plt.style.use('seaborn-darkgrid')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
 plt.rcParams['mathtext.rm'] = 'serif'
-coeffsLabels = ['Wheel Model\n$ρ= 0.3$','Wheel Model\n$ρ = 0.6$',\
-                'Wheel Model\n$ρ = 0.9$','Track Model\n$ρ = 0.3$',\
-                'Track Model\n$ρ = 0.6$','Track Model\n$ρ = 0.9$']
+coeffsLabels = ['Wheel\nModel\n$ρ= 0.3$','Wheel\nModel\n$ρ = 0.6$',\
+                'Wheel\nModel\n$ρ = 0.9$','Track\nModel\n$ρ = 0.3$',\
+                'Track\nModel\n$ρ = 0.6$','Track\nModel\n$ρ = 0.9$']
 anisoTotalCost = [0,0,0,0,0,0]
 isoTotalCost = [0,0,0,0,0,0]
 anisoTR = [0,0]
@@ -505,9 +509,9 @@ for i in range(2):
 
 x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
-width = 0.4  # the width of the bars
+width = 0.48  # the width of the bars
 
-fig, ax = plt.subplots(figsize=(7.5,2.5), constrained_layout=True)
+fig, ax = plt.subplots(figsize=(7,3), constrained_layout=True)
 #rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
 #rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
 rects1 = ax.bar(x - width/2, anisoTotalCost, width, label='Isotropic (ρ = 0.8)', color='r')
@@ -515,27 +519,27 @@ rects2 = ax.bar(x + width/2, isoTotalCost, width, label='Isotropic (ρ = 0.8)', 
 
 for i,rect in enumerate(rects1):
         T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\nAh',
+        ax.annotate('{0:.2f}'.format(T),
                     xy=(rect.get_x() + rect.get_width() / 2, T),
                     xytext=(0, -3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='top',color = 'w')
+                    ha='center', va='top',color = 'w', fontsize = 12)
 for i,rect in enumerate(rects2):
         T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\nAh',
+        ax.annotate('{0:.2f}'.format(T),
                     xy=(rect.get_x() + rect.get_width() / 2, T),
                     xytext=(0, -3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='top',color = 'w')
+                    ha='center', va='top',color = 'w', fontsize = 12)
 for i,rect in enumerate(rects2):
         isoT = rect.get_height()
         anisoT = rects1[i].get_height()
         gain = (isoT - anisoT)/isoT * 100
-        ax.annotate('Gain = ' + '{0:.2f}'.format(gain) + '%',
+        ax.annotate('{0:.2f}'.format(gain) + '%',
                     xy=(rect.get_x(), isoT),
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='bottom')
+                    ha='center', va='bottom', fontsize = 12)
 #for i,rect in enumerate(rects3):
 #        T = rect.get_height()
 #        ax.annotate('{0:.2f}'.format(T) + '\nAh',
@@ -563,16 +567,29 @@ for i,rect in enumerate(rects2):
 ax.grid(True, which='both')   
 #autolabel(rects1)
 #autolabel(rects2)
-ax.set_ylabel('Total Cost [As]')
+ax.set_ylabel('Total Cost [J]', fontsize = 12)
+ax.set_ylim([0,1000])
 #ax.set_xlabel('CAMIS')
 ax.set_xticks(x)
-ax.set_xticklabels(coeffsLabels)
-ax.legend(('Anisotropic','Isotropic'))
+ax.set_xticklabels(coeffsLabels, fontsize = 12)
+ax.legend(('Anisotropic','Isotropic'), fontsize = 12)
 plt.minorticks_on()  
 plt.show()
 
 
 ####3d PATHS###
+XX = np.zeros_like(z)
+YY = np.zeros_like(z)
+for i in range(50):
+    for j in range(50):
+        XX[j,i] = i
+        YY[j,i] = j
+        
+fig = plt.figure()
+ax1 = fig.add_subplot(1, 1, 1)
+cc = ax1.scatter(env.hexXmap, env.hexYmap, c = env.hexElevationMap, \
+                cmap = cm.gist_earth,s=20,vmin = -1.0, vmax = 1.0)
+
 plt.style.use('seaborn-darkgrid')
 plt.rcParams["font.family"] = "Constantia"
 plt.rcParams['mathtext.fontset'] = 'cm'
@@ -582,20 +599,18 @@ ax1 = fig.add_subplot(1, 3, 1, projection='3d')
 ax2 = fig.add_subplot(1, 3, 2, projection='3d')
 ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
-XX = np.zeros_like(z)
-YY = np.zeros_like(z)
-for i in range(50):
-    for j in range(50):
-        XX[j,i] = i
-        YY[j,i] = j
+
 ls = LightSource(270, 45)
 rgb = ls.shade(z, cmap=cm.gist_earth, vert_exag=0.1, blend_mode='soft')
 surf1 = ax1.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
-                       linewidth=0, antialiased=False, shade=False)
+                       linewidth=0, antialiased=False, shade=False,\
+                       vmin = -1.0, vmax = 1.0, rasterized=True)
 surf2 = ax2.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
-                       linewidth=0, antialiased=False, shade=False)
+                       linewidth=0, antialiased=False, shade=False,\
+                       vmin = -1.0, vmax = 1.0, rasterized=True)
 surf3 = ax3.plot_surface(XX,YY,z, rstride=1, cstride=1, facecolors=rgb,\
-                       linewidth=0, antialiased=False, shade=False)
+                       linewidth=0, antialiased=False, shade=False,\
+                       vmin = -1.0, vmax = 1.0, rasterized=True)
 ax1.plot(env_CUAD01_scene01[0].path[:,0], env_CUAD01_scene01[0].path[:,1], \
         env_CUAD01_scene01[0].pathElevation,linestyle='dashed',color = 'r')
 ax1.plot(env_CUAD02_scene01[0].path[:,0], env_CUAD02_scene01[0].path[:,1], \
@@ -674,36 +689,44 @@ ax1.text(posB[0],posB[1],0.2,'$X_g$',color='w', size=15)
 ax2.text(posB[0],posB[1],0.2,'$X_g$',color='w', size=15)
 ax3.text(posB[0],posB[1],0.2,'$X_g$',color='w', size=15)
 
+ax1.text(50,35,0.8,'$Anisotropic$\n $X_o \Rightarrow X_g$',color='k', size=14)
+ax2.text(50,35,0.8,'$Anisotropic$\n $X_g \Rightarrow X_o$',color='k', size=14)
+ax3.text(50,35,0.8,'$Isotropic$\n $Both \ ways$',color='k', size=14)
+
+
 fig.tight_layout()
 plt.subplots_adjust(left = 0.01, right = 1.0, bottom = 0.0, top = 1.0, \
                     wspace = 0.0, hspace = 0.0)
-cbar_ax = fig.add_axes([0.3, 0.1, 0.1, 0.05])
-legend_ax1 = fig.add_axes([0.1, 0.9, 0.3, 0.1])
-legend_ax2 = fig.add_axes([0.1, 0.9, 0.6, 0.1])
+cbar_ax = fig.add_axes([0.01, 0.05, 0.15, 0.025])
+legend_ax1 = fig.add_axes([0.1, 0.18, 0.3, 0.1])
+legend_ax2 = fig.add_axes([0.1, 0.18, 0.63, 0.1])
 legend_ax1.plot(0,0, alpha = 0, label = '$\mathbf{Wheel \ Model}$')
 legend_ax1.plot(0,0,'r', linestyle = 'dashed', label='$ρ = 0.3$')
 legend_ax1.plot(0,0,'m', linestyle = 'dashed', label='$ρ = 0.6$')
 legend_ax1.plot(0,0,'orange', linestyle = 'dashed', label='$ρ = 0.9$')
 legend_ax1.grid(b=False)
 legend_ax1.axis('off')
-legend_ax1.legend()
+legend_ax1.legend(fontsize=12)
 legend_ax2.plot(0,0, alpha = 0, label = '$\mathbf{Track \ Model}$')
 legend_ax2.plot(0,0,'b', linestyle = 'dashed', label='$ρ = 0.3$')
 legend_ax2.plot(0,0,'c', linestyle = 'dashed', label='$ρ = 0.6$')
 legend_ax2.plot(0,0,'lime', linestyle = 'dashed', label='$ρ = 0.9$')
 legend_ax2.grid(b=False)
 legend_ax2.axis('off')
-legend_ax2.legend()
+legend_ax2.legend(fontsize=12)
 #plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
 #plt.grid(b=False)
 #plt.axis('off')
 cbar = fig.colorbar(cc, cax=cbar_ax, orientation = 'horizontal')
-cbar.set_label('Elevation [m]',color='k')
-#cbar.ax.tick_params(colors='w')
-#cbar.outline.set_edgecolor('w')
-#cbar.ax.yaxis.set_tick_params(color='w')
-
-
+cbar.set_alpha(1.0)
+cbar.set_label('Elevation [m]',color='k', labelpad=-40,x = 0.4,fontsize=14)
+cbar.ax.tick_params(colors='k', size = 2)
+cbar.outline.set_visible(True)
+#cbar.outline.set_edgecolor('k')
+cbar.ax.yaxis.set_tick_params(color='k')
+cbar.set_ticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+#cbar.outline.set_linewidth(0.5)
+plt.savefig('numerical_tests_paths_reduced.pdf',dpi=300)
 #MAX = 6
 #for direction in (-1, 1):
 #    for point in np.diag(direction * MAX * np.array([1,1,1])):
@@ -712,9 +735,9 @@ cbar.set_label('Elevation [m]',color='k')
 
         
 ##### COMPUTATIONAL TIMES ###
-coeffsLabels = ['Wheel Model\n$ρ= 0.3$','Wheel Model\n$ρ = 0.6$',\
-                'Wheel Model\n$ρ = 0.9$','Track Model\n$ρ = 0.3$',\
-                'Track Model\n$ρ = 0.6$','Track Model\n$ρ = 0.9$']
+coeffsLabels = ['Wheel\nModel\n$ρ= 0.3$','Wheel\nModel\n$ρ = 0.6$',\
+                'Wheel\nModel\n$ρ = 0.9$','Track\nModel\n$ρ = 0.3$',\
+                'Track\nModel\n$ρ = 0.6$','Track\nModel\n$ρ = 0.9$']
 anisoTime = [0,0,0,0,0,0]
 isoTime = [0,0,0,0,0,0]
 for i in range(2):
@@ -735,7 +758,7 @@ x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
 width = 0.4  # the width of the bars
 
-fig, ax = plt.subplots(figsize=(7.5,2.5), constrained_layout=True)
+fig, ax = plt.subplots(figsize=(7,3), constrained_layout=True)
 #rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
 #rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
 rects1 = ax.bar(x - width/2, anisoTime, width, label='Isotropic (ρ = 0.8)', color='r')
@@ -743,35 +766,36 @@ rects2 = ax.bar(x + width/2, isoTime, width, label='Isotropic (ρ = 0.8)', color
 
 for i,rect in enumerate(rects1):
         T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\ns',
+        ax.annotate('{0:.2f}'.format(T),
                     xy=(rect.get_x() + rect.get_width() / 2, T),
                     xytext=(0, -3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='top',color = 'w')
+                    ha='center', va='top',color = 'w', fontsize = 12)
 for i,rect in enumerate(rects2):
         T = rect.get_height()
-        ax.annotate('{0:.2f}'.format(T) + '\ns',
+        ax.annotate('{0:.2f}'.format(T),
                     xy=(rect.get_x() + rect.get_width() / 2, T),
                     xytext=(0, -3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='top',color = 'w')
+                    ha='center', va='top',color = 'w', fontsize = 12)
 for i,rect in enumerate(rects1):
         anisoT = rect.get_height()
         isoT = rects2[i].get_height()
         gain = (isoT - anisoT)/isoT * 100
-        ax.annotate('Gain = ' + '{0:.2f}'.format(gain) + '%',
-                    xy=(rect.get_x(), anisoT),
+        ax.annotate('{0:.2f}'.format(gain) + '%',
+                    xy=(rects2[i].get_x(), anisoT),
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='bottom')
+                    ha='center', va='bottom', fontsize = 12)
 ax.grid(True, which='both')   
 #autolabel(rects1)
 #autolabel(rects2)
-ax.set_ylabel('Computational Time [s]')
+ax.set_ylabel('Computational Time [s]', fontsize = 12)
 #ax.set_xlabel('CAMIS')
 ax.set_xticks(x)
-ax.set_xticklabels(coeffsLabels)
-ax.legend(('Anisotropic','Isotropic'))
+ax.set_xticklabels(coeffsLabels, fontsize = 12)
+ax.set_ylim([0,40])
+ax.legend(('Anisotropic','Isotropic'), fontsize = 12)
 plt.minorticks_on()  
 plt.show()
 

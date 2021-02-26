@@ -900,34 +900,36 @@ class CamisDrivingModel:
                 descentRR[i] = self.getRRd(steepness)
         descentFunction = self.friction - np.tan(steepnessArray*deg2rad)*self.kmg
         absoluteFunction = np.abs(self.friction - np.tan(steepnessArray*deg2rad))*self.kmg
-        fig1, ax1 = plt.subplots(figsize=(5, 3),constrained_layout=True)
+        fig1, ax1 = plt.subplots(figsize=(5, 2.4),constrained_layout=True)
         ax1.plot(steepnessArray, descentFunction, linestyle = 'dotted', color = 'g')
         ax1.plot(steepnessArray, absoluteFunction, linestyle = 'dashed', color = 'g')
         ax1.plot(steepnessArray, descentRR, color = 'g')
         ax1.plot(self.brakePoint01[0]*rad2deg, self.brakePoint01[1], 'o', color = 'g')
         ax1.plot(self.brakePoint02[0]*rad2deg, self.brakePoint02[1], 'o', color = 'g')
         ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
-        ax1.set_xlabel('Steepness α [degrees]')
-        ax1.set_ylabel('Energy per meter [J/m]')
-        ax1.legend(('ρ - tan α', '|ρ - tan α|', '$R_b(α)$'))
+        ax1.set_xlabel('Steepness α [degrees]', fontsize = 14)
+        ax1.set_xlim([0,40])
+        ax1.set_ylabel('Energy per meter [J/m]', fontsize = 14)
+        ax1.set_ylim([-0.2,0.5])
+        ax1.legend(('ρ - tan α', '|ρ - tan α|', '$R_b(α)$'), loc = 'lower left')
         ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint[0]*rad2deg, 
                         self.brakePoint[1]),
                     xytext=(15, -8),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='left', va='bottom')
+                    ha='left', va='bottom', fontsize = 12)
         ax1.annotate('$arctan_{ρ} - α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint01[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint01[0]*rad2deg, 
                         self.brakePoint01[1]),
                     xytext=(9, -5),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='left', va='bottom')
+                    ha='left', va='bottom', fontsize = 12)
         ax1.annotate('$arctan_{ρ} + α_{Δ} = $' + '{0:.2f}'.format(self.brakePoint02[0]*rad2deg) + ' degrees',
                     xy=(self.brakePoint02[0]*rad2deg, 
                         self.brakePoint02[1]),
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='right', va='bottom')
+                    ha='right', va='bottom', fontsize = 12)
         plt.minorticks_on()
         plt.grid(b=True,which='minor', linestyle = '--')
         plt.grid(b=True,which='major', linewidth = 1)

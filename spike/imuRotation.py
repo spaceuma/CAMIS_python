@@ -60,7 +60,8 @@ Ximu = []
 Yimu = []
 Zimu = []
 for i,x in enumerate(Roll):
-    rot = R.from_euler('ZYX', [Yaw[i], Pitch[i], Roll[i]], degrees=True)
+    rot = R.from_euler('ZYX', [0, Pitch[i], Roll[i]], degrees=True)
+#    rot = rot.inv()
     Ximu.append(rot.apply(np.array([1, 0, 0]),inverse = False))
     Yimu.append(rot.apply(np.array([0, 1, 0]),inverse = False))
     Zimu.append(rot.apply(np.array([0, 0, 1]),inverse = False))
@@ -89,16 +90,18 @@ ax = fig.gca(projection='3d')
 #ax.quiver(np.zeros(len(Ximu)), np.zeros(len(Ximu)), np.zeros(len(Ximu)), \
 #          vx, vy, vz, arrow_length_ratio = 0.01,alpha=.2)
 ax.quiver(0.0, 0.0, 0.0, \
-          0.0, 0.0, 1.0, arrow_length_ratio = 0.05, color='c',linewidth = 5.0)
+          1.0, 0.0, 0.0, arrow_length_ratio = 0.05, color='r',linewidth = 5.0)
 ax.quiver(0.0, 0.0, 0.0, \
-          0.0, -1.0, 0.0, arrow_length_ratio = 0.05, color='b',linewidth = 5.0)
+          0.0, 1.0, 0.0, arrow_length_ratio = 0.05, color='b',linewidth = 5.0)
+ax.quiver(0.0, 0.0, 0.0, \
+          0.0, 0.0, 1.0, arrow_length_ratio = 0.05, color='g',linewidth = 5.0)
+colors = np.arange(len(Zimu))
 ax.scatter([x[0] for i,x in enumerate(Ximu)],\
            [x[1] for i,x in enumerate(Ximu)],\
-           [x[2] for i,x in enumerate(Ximu)],c='r')
+           [x[2] for i,x in enumerate(Ximu)],c=colors, cmap = 'hsv')
 ax.scatter([x[0] for i,x in enumerate(Yimu)],\
            [x[1] for i,x in enumerate(Yimu)],\
-           [x[2] for i,x in enumerate(Yimu)],c='orange')
-colors = np.arange(len(Zimu))
+           [x[2] for i,x in enumerate(Yimu)],c=colors, cmap = 'hsv')
 ax.scatter([x[0] for i,x in enumerate(Zimu)],\
            [x[1] for i,x in enumerate(Zimu)],\
            [x[2] for i,x in enumerate(Zimu)],c=colors, cmap = 'hsv')
@@ -107,20 +110,34 @@ ax.scatter(0.5,0.5,0.0,c='g',alpha = 0.0)
 ax.scatter(0.0,0.0,1.0,c='g')
 
 
-vx = [x[0] for i,x in enumerate(Zimu)]
-vy = [x[1] for i,x in enumerate(Zimu)]
-vz = [x[2] for i,x in enumerate(Zimu)]
+vx = [x[0] for i,x in enumerate(Ximu)]
+vy = [x[1] for i,x in enumerate(Ximu)]
+vz = [x[2] for i,x in enumerate(Ximu)]
 vx = np.asarray(vx)
 vy = np.asarray(vy)
 vz = np.asarray(vz)
-
 vmean = [statistics.mean(vx),statistics.mean(vy),statistics.mean(vz)]
 vmean = vmean / np.linalg.norm(vmean)
 
-yawMean = np.arctan2(vmean[0],vmean[1])*180.0/3.1416
-pitchMean = np.arccos(vmean[2])*180.0/3.1416
+vpitch = [np.arctan2(x[2],x[0]) for i,x in enumerate(Ximu)]
+pitchMean = statistics.mean(vpitch)*180.0/np.pi
+#pitchMean = np.arctan2(vmean[2],vmean[0])*180.0/np.pi
 
-rotMean = R.from_euler('ZYX', [-yawMean, -pitchMean, 0.0], degrees=True) * R.from_euler('Z', yawMean, degrees=True)
+vx = [x[0] for i,x in enumerate(Yimu)]
+vy = [x[1] for i,x in enumerate(Yimu)]
+vz = [x[2] for i,x in enumerate(Yimu)]
+vx = np.asarray(vx)
+vy = np.asarray(vy)
+vz = np.asarray(vz)
+vmean = [statistics.mean(vx),statistics.mean(vy),statistics.mean(vz)]
+vmean = vmean / np.linalg.norm(vmean)
+rollMean = np.arctan2(vmean[2],vmean[1])*180.0/np.pi
+
+#yawMean = np.arctan2(vmean[0],vmean[1])*180.0/np.pi
+#pitchMean = np.arccos(vmean[2])*180.0/np.pi
+#rollMean = np.arccos(vmean[2]/np.cos(pitchMean*np.pi/180.0))*180.0/np.pi
+#
+#rotMean = R.from_euler('ZYX', [-yawMean, -pitchMean, 0.0], degrees=True) * R.from_euler('Z', yawMean, degrees=True)
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')

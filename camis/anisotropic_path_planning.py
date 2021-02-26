@@ -131,12 +131,14 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
                 d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
                 if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                     nodeLink = nodeTargetG
+                    break
             if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 1:
                 nodeLink = nodeTargetS
                 d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
                 d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
                 if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                     nodeLink = nodeTargetS
+                    break
         elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],nodeLink[0]] == 2:
             break
 #        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
