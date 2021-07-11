@@ -42,6 +42,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import copy
 import statistics
 import scipy.signal
+from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 from scipy.spatial.transform import Rotation as R
 from scipy import interpolate
@@ -644,24 +645,52 @@ plt.subplots_adjust(left = 0.085, right = 0.95, bottom = 0.075, \
 
 deg2rad = np.pi / 180.0
 
+timeArray = []
+costArray = []
+pitchArray = []
+rollArray = []
+
 for i,path in enumerate((path_aniso_A2D, path_aniso_A2D_02,\
                         path_aniso_D2A, path_aniso_D2A_02,\
                         path_aniso_B2C, path_aniso_B2C_02, \
                         path_aniso_C2B, path_aniso_C2B_02)):
-    p1 = rowaxes[(int)(i/2)].plot(path[2], \
-                    path[4], 'c')
+ 
+    p1 = rowaxes[(int)(i/2)].plot(path[2], path[4], 'c', alpha = 0.2)
     rollarray = np.arccos(np.cos((180.0-path[9])*deg2rad)/np.cos(path[4]*deg2rad))*180.0 / np.pi
-    p2 = rowaxes[(int)(i/2)].plot(path[2], \
-                          rollarray, 'r')
-    p7, = rowaxes2[(int)(i/2)].plot(path[2], \
-        path[6]*np.append(0,np.diff(path[2]))/path[7], 'orange')
-
-#for i,path in enumerate((path_iso_A2D, path_iso_A2D_02,\
-#                        path_iso_D2A, path_iso_D2A_02,\
-#                        path_iso_B2C, path_iso_B2C_02, \
-#                        path_iso_C2B, path_iso_C2B_02)):
-#    rowaxes2[(int)(i/2)].plot(path[2], \
-#        path[6]*np.append(0,np.diff(path[2]))/path[7])
+    p2 = rowaxes[(int)(i/2)].plot(path[2], rollarray, 'r', alpha = 0.2)
+    
+    if i%2 == 0:
+        timeArray = path[2]
+        pitchArray = path[4]
+        rollArray = rollarray
+    else:
+        timeArray = np.concatenate((timeArray, path[2]))
+        pitchArray = np.concatenate((pitchArray, path[4]))
+        rollArray = np.concatenate((rollArray, rollarray))
+        sortedPitchArray = [x for _,x in sorted(zip(timeArray,pitchArray))]
+        sortedRollArray = [x for _,x in sorted(zip(timeArray,rollArray))]
+        pitchArrayFiltered = savgol_filter(sortedPitchArray, 51, 3)
+        rollArrayFiltered = savgol_filter(sortedRollArray, 51, 3)
+        p1 = rowaxes[(int)(i/2)].plot(sorted(timeArray), pitchArrayFiltered, 'c')
+        p2 = rowaxes[(int)(i/2)].plot(sorted(timeArray), rollArrayFiltered, 'r')
+    
+    
+    
+    
+    rowaxes2[(int)(i/2)].plot(path[2], \
+        path[6]*np.append(0,np.diff(path[2]))/path[7], 'orange', alpha = 0.2)
+    
+    if i%2 == 0:
+        timeArray = path[2]
+        costArray = path[6]*np.append(0,np.diff(path[2]))/path[7]
+    else:
+#        timeArray = np.concatenate((timeArray, path[2]))
+        costArray = np.concatenate((costArray, path[6]*np.append(0,np.diff(path[2]))/path[7]))
+        sortedCostArray = [x for _,x in sorted(zip(timeArray,costArray))]
+        costArrayFiltered = savgol_filter(sortedCostArray, 51, 3)
+        p7, = rowaxes2[(int)(i/2)].plot(sorted(timeArray), costArrayFiltered, 'orange')
+    #
+    
 
 rowaxes[3].set_xlabel('Elapsed Time [s]')
 rowaxes2[3].set_xlabel('Elapsed Time [s]')
