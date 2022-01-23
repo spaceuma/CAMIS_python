@@ -938,7 +938,7 @@ class CamisDrivingModel:
         ax1.plot(self.brakePoint[0]*rad2deg, self.brakePoint[1], 'o', color = 'g')
         ax1.set_xlabel('Steepness α [degrees]', fontsize = 14)
         ax1.set_xlim([0,40])
-        ax1.set_ylabel('Energy per meter [J/m]', fontsize = 14)
+        ax1.set_ylabel('Energy per distance [As/m]', fontsize = 14)
         ax1.set_ylim([-0.2,0.5])
         ax1.legend(('ρ - tan α', '|ρ - tan α|', '$R_b(α)$'), loc = 'lower left')
         ax1.annotate('$arctan_{ρ} = $' + '{0:.2f}'.format(self.brakePoint[0]*rad2deg) + ' degrees',

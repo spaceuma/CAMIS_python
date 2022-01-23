@@ -478,11 +478,15 @@ class AnisotropicMap:
         beta = []
         for index, waypoint in enumerate(xPos):
             try:
-                aspectX = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectX)
-                aspectY = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.aspectY)
+                aX = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]],self.aspectX)
+                aY = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]],self.aspectY)
             except:
-                print('ERROR')
-            aspect = np.arctan2(aspectY,aspectX)
+                print('ERROR at index ' + str(index))
+                print('X = ' + str(xPos[index]))
+                print('Y = ' + str(yPos[index]))
+                aX = np.nan
+                aY = np.nan
+            aspect = np.arctan2(aY,aX)
             b = np.arccos(np.cos(heading[index])*np.cos(aspect)+np.sin(heading[index])*np.sin(aspect))
             crossDirection = np.sin(heading[index])*np.cos(aspect)-np.cos(heading[index])*np.sin(aspect)
             if crossDirection >= 0.:
@@ -490,6 +494,19 @@ class AnisotropicMap:
             else:
                 beta.append(-b)
         return beta
+    
+    def getSlope(self, xPos, yPos, heading):
+        slope = []
+        for index, waypoint in enumerate(xPos):
+            try:
+                s = ap.interpolatePoint([xPos[index]/self.demRes,yPos[index]/self.demRes],self.slope)
+            except:
+                print('ERROR at index ' + str(index))
+                print('X = ' + str(xPos[index]))
+                print('Y = ' + str(yPos[index]))
+                s = np.nan
+            slope.append(s)
+        return slope
         
     def getPathData(self):
         pathElevation = []
