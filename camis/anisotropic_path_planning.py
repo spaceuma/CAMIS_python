@@ -98,6 +98,9 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     VCmapS[2] = -VCmap[2]
     VCmapS[3] = -VCmap[3]
     
+    #This indicates the max anisotropy of any update the node is involved with
+    maxAnisoMap = np.ones_like(anisotropyMap)
+    
     # State Maps
     #  State -1 = far
     #  State 0 = narrow
@@ -148,11 +151,13 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
             nodeTargetG, nbTG, nbNodesG = getMinNB(nbTG, nbNodesG)
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
             TmapG, nbTG, nbNodesG = updateNeighbours(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res)
+            TmapG, nbTG, nbNodesG = updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
        
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
-            TmapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)   
+            TmapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)  
+            TmapS, nbTS, nbNodesS = updateTNarrowBand(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
 
         if len(nodeLink) == 0:
             if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:        
@@ -180,6 +185,9 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
 #                break
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
 
+
+
+
 def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res, startingNode = []):
     NN = getNeighbours(nodeTarget)
     NN.append(nodeTarget)
@@ -206,26 +214,23 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
             nfPairs = np.concatenate((startingNode,startingNode))
         else:
             if anisotropy == 1.0:
-                R = int(2)
+                R = int(1)
             else:
-#                R = int(np.ceil(anisotropy*1.1547005383792517)*2 + 1)#2/sqrt(3)
-                R = int(np.ceil(anisotropy))
+                # The multiplication by two is due to a heuristic search
+                # R = int(np.ceil(anisotropy*1.1547005383792517)*2 + 1)#2/sqrt(3)
+                R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
             afList = []
-#            for j in range(-R,R+1):
-#                for k in range(-R,R+1):
-#                    try:
-#                        if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1 and \
-#                        computeDistance(nodeTarget+[k,j],nodeTarget,res) <= 2*res*R:
-#                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-#                    except:
-#                        pass
-#            R = 2
             for j in range(-R,1):
                 for k in range(-R-j,R+1):
 #                    print(k,j)
                     try:
                         if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            if anisotropy == 1.0:
+                                if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                                    afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            else:
+                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                     except:
                         pass
             for j in range(1,R+1):
@@ -233,7 +238,12 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
 #                    print(k,j)
                     try:
                         if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            if anisotropy == 1.0:
+                                if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                                    afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                            else:
+                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                     except:
                         pass
             localAFPairs = []
@@ -262,7 +272,115 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
         nbNodes.insert(nIndex, nodeTarget)
         Tmap[nodeTarget[1],nodeTarget[0]] = T
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
-    return Tmap, nbT, nbNodes       
+    return Tmap, nbT, nbNodes 
+
+# updateTNarrowBand
+# This function re-evaluates certain considered nodes
+def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
+                      aspectMap, anisotropyMap, maxAnisomap, Xmap,Ymap,res):
+    
+    # First, a set with neigh(NN)+NN is created
+    NN = getNeighbours(nodeTarget)
+    NN.append(nodeTarget)
+    # Only the accepted are obtained
+    subAFlist = getAccepted(NN,stateMap)
+    
+    #Now the considered nodes to re-evaluate are selected
+    consideredList = []    
+    for i in range(len(subAFlist)):
+        node = np.empty([2],dtype=float)
+        node = subAFlist[i]
+        relAnisotropy = maxAnisomap[node[1],node[0]]
+        # R = int(np.ceil(relAnisotropy) + 1)
+        if relAnisotropy == 1.0:
+            R = int(1)
+        else:
+            R = int(np.ceil(relAnisotropy*1.1547005383792517))#2/sqrt(3)
+        for j in range(-R,R+1):
+            for k in range(-R-j,R+1):
+                try:
+                    # if stateMap[node[1]+j,node[0]+k]==0 and not any((node+[k,j]==x).all for x in consideredList):
+                    if stateMap[node[1]+j,node[0]+k]==0 and not any(node[0]+k==x[0] and node[1]+j==x[1] for x in consideredList):
+                        if relAnisotropy == 1.0:
+                            if computeDistance(node+[k,j],node,res) < 1.1*res:
+                                consideredList.append([node[0]+k,node[1]+j])
+                        else:
+                            consideredList.append([node[0]+k,node[1]+j])
+                        
+                    # if stateMap[node[1]+j,node[0]+k]==0:
+                    #     consideredList.append([node[0]+k,node[1]+j])
+                            # if not any((node+[k,j]==x).all for x in consideredList):
+                            #     consideredList.append([node[0]+k,node[1]+j])
+                except:
+                    pass
+        for j in range(1,R+1):
+            for k in range(-R,R-j+1):
+                try:
+                    # if stateMap[node[1]+j,node[0]+k]==0 and not any((node+[k,j]==x).all for x in consideredList):
+                    if stateMap[node[1]+j,node[0]+k]==0 and not any(node[0]+k==x[0] and node[1]+j==x[1] for x in consideredList):
+                        if relAnisotropy == 1.0:
+                            if computeDistance(node+[k,j],node,res) < 1.1*res:
+                                consideredList.append([node[0]+k,node[1]+j])
+                        else:
+                            consideredList.append([node[0]+k,node[1]+j])
+                        
+                    # if stateMap[node[1]+j,node[0]+k]==0:
+                    #     consideredList.append([node[0]+k,node[1]+j])
+                            # if not any((node+[k,j]==x).all for x in consideredList):
+                            #     consideredList.append([node[0]+k,node[1]+j])
+                except:
+                    pass         
+                    
+                    
+    localAFPairs = []
+    SS = []
+    SS[:] = subAFlist
+    while (len(SS)!=0):
+        ss = SS[0]
+        del SS[0]
+        for j in SS:
+            localAFPairs.append(np.concatenate((ss,j)))
+    
+    for i in range(len(consideredList)):
+        nodeTarget = consideredList[i]
+        nfPairs = []
+        aspect = aspectMap[:,nodeTarget[1],nodeTarget[0]]
+        anisotropy = anisotropyMap[nodeTarget[1],nodeTarget[0]]
+        for j in localAFPairs:
+            if checkNF(j,nodeTarget,anisotropy,res):
+                nfPairs.append(j)
+        if not len(nfPairs) == 0:
+            Q1 = VCmap[0,nodeTarget[1],nodeTarget[0]]
+            Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
+            D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
+            D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
+            T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, 
+                               Tmap, dirMap,Xmap,Ymap,anisotropy,res)
+            # T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2,\
+            #                    aspect, Tmap, dirMap,Xmap,Ymap)
+            if T < Tmap[nodeTarget[1],nodeTarget[0]]-0.0001:
+                tempT = Tmap[nodeTarget[1],nodeTarget[0]]
+                nIndex = bisect.bisect_left(nbT,tempT)
+                try:
+                    nIndex = next(x for x,n in enumerate(nbNodes[nIndex-1:],nIndex) if np.array_equal(nodeTarget,nbNodes[x]))
+                    del nbT[nIndex]
+                    del nbNodes[nIndex]
+                    nIndex = bisect.bisect_left(nbT,T)
+                    nbT.insert(nIndex,T)
+                    nbNodes.insert(nIndex, nodeTarget)
+                    Tmap[nodeTarget[1],nodeTarget[0]] = T  
+                    dirMap[nodeTarget[1],nodeTarget[0]] = direc
+                except IndexError:
+                    print('What the...')
+                    exit()
+                except StopIteration:
+                    print('What the...')
+                    exit()
+    return Tmap, nbT, nbNodes
+
+
+
+      
 
 def getAccepted(nodeList, stateMap):
     acceptedList = []
@@ -327,7 +445,11 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
         xk = np.asarray([Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]])
         Tj = Tmap[nfPairs[1],nfPairs[0]]
         Tk = Tmap[nfPairs[3],nfPairs[2]]
-        preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+        if ((anisotropy < 1.01)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
+            # preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
+            preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+        else:
+            preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
         if preT < T:
             T = preT
             direc = preDir
@@ -337,15 +459,17 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap
             xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],Ymap[nfPairs[i][3],nfPairs[i][2]]])
             Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
             Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
-            if ((anisotropy == 1.0)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
-                preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
+            if ((anisotropy < 1.01)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
+                # preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
+                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
             else:
                 preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
             if preT < T:
                 T = preT
                 direc = preDir
     return T,direc
-       
+   
+@jit(nopython=True)  
 def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
     a = 0
     b = 1
@@ -422,10 +546,20 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
     minDir = math.atan2(minDirVector[1],minDirVector[0])
     return minT,minDir
 
+# @jit(nopython=True)  
 def getEikonalCost(x,xj,xk,Tj,Tk,Q):
     # We assume it is an irregular grid!!
-    h = np.linalg.norm(x - xj)
-    if (np.linalg.norm(xj-xk) < 0.01*h): #It is the same node
+    # h = np.empty([1],float)
+    # h = np.linalg.norm(x - xj)
+    h = math.sqrt((x[0]-xj[0])**2+(x[1]-xj[1])**2)
+    
+    # dist = np.empty([1],float)
+    dist = math.sqrt((xk[0]-xj[0])**2+(xk[1]-xj[1])**2)
+    
+    # P = np.empty([2],float)
+    # invP = np.empty([2],float) 
+    
+    if (dist < 0.01*h): #It is the same node
         T = Tj + h*math.sqrt(Q)
         cdir = x - xj
     else:
@@ -433,7 +567,8 @@ def getEikonalCost(x,xj,xk,Tj,Tk,Q):
         T = (Tj + Tk + math.sqrt((Tj+Tk)**2 + 3*h**2*Q - 4*(Tj**2+Tk**2-Tj*Tk)))/2
         P = np.array([(x - xj)/h,
                       (x - xk)/h])
-        cdir = (np.linalg.inv(P)).dot(np.array([(T - Tj)/h,
+        invP = np.linalg.inv(P)
+        cdir = invP.dot(np.array([(T - Tj)/h,
                                               (T - Tk)/h]))
     dirCharacteristic = math.atan2(cdir[1],cdir[0])
     return T,dirCharacteristic

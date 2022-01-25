@@ -739,6 +739,10 @@ class CamisDrivingModel:
         steepness = steepness_deg*deg2rad
         if steepness < 0:
             raise ValueError('ERROR: input value of steepness is negative')
+#        if steepness < self.brakePoint01[0]:
+#            return (self.friction - np.tan(steepness))*self.kmg
+#        else:
+#            return (self.friction - np.tan(self.brakePoint01[0]))*self.kmg
         if steepness < self.brakePoint01[0]:
             return (self.friction - np.tan(steepness))*self.kmg
         elif steepness > self.brakePoint02[0]:
