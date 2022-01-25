@@ -52,48 +52,6 @@ deg2rad = np.pi/180
 rad2deg = 180/np.pi
 
 
-# =============================================================================
-#    rpy2ab -> Mapping from Tait-Bryan angles to Slope-Traverse angles
-# =============================================================================
-
-def rpy2ab(Roll,Pitch,Yaw):
-    BetaX = []
-    BetaY = []
-    aspectVectorX = []
-    aspectVectorY = []
-    headingVectorX = []
-    headingVectorY=[]
-    
-    # Gradient is computed
-    Gradient = []
-    for i, r in enumerate(Roll):
-        Gradient.append(rad2deg*np.arccos(np.cos(deg2rad*Roll[i])*\
-                                          np.cos(deg2rad*Pitch[i])))
-        
-    for i, r in enumerate(Roll):
-        aspect = [np.cos(deg2rad*Yaw[i])*np.sin(deg2rad*Pitch[i])*\
-                  np.cos(deg2rad*Roll[i]) + np.sin(deg2rad*Yaw[i])*\
-                  np.sin(deg2rad*Roll[i]), np.sin(deg2rad*Yaw[i])*\
-                  np.sin(deg2rad*Pitch[i])*np.cos(deg2rad*Roll[i])\
-                  - np.cos(deg2rad*Yaw[i])*np.sin(deg2rad*Roll[i])]
-        aspect = aspect/np.linalg.norm(aspect)
-        aspectVectorX.append(aspect[0])
-        aspectVectorY.append(aspect[1])
-        heading = [np.cos(deg2rad*Yaw[i])*np.cos(deg2rad*Pitch[i]), \
-                   np.sin(deg2rad*Yaw[i])*np.cos(deg2rad*Pitch[i])]
-        heading = heading/np.linalg.norm(heading)
-        headingVectorX.append(heading[0])
-        headingVectorY.append(heading[1])
-        c, s = aspect[0], aspect[1]
-        R = np.array(((c,s), (-s, c)))
-        T = np.dot(R,np.transpose(heading))
-        BetaX.append(T[0])
-        BetaY.append(T[1])
-        
-    return Gradient, BetaX, BetaY
-
-def ab2pitch(alpha,beta):
-    return rad2deg*np.arccos(np.cos(deg2rad*alpha)/np.sqrt(np.cos(beta)**2+np.cos(deg2rad*alpha)**2*np.sin(beta)**2))
 
 
 # =============================================================================

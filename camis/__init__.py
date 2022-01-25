@@ -31,3 +31,4 @@ Space Robotics Lab (www.uma.es/space-robotics)
 from .cost_function import *
 from .cost_mapping import *
 from .anisotropic_path_planning import *
+from .camis_utils import *

@@ -269,33 +269,7 @@ class AnisotropicMap:
                 self.aspectX[j][i] = self.nx[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
                 self.aspectY[j][i] = self.ny[j][i] / np.linalg.norm([self.nx[j][i], self.ny[j][i]])
                 self.slope[j][i] = np.abs(np.arccos(self.nz[j][i]))
-                
-                
-                
-                
-#        for j in range(0,processedElevationMap.shape[1]):
-#            for i in range(0,6):
-#                self.nx[j][i] = 1.0
-#                self.ny[j][i] = 0.0
-#                self.slope = 1.57;
-#        for j in range(0,6):
-#            for i in range(0,processedElevationMap.shape[1]):
-#                self.nx[j][i] = 0.0
-#                self.ny[j][i] = 1.0
-#                self.slope = 1.57;
-#        for j in range(0,processedElevationMap.shape[1]):
-#            for i in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
-#                self.nx[j][i] = -1.0
-#                self.ny[j][i] = 0.0
-#                self.slope = 1.57;
-#        for j in range(processedElevationMap.shape[1]-5,processedElevationMap.shape[1]):
-#            for i in range(0,processedElevationMap.shape[1]):
-#                self.nx[j][i] = 0.0
-#                self.ny[j][i] = -1.0
-#                self.slope = 1.57;
-#        self.aspectX = self.nx / np.sqrt(self.nx**2 + self.ny**2)
-#        self.aspectY = self.ny / np.sqrt(self.nx**2 + self.ny**2)
-#        self.slope = np.abs(np.arccos(self.nz))
+
     def computeHexSlopeMap(self):
         hexSlopeMap = np.ones([self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
 #        hexAspectMap = np.ones([2,self.hexElevationMap.shape[0],self.hexElevationMap.shape[1]])*np.nan
@@ -316,47 +290,6 @@ class AnisotropicMap:
         self.hexSlopeMap = hexSlopeMap
         self.hexAspectMap[0] = hexAspectMapX / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
         self.hexAspectMap[1] = hexAspectMapY / np.sqrt(hexAspectMapX**2 + hexAspectMapY**2)
-#        self.hexAspectMap[0,:,:] = hexAspectMap[0,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
-#        self.hexAspectMap[1,:,:] = hexAspectMap[1,:,:] / np.sqrt(hexAspectMap[0,:,:]**2 + hexAspectMap[1,:,:]**2)
-#        h = np.sqrt(3)/2.0
-#        for i in range(1,self.hexElevationMap.shape[1]-2):
-#            for j in range(1,self.hexElevationMap.shape[0]-2):
-#                if (self.hexXmap[j,i] > self.xMap[0,0]) and \
-#                (self.hexXmap[j,i] < self.xMap[-1,-1]) and \
-#                (self.hexYmap[j,i] > self.yMap[0,0]) and \
-#                (self.hexYmap[j,i] < self.yMap[-1,-1]):
-#                    Z1 = self.hexElevationMap[j,i+1]
-#                    Z2 = self.hexElevationMap[j+1,i]
-#                    Z3 = self.hexElevationMap[j-1,i-1]
-#                    Z4 = self.hexElevationMap[j,i-1]
-#                    Z5 = self.hexElevationMap[j-1,i]
-#                    Z6 = self.hexElevationMap[j-1,i+1]
-##                    Z1 = self.hexElevationMap[j+1,i+1]
-##                    Z2 = self.hexElevationMap[j+2,i-1]
-##                    Z3 = self.hexElevationMap[j+1,i-2]
-##                    Z4 = self.hexElevationMap[j-1,i-1]
-##                    Z5 = self.hexElevationMap[j-2,i+1]
-##                    Z6 = self.hexElevationMap[j-1,i+2]
-#                    n1 = np.array([1.5*self.planRes,-h*self.planRes,Z6-Z4])
-#                    n2 = np.array([1.5*self.planRes,h*self.planRes,Z2-Z4])
-##                    n1 = np.array([3.0*self.planRes,0.0,Z6-Z4])
-##                    n2 = np.array([1.5*self.planRes,3.0*h*self.planRes,Z2-Z4])
-#                    nn1 = np.cross(n1,n2)
-#                    nn1 = nn1/np.linalg.norm(nn1)
-#                    n3 = np.array([-1.5*self.planRes,h*self.planRes,Z3-Z1])
-#                    n4 = np.array([-1.5*self.planRes,-h*self.planRes,Z5-Z1])
-##                    n3 = np.array([-3.0*self.planRes,0.0,Z3-Z1])
-##                    n4 = np.array([-1.5*self.planRes,-3.0*h*self.planRes,Z5-Z1])
-#                    nn2 = np.cross(n3,n4)
-#                    nn2 = nn2/np.linalg.norm(nn2)                
-#                    nn = nn1 + nn2
-#                    nn = nn/np.linalg.norm(nn)
-#                    aspect = np.arctan2(nn[1],nn[0])
-#                    hexAspectMap[0,j,i] = np.cos(aspect)
-#                    hexAspectMap[1,j,i] = np.sin(aspect)
-#                    hexSlopeMap[j,i] = np.arccos(nn[2])
-#        self.hexSlopeMap = np.abs(hexSlopeMap)
-#        self.hexAspectMap = hexAspectMap
     
     def computeVecCostMap(self, costModel):
         self.costModel = costModel

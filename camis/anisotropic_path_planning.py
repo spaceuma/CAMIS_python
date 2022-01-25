@@ -227,7 +227,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                         if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
                             # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                             if anisotropy == 1.0:
-                                if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                                if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
                                     afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                             else:
                                 afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
@@ -240,7 +240,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                         if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
                             # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                             if anisotropy == 1.0:
-                                if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                                if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
                                     afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                             else:
                                 afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
@@ -253,7 +253,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                 ss = SS[0]
                 del SS[0]
                 for j in SS:
-                    if (computeDistance(ss,j,res) <= 1.1*res):
+                    if areHexNeighbours(ss,j):
                         localAFPairs.append(np.concatenate((ss,j)))
             nfPairs = []
             for j in localAFPairs:
@@ -290,7 +290,8 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
     
     #If nodeTarget is isotropic, this is more simple
     if maxAnisomap[nodeTarget[1],nodeTarget[0]] < 1.01:
-        node = nodeTarget
+        node = np.empty([2],dtype=int)
+        node[:] = nodeTarget[:]
         relAnisotropy = maxAnisomap[node[1],node[0]]
         R = int(1)
         for j in range(-R,R+1):
@@ -300,7 +301,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                             node[0]+k==x[0] and node[1]+j==x[1] for x in 
                             consideredList):
                         if relAnisotropy == 1.0:
-                            if computeDistance(node+[k,j],node,res) < 1.1*res:
+                            if areHexNeighbours(node+[k,j],node):
                                 consideredList.append([node[0]+k,node[1]+j])
                         else:
                             consideredList.append([node[0]+k,node[1]+j])
@@ -313,7 +314,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                             node[0]+k==x[0] and node[1]+j==x[1] for x in 
                             consideredList):
                         if relAnisotropy == 1.0:
-                            if computeDistance(node+[k,j],node,res) < 1.1*res:
+                            if areHexNeighbours(node+[k,j],node):
                                 consideredList.append([node[0]+k,node[1]+j])
                         else:
                             consideredList.append([node[0]+k,node[1]+j])
@@ -322,8 +323,8 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
     else:
         #Now the considered nodes to re-evaluate are selected   
         for i in range(len(subAFlist)):
-            node = np.empty([2],dtype=float)
-            node = subAFlist[i]
+            node = np.empty([2],dtype=int)
+            node[:] = subAFlist[i][:]
             relAnisotropy = maxAnisomap[node[1],node[0]]
             # R = int(np.ceil(relAnisotropy) + 1)
             if relAnisotropy == 1.0:
@@ -337,7 +338,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                                 node[0]+k==x[0] and node[1]+j==x[1] for x in 
                                 consideredList):
                             if relAnisotropy == 1.0:
-                                if computeDistance(node+[k,j],node,res) < 1.1*res:
+                                if areHexNeighbours(node+[k,j],node):
                                     consideredList.append([node[0]+k,node[1]+j])
                             else:
                                 consideredList.append([node[0]+k,node[1]+j])
@@ -350,7 +351,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                                 node[0]+k==x[0] and node[1]+j==x[1] for x in 
                                 consideredList):
                             if relAnisotropy == 1.0:
-                                if computeDistance(node+[k,j],node,res) < 1.1*res:
+                                if areHexNeighbours(node+[k,j],node):
                                     consideredList.append([node[0]+k,node[1]+j])
                             else:
                                 consideredList.append([node[0]+k,node[1]+j])
@@ -367,7 +368,8 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
     #         localAFPairs.append(np.concatenate((ss,j)))
     
     for i in range(len(consideredList)):
-        nodeTarget = consideredList[i]
+        nodeTarget = np.empty([2],dtype=int)
+        nodeTarget[:] = consideredList[i][:]
         nfPairs = []
         aspect = aspectMap[:,nodeTarget[1],nodeTarget[0]]
         anisotropy = anisotropyMap[nodeTarget[1],nodeTarget[0]]
@@ -381,7 +383,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                 try:
                     if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
                         if anisotropy == 1.0:
-                            if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                            if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
                                 afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                         else:
                             afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
@@ -392,7 +394,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                 try:
                     if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
                         if anisotropy == 1.0:
-                            if computeDistance(nodeTarget+[k,j],nodeTarget,res) < 1.1*res:
+                            if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
                                 afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                         else:
                             afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
@@ -406,7 +408,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
             ss = SS[0]
             del SS[0]
             for j in SS:
-                if (computeDistance(ss,j,res) <= 1.1*res):
+                if areHexNeighbours(ss,j):
                     localAFPairs.append(np.concatenate((ss,j)))
         nfPairs = []
         for j in localAFPairs:
@@ -471,6 +473,7 @@ def getNeighbours(nodeTarget):
     return nList
 
 # This function returns whether two nodes are hexagonal neighbours or not
+#@jit(nopython=True)
 def areHexNeighbours(n1,n2):
     neighbours = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1],]
     dx = n1[0] - n2[0]
@@ -511,10 +514,10 @@ def checkNF(afPair, n, anisotropy,res):
             return False
 
 # @jit(nopython=True)  
-def computeDistance(nodeA, nodeB, res):
-    dx = res*(nodeA[0]+nodeA[1]/2 - nodeB[0] - nodeB[1]/2)
-    dy = res*0.8660254037844386*(nodeA[1] - nodeB[1])
-    return math.sqrt(dx**2+dy**2)
+# def computeDistance(nodeA, nodeB, res):
+#     dx = res*(nodeA[0]+nodeA[1]/2 - nodeB[0] - nodeB[1]/2)
+#     dy = res*0.8660254037844386*(nodeA[1] - nodeB[1])
+#     return math.sqrt(dx**2+dy**2)
 
 def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap,anisotropy,res):
     if np.isnan(aspect[0]) or np.isnan(aspect[1]):
