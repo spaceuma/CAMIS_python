@@ -473,7 +473,23 @@ class AnisotropicMap:
         return elapsedTime
     
     # Executing BiOUM to compute the path faster
-    def executeBiPlanning(self, goal, start):
+    def executeSqBiPlanning(self, goal, start):
+        init = time()
+        ijStart = np.round([(start[0] - 
+                            self.sqXmap[0][0])/self.sqCellLateral,(start[1] - 
+                            self.sqYmap[0][0])/self.sqCellLateral]).astype(int) 
+        ijGoal = np.round([(goal[0] - 
+                            self.sqXmap[0][0])/self.sqCellLateral,(goal[1] - 
+                            self.sqYmap[0][0])/self.sqCellLateral]).astype(int) 
+        
+        print('The start indexes are ' + str(ijStart) + 
+              ' and the position is ' + str(self.sqXmap[ijStart[1]][ijStart[0]]) + 
+              ','  + str(self.sqYmap[ijStart[1]][ijStart[0]]))
+        
+        print('Elapsed time to compute the Total Cost Map: ' + 
+              str(time()-init)  +  ' seconds')
+    
+    def executeHexBiPlanning(self, goal, start):
         init = time()
         IJ2XY = np.zeros([2,self.hexXmap.shape[0],self.hexYmap.shape[1]])
         IJ2XY[0] = self.hexXmap
@@ -489,7 +505,7 @@ class AnisotropicMap:
         stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
         ap.computeBiTmap(self.hexVCMap, self.hexAspectMap, 
                          self.hexAnisotropyMap, ijGoal, ijStart, self.hexXmap, 
-                         self.hexYmap, self.planRes)
+                         self.hexYmap, self.planRes,'hex')
         elapsedTime = time()-init
         print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         self.linkNode = nodeLink

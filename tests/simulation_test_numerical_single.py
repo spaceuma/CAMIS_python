@@ -91,8 +91,8 @@ tracking_error = 0.5
 print('TEST_DEMO: DEM is loaded')
 
 def computeAllPlannings(anisoMapList):
-    anisoMapList[0].executeBiPlanning(posB,posA)
-    anisoMapList[1].executeBiPlanning(posA,posB)
+    anisoMapList[0].executeHexBiPlanning(posB,posA)
+    anisoMapList[1].executeHexBiPlanning(posA,posB)
 
 def getMapLists(camisInput):
     iso_model = copy.deepcopy(camisInput)
@@ -115,7 +115,7 @@ aniso_01 = camis.CamisDrivingModel(cuadriga_data)
 #aniso_01.showCAMIS(25)
 env_CUAD01_scene01, env_isoCUAD01_scene01 = getMapLists(aniso_01)
 
-env_isoCUAD01_scene01[0].executeBiPlanning(posB,posA)
+env_CUAD01_scene01[0].executeHexBiPlanning(posB,posA)
 
 
 

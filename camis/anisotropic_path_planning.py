@@ -50,13 +50,15 @@ import math
 # =============================================================================
 #    Computation of the Total Cost Map
 # =============================================================================
-def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
+def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res,gridtype):
     # State Maps
     #  State -1 = far
     #  State 0 = narrow
     #  State 1 = accepted
     #  State 2 = closed
     stateMap = -1*np.ones_like(anisotropyMap)
+    
+    maxAnisoMap = np.ones_like(anisotropyMap)
     
     # Define nodeTargets
     nodeTarget = [goal[0],goal[1]]
@@ -80,18 +82,19 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     Tmap[nodeTarget[1],nodeTarget[0]] = 0
     
     # Initial T update
-    Tmap, nbT, nbNodes = updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, Xmap, Ymap, res, goal)
+    Tmap, nbT, nbNodes = updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap,  Xmap, Ymap, res, gridtype,goal)
 
     while nbNodes:
         nodeTarget, nbT, nbNodes = getMinNB(nbT, nbNodes)
         stateMap[nodeTarget[1],nodeTarget[0]] = 1
-        Tmap, nbT, nbNodes = updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, Xmap, Ymap, res)
+        Tmap, nbT, nbNodes = updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, maxAnisoMap,  Xmap, Ymap, res, gridtype)
         if stateMap[start[1],start[0]] == 2:
             break
     return Tmap, dirMap, stateMap
 
 
-def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
+def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap, 
+                  res, gridtype):
     VCmapS = np.ones_like(VCmap)
     VCmapS[0] = VCmap[0]
     VCmapS[1] = VCmap[1]
@@ -99,7 +102,8 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     VCmapS[3] = -VCmap[3]
     
     #This indicates the max anisotropy of any update the node is involved with
-    maxAnisoMap = np.ones_like(anisotropyMap)
+    maxAnisoMapG = np.ones_like(anisotropyMap)
+    maxAnisoMapS = np.ones_like(anisotropyMap)
     
     # State Maps
     #  State -1 = far
@@ -142,22 +146,46 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
     
     # Initial T update
     
-    TmapG, nbTG, nbNodesG = updateNeighbours(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res, goal)
-    TmapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res, start)   
+    TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
+        nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, 
+        aspectMap, anisotropyMap, maxAnisoMapG,  Xmap, Ymap, res, gridtype, 
+        goal)
+    TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
+        nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
+        aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, gridtype,
+        start)   
  
     nodeLink = []
     while nbNodesG or nbNodesS:
         if nbNodesG:
             nodeTargetG, nbTG, nbNodesG = getMinNB(nbTG, nbNodesG)
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
-            TmapG, nbTG, nbNodesG = updateNeighbours(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res)
-            TmapG, nbTG, nbNodesG = updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
+            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
+                nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap,  
+                aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
+                gridtype)
+            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateTNarrowBand(nodeTargetG, nbTG, 
+                                                      nbNodesG, dirMapG, TmapG,
+                                                      stateMapG, VCmap, 
+                                                      aspectMap, anisotropyMap,
+                                                      maxAnisoMapG, Xmap, Ymap,
+                                                      res, gridtype)
        
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
-            TmapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, Xmap,Ymap,res)  
-            TmapS, nbTS, nbNodesS = updateTNarrowBand(nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, aspectMap, anisotropyMap, maxAnisoMap, Xmap,Ymap,res)
+            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, 
+                                                     nbNodesS, dirMapS, 
+                                                     TmapS, stateMapS, VCmapS, 
+                                                     aspectMap, anisotropyMap,
+                                                     maxAnisoMapS, Xmap, Ymap, 
+                                                     res, gridtype)  
+            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(nodeTargetS, nbTS, 
+                                                      nbNodesS, dirMapS, TmapS,
+                                                      stateMapS, VCmapS, 
+                                                      aspectMap, anisotropyMap,
+                                                      maxAnisoMapS, Xmap, Ymap,
+                                                      res, gridtype)
 
         if len(nodeLink) == 0:
             if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:        
@@ -175,21 +203,16 @@ def computeBiTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res):
                     break
         elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],nodeLink[0]] == 2:
             break
-#        if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 2:
-
-#        if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 2:
-#            d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
-#            d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
-#            if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
-#                nodeLink = nodeTargetS
-#                break
-    return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, d1, d2 - np.pi
+    return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, \
+           d1, d2 - np.pi
 
 
 
 
-def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, aspectMap, anisotropyMap, Xmap,Ymap,res, startingNode = []):
-    NN = getNeighbours(nodeTarget)
+def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
+                     aspectMap, anisotropyMap, maxAnisoMap, Xmap, Ymap, res, 
+                     gridtype, startingNode = []):
+    NN = getNeighbours(nodeTarget, gridtype)
     NN.append(nodeTarget)
     N = []
     NClist = []
@@ -197,7 +220,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
     for i in range(len(NN)):
         # Detecting Inner Accepted Nodes
         if stateMap[NN[i][1],NN[i][0]] == 1:
-            N = getNotAccepted(getNeighbours(NN[i]),stateMap)
+            N = getNotAccepted(getNeighbours(NN[i], gridtype), stateMap)
             if len(N) == 0:
                 stateMap[NN[i][1],NN[i][0]] = 2
         # Getting new Considered Nodes
@@ -216,36 +239,11 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
             if anisotropy == 1.0:
                 R = int(1)
             else:
-                # The multiplication by two is due to a heuristic search
-                # R = int(np.ceil(anisotropy*1.1547005383792517)*2 + 1)#2/sqrt(3)
                 R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
             afList = []
-            for j in range(-R,1):
-                for k in range(-R-j,R+1):
-#                    print(k,j)
-                    try:
-                        if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                            # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                            if anisotropy == 1.0:
-                                if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
-                                    afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                            else:
-                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                    except:
-                        pass
-            for j in range(1,R+1):
-                for k in range(-R,R-j+1):
-#                    print(k,j)
-                    try:
-                        if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                            # afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                            if anisotropy == 1.0:
-                                if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
-                                    afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                            else:
-                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                    except:
-                        pass
+            
+            afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList)
+            
             localAFPairs = []
             SS = []
             SS[:] = afList
@@ -257,7 +255,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
                         localAFPairs.append(np.concatenate((ss,j)))
             nfPairs = []
             for j in localAFPairs:
-                if checkNF(j,nodeTarget,anisotropy,res):
+                if checkHexNF(j,nodeTarget,anisotropy,res):
                     nfPairs.append(j)
             if len(nfPairs) == 0:
                 for j in afList:
@@ -266,106 +264,109 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, as
         Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
         D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
-        T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap,anisotropy,res)
+        T,direc,nfAnisotropy = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, 
+                                        aspect, Tmap, dirMap, Xmap, Ymap,
+                                        anisotropy, anisotropyMap, res,
+                                        gridtype)
         nIndex = bisect.bisect_left(nbT,T)
         nbT.insert(nIndex,T)
         nbNodes.insert(nIndex, nodeTarget)
         Tmap[nodeTarget[1],nodeTarget[0]] = T
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
-    return Tmap, nbT, nbNodes 
+        maxAnisoMap[nodeTarget[1],nodeTarget[0]] = nfAnisotropy
+    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes 
+
+def getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList):
+    for j in range(-R,1):
+        for k in range(-R-j,R+1):
+            try:
+                if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
+                    if anisotropy == 1.0:
+                        if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
+                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                    else:
+                        afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+            except:
+                pass
+    for j in range(1,R+1):
+        for k in range(-R,R-j+1):
+            try:
+                if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
+                    if anisotropy == 1.0:
+                        if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
+                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                    else:
+                        afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+            except:
+                pass 
+    return afList
+
+def getHexConsideredList(node, R, stateMap, relAnisotropy, consideredList):
+    for j in range(-R,R+1):
+        for k in range(-R-j,R+1):
+            try:
+                if stateMap[node[1]+j,node[0]+k]==0 and not any(
+                        node[0]+k==x[0] and node[1]+j==x[1] for x in 
+                        consideredList):
+                    if relAnisotropy == 1.0:
+                        if areHexNeighbours(node+[k,j],node):
+                            consideredList.append([node[0]+k,node[1]+j])
+                    else:
+                        consideredList.append([node[0]+k,node[1]+j])
+            except:
+                pass
+    for j in range(1,R+1):
+        for k in range(-R,R-j+1):
+            try:
+                if stateMap[node[1]+j,node[0]+k]==0 and not any(
+                        node[0]+k==x[0] and node[1]+j==x[1] for x in 
+                        consideredList):
+                    if relAnisotropy == 1.0:
+                        if areHexNeighbours(node+[k,j],node):
+                            consideredList.append([node[0]+k,node[1]+j])
+                    else:
+                        consideredList.append([node[0]+k,node[1]+j])
+            except:
+                pass 
+    return consideredList
 
 # updateTNarrowBand
 # This function re-evaluates certain considered nodes
 def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
-                      aspectMap, anisotropyMap, maxAnisomap, Xmap,Ymap,res):
+                      aspectMap, anisotropyMap, maxAnisoMap, Xmap, Ymap, res,
+                      gridtype):
     
     #Initialization of lists
     consideredList = [] 
     
     # First, a set with neigh(NN)+NN is created
-    NN = getNeighbours(nodeTarget)
+    NN = getNeighbours(nodeTarget, gridtype)
     NN.append(nodeTarget)
     # Only the accepted are obtained
     subAFlist = getAccepted(NN,stateMap)
     
     #If nodeTarget is isotropic, this is more simple
-    if maxAnisomap[nodeTarget[1],nodeTarget[0]] < 1.01:
+    if maxAnisoMap[nodeTarget[1],nodeTarget[0]] < 1.01:
         node = np.empty([2],dtype=int)
         node[:] = nodeTarget[:]
-        relAnisotropy = maxAnisomap[node[1],node[0]]
+        relAnisotropy = maxAnisoMap[node[1],node[0]]
         R = int(1)
-        for j in range(-R,R+1):
-            for k in range(-R-j,R+1):
-                try:
-                    if stateMap[node[1]+j,node[0]+k]==0 and not any(
-                            node[0]+k==x[0] and node[1]+j==x[1] for x in 
-                            consideredList):
-                        if relAnisotropy == 1.0:
-                            if areHexNeighbours(node+[k,j],node):
-                                consideredList.append([node[0]+k,node[1]+j])
-                        else:
-                            consideredList.append([node[0]+k,node[1]+j])
-                except:
-                    pass
-        for j in range(1,R+1):
-            for k in range(-R,R-j+1):
-                try:
-                    if stateMap[node[1]+j,node[0]+k]==0 and not any(
-                            node[0]+k==x[0] and node[1]+j==x[1] for x in 
-                            consideredList):
-                        if relAnisotropy == 1.0:
-                            if areHexNeighbours(node+[k,j],node):
-                                consideredList.append([node[0]+k,node[1]+j])
-                        else:
-                            consideredList.append([node[0]+k,node[1]+j])
-                except:
-                    pass 
+        consideredList = getHexConsideredList(node, R, stateMap, relAnisotropy,
+                                              consideredList)
     else:
         #Now the considered nodes to re-evaluate are selected   
         for i in range(len(subAFlist)):
             node = np.empty([2],dtype=int)
             node[:] = subAFlist[i][:]
-            relAnisotropy = maxAnisomap[node[1],node[0]]
+            relAnisotropy = maxAnisoMap[node[1],node[0]]
             # R = int(np.ceil(relAnisotropy) + 1)
             if relAnisotropy == 1.0:
                 R = int(1)
             else:
                 R = int(np.ceil(relAnisotropy*1.1547005383792517))#2/sqrt(3)
-            for j in range(-R,R+1):
-                for k in range(-R-j,R+1):
-                    try:
-                        if stateMap[node[1]+j,node[0]+k]==0 and not any(
-                                node[0]+k==x[0] and node[1]+j==x[1] for x in 
-                                consideredList):
-                            if relAnisotropy == 1.0:
-                                if areHexNeighbours(node+[k,j],node):
-                                    consideredList.append([node[0]+k,node[1]+j])
-                            else:
-                                consideredList.append([node[0]+k,node[1]+j])
-                    except:
-                        pass
-            for j in range(1,R+1):
-                for k in range(-R,R-j+1):
-                    try:
-                        if stateMap[node[1]+j,node[0]+k]==0 and not any(
-                                node[0]+k==x[0] and node[1]+j==x[1] for x in 
-                                consideredList):
-                            if relAnisotropy == 1.0:
-                                if areHexNeighbours(node+[k,j],node):
-                                    consideredList.append([node[0]+k,node[1]+j])
-                            else:
-                                consideredList.append([node[0]+k,node[1]+j])
-                    except:
-                        pass                            
-                    
-    # localAFPairs = []
-    # SS = []
-    # SS[:] = subAFlist
-    # while (len(SS)!=0):
-    #     ss = SS[0]
-    #     del SS[0]
-    #     for j in SS:
-    #         localAFPairs.append(np.concatenate((ss,j)))
+            consideredList = getHexConsideredList(node, R, stateMap, 
+                                                  relAnisotropy, 
+                                                  consideredList)
     
     for i in range(len(consideredList)):
         nodeTarget = np.empty([2],dtype=int)
@@ -378,28 +379,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         else:
             R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
         afList = []
-        for j in range(-R,1):
-            for k in range(-R-j,R+1):
-                try:
-                    if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                        if anisotropy == 1.0:
-                            if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
-                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                        else:
-                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                except:
-                    pass
-        for j in range(1,R+1):
-            for k in range(-R,R-j+1):
-                try:
-                    if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                        if anisotropy == 1.0:
-                            if areHexNeighbours(nodeTarget+[k,j],nodeTarget):
-                                afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                        else:
-                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
-                except:
-                    pass   
+        afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList)
             
         localAFPairs = []
         SS = []
@@ -412,15 +392,15 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                     localAFPairs.append(np.concatenate((ss,j)))
         nfPairs = []
         for j in localAFPairs:
-            if checkNF(j,nodeTarget,anisotropy,res):
+            if checkHexNF(j,nodeTarget,anisotropy,res):
                 nfPairs.append(j)
         if not len(nfPairs) == 0:
             Q1 = VCmap[0,nodeTarget[1],nodeTarget[0]]
             Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
             D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
             D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
-            T,direc = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, 
-                               Tmap, dirMap,Xmap,Ymap,anisotropy,res)
+            T,direc,nfAnisotropy = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, 
+                               Tmap, dirMap,Xmap,Ymap,anisotropy,anisotropyMap,res,gridtype)
             if T < Tmap[nodeTarget[1],nodeTarget[0]]-0.0001:
                 tempT = Tmap[nodeTarget[1],nodeTarget[0]]
                 nIndex = bisect.bisect_left(nbT,tempT)
@@ -433,13 +413,14 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                     nbNodes.insert(nIndex, nodeTarget)
                     Tmap[nodeTarget[1],nodeTarget[0]] = T  
                     dirMap[nodeTarget[1],nodeTarget[0]] = direc
+                    maxAnisoMap[nodeTarget[1],nodeTarget[0]] = nfAnisotropy
                 except IndexError:
                     print('What the...')
                     exit()
                 except StopIteration:
                     print('What the...')
                     exit()
-    return Tmap, nbT, nbNodes
+    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes
 
 
 
@@ -459,14 +440,20 @@ def getNotAccepted(nodeList, stateMap):
             consideredList.append(nodeList[i])
     return consideredList
 
-def getNeighbours(nodeTarget):
+def getNeighbours(nodeTarget, gridtype):
     nList = []
-    neighbours = [[1,0],
-                  [0,1],
-                  [-1,1],
-                  [-1,0],
-                  [0,-1],
-                  [1,-1],]
+    if gridtype == 'hex':
+        neighbours = [[1,0],
+                      [0,1],
+                      [-1,1],
+                      [-1,0],
+                      [0,-1],
+                      [1,-1],]
+    elif gridtype == 'sq':
+        neighbours = [[1,0],
+                      [0,1],
+                      [-1,0],
+                      [0,-1],]
     for ni in neighbours:
         nN = np.add(nodeTarget,ni)
         nList.append(nN)
@@ -480,8 +467,14 @@ def areHexNeighbours(n1,n2):
     dy = n1[1] - n2[1]
     return any(dx==x[0] and dy==x[1] for x in neighbours)
 
+def areSqNeighbours(n1,n2):
+    neighbours = [[1,0], [0,1], [-1,0], [0,-1],]
+    dx = n1[0] - n2[0]
+    dy = n1[1] - n2[1]
+    return any(dx==x[0] and dy==x[1] for x in neighbours)
+
 #@jit(nopython=True)  
-def checkNF(afPair, n, anisotropy,res):
+def checkHexNF(afPair, n, anisotropy,res):
     C1 = afPair[2]-n[0];
     C2 = afPair[3]-n[1];
     C3 = afPair[0]-afPair[2];
@@ -519,41 +512,55 @@ def checkNF(afPair, n, anisotropy,res):
 #     dy = res*0.8660254037844386*(nodeA[1] - nodeB[1])
 #     return math.sqrt(dx**2+dy**2)
 
-def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap,Xmap,Ymap,anisotropy,res):
+def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
+             Ymap, anisotropy, anisotropyMap, res, gridtype):
     if np.isnan(aspect[0]) or np.isnan(aspect[1]):
         aspect = [1,0]
     T = np.inf
     direc = np.nan
-    x = np.asarray([Xmap[nodeTarget[1],nodeTarget[0]],Ymap[nodeTarget[1],nodeTarget[0]]])
+    nfAnisotropy = 1.0
+    x = np.asarray([Xmap[nodeTarget[1],nodeTarget[0]],
+                    Ymap[nodeTarget[1],nodeTarget[0]]])
     if len(np.shape(nfPairs)) == 1:
         xj = np.asarray([Xmap[nfPairs[1],nfPairs[0]],Ymap[nfPairs[1],nfPairs[0]]])
         xk = np.asarray([Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]])
         Tj = Tmap[nfPairs[1],nfPairs[0]]
         Tk = Tmap[nfPairs[3],nfPairs[2]]
-        # if ((anisotropy < 1.01)and(np.linalg.norm(x-xj) < 1.1*res)and(np.linalg.norm(x-xk) < 1.1*res)):
-        if (anisotropy < 1.0001):
+        # ToDo: create getEikonal for sq option
+        if (anisotropy < 1.0001) and gridtype == 'hex':
             preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
-            # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+            # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+            #                             anisotropy)
         else:
-            preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+            preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+                                        anisotropy)
         if preT < T:
             T = preT
             direc = preDir
+            nfAnisotropy = max(anisotropyMap[nfPairs[1],nfPairs[0]],
+                               anisotropyMap[nfPairs[3],nfPairs[2]])
     else:
         for i in range(len(nfPairs)):
-            xj = np.asarray([Xmap[nfPairs[i][1],nfPairs[i][0]],Ymap[nfPairs[i][1],nfPairs[i][0]]])
-            xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],Ymap[nfPairs[i][3],nfPairs[i][2]]])
+            xj = np.asarray([Xmap[nfPairs[i][1],nfPairs[i][0]],
+                             Ymap[nfPairs[i][1],nfPairs[i][0]]])
+            xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],
+                             Ymap[nfPairs[i][3],nfPairs[i][2]]])
             Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
             Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
-            if (anisotropy < 1.0001):
+            # ToDo: create getEikonal for sq option
+            if (anisotropy < 1.0001) and gridtype == 'hex':
                 preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
-                # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+                # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+                #                             anisotropy)
             else:
-                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy)
+                preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+                                            anisotropy)
             if preT < T:
                 T = preT
                 direc = preDir
-    return T,direc
+                nfAnisotropy = max(anisotropyMap[nfPairs[i][1],nfPairs[i][0]],
+                                   anisotropyMap[nfPairs[i][3],nfPairs[i][2]])
+    return T,direc, nfAnisotropy
    
 @jit(nopython=True)  
 def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
@@ -600,20 +607,12 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
             epsilon1 = epsilon2
             epsilon2 = a + tau*(b-a)
 
-#        heading1 = x - epsilon1 * xj - (1-epsilon1) * xk
-#        beta1 = np.dot(R,np.transpose(heading1))     
-#        f_x1 = math.sqrt(Q1*beta1[0]**2+Q2*beta1[1]**2+2*D1*D2*beta1[0]*beta1[1]) + \
-#           (beta1[0]*D1 + beta1[1]*D2) + epsilon1*Tj + (1-epsilon1)*Tk
         beta1x = aspect[0]*(x[0] - epsilon1 * xj[0] - (1-epsilon1) * xk[0]) + \
              aspect[1]*(x[1] - epsilon1 * xj[1] - (1-epsilon1) * xk[1])
         beta1y = -aspect[1]*(x[0] - epsilon1 * xj[0] - (1-epsilon1) * xk[0]) + \
               aspect[0]*(x[1] - epsilon1 * xj[1] - (1-epsilon1) * xk[1])   
         f_x1 = math.sqrt(Q1*beta1x**2+Q2*beta1y**2+2*D1*D2*beta1x*beta1y) + \
            (beta1x*D1 + beta1y*D2) + epsilon1*Tj + (1-epsilon1)*Tk   
-#        heading2 = x - epsilon2 * xj - (1-epsilon2) * xk
-#        beta2 = np.dot(R,np.transpose(heading2))
-#        f_x2 = math.sqrt(Q1*beta2[0]**2+Q2*beta2[1]**2+2*D1*D2*beta2[0]*beta2[1]) + \
-#           (beta2[0]*D1 + beta2[1]*D2) + epsilon2*Tj + (1-epsilon2)*Tk
         beta2x = aspect[0]*(x[0] - epsilon2 * xj[0] - (1-epsilon2) * xk[0]) + \
              aspect[1]*(x[1] - epsilon2 * xj[1] - (1-epsilon2) * xk[1])
         beta2y = -aspect[1]*(x[0] - epsilon2 * xj[0] - (1-epsilon2) * xk[0]) + \
