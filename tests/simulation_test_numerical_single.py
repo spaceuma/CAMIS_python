@@ -109,13 +109,13 @@ def getMapLists(camisInput):
 
 
 
-with open("data/sim01/cuadriga_aniso_01.yml", 'r') as file:
+with open("data/sim01/cuadriga_aniso_03.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_01 = camis.CamisDrivingModel(cuadriga_data)
 #aniso_01.showCAMIS(25)
 env_CUAD01_scene01, env_isoCUAD01_scene01 = getMapLists(aniso_01)
 
-env_CUAD01_scene01[0].executeBiPlanning(posB,posA)
+env_isoCUAD01_scene01[0].executeBiPlanning(posB,posA)
 
 
 
