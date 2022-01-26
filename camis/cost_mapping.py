@@ -109,7 +109,13 @@ class AnisotropicMap:
         self.demRes = demRes
         
         # Resolution of processed map for path planning
+        # This is distance between nodes! In hexagonal grid it is not equal to
+        # the lateral of the hexagonal cell
         self.planRes = planRes
+        
+        # If the planning is done in hexagons
+        self.hexCellLateral = planRes / math.sqrt(3)
+        self.sqCellLateral = math.sqrt(math.sqrt(3)/2*planRes**2)
         
         # This is the global offset from the DEM
         self.offset = offset
@@ -134,6 +140,11 @@ class AnisotropicMap:
         self.processElevationMap()
         print('Elevation Map processed in ' + str(time()-init) + ' seconds') 
         
+        init = time()
+        self.computeObstacleProximityMap()
+        print('Obstacle Proximity Map processed in ' + str(time()-init) + 
+              ' seconds') 
+        
         # Hexagonal navigation maps preparation
         self.computeHexNavMaps()
         
@@ -154,28 +165,20 @@ class AnisotropicMap:
         self.occupancyMatrix = convMatrix
         self.occupancyMatrixNorm = convMatrix/convMatrix.sum()
         self.radius = radius
-        
-    def computeObstacles(self):
-                        
+    
+    def computeObstacleProximityMap(self):
         # We define the forbidden areas
-        obstacleMap = np.zeros_like(self.elevationMap)
-        obstacleMap[0,:] = 1
-        obstacleMap[-1,:] = 1
-        obstacleMap[:,0] = 1
-        obstacleMap[:,-1] = 1
+        self.obstacleMap = np.zeros_like(self.elevationMap)
+        self.obstacleMap[0,:] = 1
+        self.obstacleMap[-1,:] = 1
+        self.obstacleMap[:,0] = 1
+        self.obstacleMap[:,-1] = 1
         
-        obstacleMap = ndimage.morphology.binary_dilation(obstacleMap, \
-                    structure = self.occupancyMatrix).astype(obstacleMap.dtype)
-        
-        proximityMap = ndimage.morphology.distance_transform_edt(1-obstacleMap)
-        proximityMap = proximityMap*self.demRes 
-        
-        self.hexProximityMap = interp.griddata(self.XYpoints, self.proximityMap.flatten(),\
-                                       (self.hexXmap, self.hexYmap), method='nearest')
-        self.hexProximityMap[np.where(np.isnan(self.hexProximityMap))] = 0.0  
-        
-        self.obstacleMap = obstacleMap
-        self.proximityMap = proximityMap
+        self.obstacleMap = ndimage.morphology.binary_dilation(self.obstacleMap,
+            structure = self.occupancyMatrix).astype(self.obstacleMap.dtype)
+        self.proximityMap = ndimage.morphology.distance_transform_edt(
+            1-self.obstacleMap)
+        self.proximityMap = self.proximityMap*self.demRes     
         
     def processElevationMap(self):
         processedElevationMap = self.elevationMap
@@ -278,12 +281,12 @@ class AnisotropicMap:
     def computeSqGrid(self):
         DX = self.xMap[-1,-1] - self.xMap[0,0]
         DY = self.yMap[-1,-1] - self.yMap[0,0]
-        IMax = math.ceil(DX/self.planRes)
-        JMax = math.ceil(DY/self.planRes)
+        IMax = math.ceil(DX/self.sqCellLateral)
+        JMax = math.ceil(DY/self.sqCellLateral)
         II,JJ = np.meshgrid(np.linspace(0,IMax,IMax+1),
                             np.linspace(0,JMax,JMax+1))
-        self.sqXmap = self.xMap[0,0] + self.planRes*II
-        self.sqYmap = self.yMap[0,0] + self.planRes*JJ
+        self.sqXmap = self.xMap[0,0] + self.sqCellLateral*II
+        self.sqYmap = self.yMap[0,0] + self.sqCellLateral*JJ
         
     def computeHexElevationMap(self):
         self.hexElevationMap = np.ones([self.hexXmap.shape[0],
@@ -348,50 +351,98 @@ class AnisotropicMap:
                                                        sqAspectMapY**2)
     
     def computeVecCostMap(self, costModel):
+        
+        # Imported the CAMIS Cost Model
         self.costModel = costModel
-        init = time() 
-        self.computeObstacles()
-        print('Elapsed time to compute the Hex Obstacle Map: '+str(time()-init)) 
-        
-        init = time()        
-
-        vectorialData = costModel.getVectorialCostMap(self.rad2deg*self.hexSlopeMap)
-        
-        print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
-        init = time()
-        
-        obstacleMask = self.hexProximityMap <= self.costModel.occupancy_radius + self.costModel.tracking_error + sys.float_info.epsilon
-        
-        AnisotropyMap = vectorialData[0][:][:]
-        AnisotropyMap[obstacleMask] = np.inf
-        
-        VCMap = np.zeros([4,AnisotropyMap.shape[0],AnisotropyMap.shape[1]])
-        
         Cmax = self.costModel.limit_cost
         
-        Q1 = vectorialData[1][:][:]
-        Q1[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
-        Q1[obstacleMask] = np.inf
-        Q2 = vectorialData[2][:][:]
-        Q2[np.where(self.hexProximityMap[:]<self.radius)] = Cmax**3
-        Q2[obstacleMask] = np.inf
-        D1 = vectorialData[3][:][:]
-        D1[np.where(self.hexProximityMap[:]<self.radius)] = 0
-        D1[obstacleMask] = 0
-        D2 = vectorialData[4][:][:]
-        D2[np.where(self.hexProximityMap[:]<self.radius)] = 0
-        D2[obstacleMask] = 0
+        init = time()        
+        hexVectorialData = costModel.getVectorialCostMap(
+            self.rad2deg*self.hexSlopeMap)
+        print('Elapsed time to compute the Vectorial Data: '+str(time()-init))
         
-        VCMap[0] = Q1
-        VCMap[1] = Q2
-        VCMap[2] = D1
-        VCMap[3] = D2
+        init = time()        
+        sqVectorialData = costModel.getVectorialCostMap(
+            self.rad2deg*self.sqSlopeMap)
+        print('Elapsed time to compute the Vectorial Data: '+str(time()-init)) 
         
-        self.VCMap = VCMap
-        self.hexAnisotropyMap = AnisotropyMap
         
-        print('Elapsed time to compute the Vectorial Cost Map: '+str(time()-init))
-    
+        # Creating the obstacle proximity maps
+        init = time() 
+        self.computeHexObstacleProximityMap()
+        
+        hexObstacleMask = self.hexProximityMap <= \
+            self.costModel.occupancy_radius + \
+            self.costModel.tracking_error + sys.float_info.epsilon
+            
+        self.hexAnisotropyMap = hexVectorialData[0][:][:]
+        self.hexAnisotropyMap[hexObstacleMask] = np.inf
+        
+        self.hexVCMap = np.zeros([4,self.hexAnisotropyMap.shape[0],
+                                  self.hexAnisotropyMap.shape[1]])
+        self.hexVCMap[0] = hexVectorialData[1][:][:]
+        self.hexVCMap[0][np.where(self.hexProximityMap[:]<self.radius)] = \
+                                                                        Cmax**3
+        self.hexVCMap[0][hexObstacleMask] = np.inf
+        self.hexVCMap[1] = hexVectorialData[2][:][:]
+        self.hexVCMap[1][np.where(self.hexProximityMap[:]<self.radius)] = \
+                                                                        Cmax**3
+        self.hexVCMap[1][hexObstacleMask] = np.inf
+        self.hexVCMap[2] = hexVectorialData[3][:][:]
+        self.hexVCMap[2][np.where(self.hexProximityMap[:]<self.radius)] = 0
+        self.hexVCMap[2][hexObstacleMask] = 0
+        self.hexVCMap[3] = hexVectorialData[4][:][:]
+        self.hexVCMap[3][np.where(self.hexProximityMap[:]<self.radius)] = 0
+        self.hexVCMap[3][hexObstacleMask] = 0
+        print('The Hexagonal Cost Map is created in ' + str(time()-init)  + 
+              ' seconds')
+        
+        
+        init = time() 
+        self.computeSqObstacleProximityMap()
+
+        sqObstacleMask = self.sqProximityMap <= \
+            self.costModel.occupancy_radius + \
+            self.costModel.tracking_error + sys.float_info.epsilon
+            
+        self.sqAnisotropyMap = sqVectorialData[0][:][:]
+        self.sqAnisotropyMap[sqObstacleMask] = np.inf
+        
+        self.sqVCMap = np.zeros([4,self.sqAnisotropyMap.shape[0],
+                                  self.sqAnisotropyMap.shape[1]])
+        self.sqVCMap[0] = sqVectorialData[1][:][:]
+        self.sqVCMap[0][np.where(self.sqProximityMap[:]<self.radius)] = \
+                                                                        Cmax**3
+        self.sqVCMap[0][sqObstacleMask] = np.inf
+        self.sqVCMap[1] = sqVectorialData[2][:][:]
+        self.sqVCMap[1][np.where(self.sqProximityMap[:]<self.radius)] = \
+                                                                        Cmax**3
+        self.sqVCMap[1][sqObstacleMask] = np.inf
+        self.sqVCMap[2] = sqVectorialData[3][:][:]
+        self.sqVCMap[2][np.where(self.sqProximityMap[:]<self.radius)] = 0
+        self.sqVCMap[2][sqObstacleMask] = 0
+        self.sqVCMap[3] = sqVectorialData[4][:][:]
+        self.sqVCMap[3][np.where(self.sqProximityMap[:]<self.radius)] = 0
+        self.sqVCMap[3][sqObstacleMask] = 0
+        print('The Square Cost Map is created in ' + str(time()-init)  + 
+              ' seconds')
+        
+        
+    def computeHexObstacleProximityMap(self):
+        self.hexProximityMap = interp.griddata(self.XYpoints, 
+                                               self.proximityMap.flatten(),\
+                                               (self.hexXmap, self.hexYmap), 
+                                               method='nearest')
+        self.hexProximityMap[np.where(np.isnan(self.hexProximityMap))] = 0.0
+        
+        
+    def computeSqObstacleProximityMap(self):
+        self.sqProximityMap = interp.griddata(self.XYpoints, 
+                                               self.proximityMap.flatten(),\
+                                               (self.sqXmap, self.sqYmap), 
+                                               method='nearest')
+        self.sqProximityMap[np.where(np.isnan(self.sqProximityMap))] = 0.0   
+        
     # Executing OUM to compute the path
     def executePlanning(self, goal, start):
         init = time()
@@ -404,8 +455,9 @@ class AnisotropicMap:
         ijStart = np.round(XY2IJ[:,start[1],start[0]]).astype(int)
         ijGoal = np.round(XY2IJ[:,goal[1],goal[0]]).astype(int)
         self.Tmap, dirMap, stateMap = \
-        ap.computeTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
-                       ijGoal, ijStart, self.hexXmap, self.hexYmap, self.planRes)
+        ap.computeTmap(self.hexVCMap, self.hexAspectMap, self.hexAnisotropyMap,
+                       ijGoal, ijStart, self.hexXmap, self.hexYmap, 
+                       self.planRes)
         elapsedTime = time()-init
         print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         
@@ -435,9 +487,9 @@ class AnisotropicMap:
         # TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS
         self.TmapG, self.TmapS, self.dirMapG, self.dirMapS, nodeLink,\
         stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
-        ap.computeBiTmap(self.VCMap, self.hexAspectMap, self.hexAnisotropyMap,\
-                       ijGoal, ijStart, self.hexXmap, self.hexYmap,\
-                       self.planRes)
+        ap.computeBiTmap(self.hexVCMap, self.hexAspectMap, 
+                         self.hexAnisotropyMap, ijGoal, ijStart, self.hexXmap, 
+                         self.hexYmap, self.planRes)
         elapsedTime = time()-init
         print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         self.linkNode = nodeLink
@@ -641,9 +693,9 @@ class AnisotropicMap:
 #        return cls(parentPdem.elevationMap, parentPdem.demRes,\
 #                   parentPdem.planRes, parentPdem.offset, costModel)
 
-    def showVecCostMap(self, index):
+    def showHexVecCostMap(self, index):
         fig, ax = plt.subplots()
-        chosenVCmap = self.VCMap[index]
+        chosenVCmap = self.hexVCMap[index]
         chosenVCmap[np.where(chosenVCmap == np.inf)] = np.nan 
         cc = ax.contourf(self.hexXmap, self.hexYmap, chosenVCmap, 100, cmap = 'nipy_spectral')
 #        cc.set_clim(0,200.0)

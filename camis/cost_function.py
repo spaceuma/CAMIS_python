@@ -525,32 +525,37 @@ class CamisDrivingModel:
         return np.sqrt(Q1*cBeta**2+Q2*sBeta**2+2*D1*D2*cBeta*sBeta) - \
                (cBeta*D1 + sBeta*D2)
            
-    def getVectorialCostMap(self,slopeMap):
-        vectorialCostMap = np.ones([5,slopeMap.shape[0],slopeMap.shape[1]])
+    def getVectorialCostMap(self,steepnessMap):
+        # ToDo: would be great to add a warning in case the slopeMap comes in 
+        # degrees (e.g. detect a node > 3.14/2)
+        vectorialCostMap = np.ones([5,steepnessMap.shape[0],
+                                    steepnessMap.shape[1]])
         Cobs = np.max((self.getCd(self.limit_angle_deg),\
                        self.getCa(self.limit_angle_deg),\
-                       self.getCl(self.limit_angle_deg)))*self.getAnisotropy(self.limit_angle_deg)
+                       self.getCl(self.limit_angle_deg)))*self.getAnisotropy(
+                           self.limit_angle_deg)
         vectorialCostMap[1] = vectorialCostMap[1]*Cobs**2
         vectorialCostMap[2] = vectorialCostMap[2]*Cobs**2
         vectorialCostMap[3] = vectorialCostMap[3]*0.0
         vectorialCostMap[4] = vectorialCostMap[4]*0.0
         
-        for i in range(slopeMap.shape[1]):
-            for j in range(slopeMap.shape[0]):
-                slope = slopeMap[j][i]
+        for i in range(steepnessMap.shape[1]):
+            for j in range(steepnessMap.shape[0]):
+                steepness = steepnessMap[j][i]
                 if (self.mode == 'isotropic'):
-                        Cn = self.getCn(slope)
+                        Cn = self.getCn(steepness)
                         vectorialCostMap[0][j][i] = 1
                         vectorialCostMap[1][j][i] = Cn**2 # Q1
                         vectorialCostMap[2][j][i] = Cn**2# Q2
                         vectorialCostMap[3][j][i] =  0
                         vectorialCostMap[4][j][i] = 0
                 else:
-                        Cd = np.min((self.limit_cost, self.getCd(slope)))
-                        Ca = np.min((self.limit_cost, self.getCa(slope)))
-                        Cl1 = np.min((self.limit_cost, self.getCl(slope)))
-                        Cl2 = np.min((self.limit_cost, self.getCl(slope)))
-                        vectorialCostMap[0][j][i] = self.getAnisotropy(slope)
+                        Cd = np.min((self.limit_cost, self.getCd(steepness)))
+                        Ca = np.min((self.limit_cost, self.getCa(steepness)))
+                        Cl1 = np.min((self.limit_cost, self.getCl(steepness)))
+                        Cl2 = np.min((self.limit_cost, self.getCl(steepness)))
+                        vectorialCostMap[0][j][i] = self.getAnisotropy(
+                            steepness)
                         vectorialCostMap[1][j][i] = ((Ca+Cd)/2)**2 # Q1
                         vectorialCostMap[2][j][i] = ((Cl1+Cl2)/2)**2# Q2
                         vectorialCostMap[3][j][i] =  (Ca-Cd)/2 # D1
