@@ -486,8 +486,20 @@ class AnisotropicMap:
               ' and the position is ' + str(self.sqXmap[ijStart[1]][ijStart[0]]) + 
               ','  + str(self.sqYmap[ijStart[1]][ijStart[0]]))
         
+        self.sqTmapG, self.sqTmapS, self.sqDirMapG, self.sqDirMapS, nodeLink,\
+        stateMapG, stateMapS, self.dirLinkG, self.dqDirLinkS = \
+        ap.computeBiTmap(self.sqVCMap, self.sqAspectMap, 
+                         self.sqAnisotropyMap, ijGoal, ijStart, self.sqXmap, 
+                         self.sqYmap, self.planRes,'sq')
+        
         print('Elapsed time to compute the Total Cost Map: ' + 
               str(time()-init)  +  ' seconds')
+        TlinkG = self.sqTmapG[nodeLink[1],nodeLink[0]]
+        TlinkS = self.sqTmapS[nodeLink[1],nodeLink[0]]
+        self.sqTmap = np.zeros_like(self.sqTmapG)
+        self.sqTmap[:] = self.sqTmapG
+        self.sqTmap[np.where(self.sqTmapS != np.inf)] = TlinkS + TlinkG - self.sqTmapS[np.where(self.sqTmapS != np.inf)]
+        self.sqTmap[np.where(self.sqTmap < 0.0)] = np.inf
     
     def executeHexBiPlanning(self, goal, start):
         init = time()
@@ -823,7 +835,18 @@ class AnisotropicMap:
         plt.show()   
     
     
-    
+    def showSqBiTmaps(self):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.sqXmap, self.sqYmap, self.Tmap, 100, 
+                         cmap = 'nipy_spectral', alpha = .5)
+        ax.contour(self.sqXmap, self.sqYmap, self.Tmap, 100, 
+                   cmap = 'nipy_spectral')
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Total Cost')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_aspect('equal')
+        plt.show()
     
     
         

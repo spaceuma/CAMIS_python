@@ -164,28 +164,22 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
                 nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap,  
                 aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
                 gridtype)
-            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateTNarrowBand(nodeTargetG, nbTG, 
-                                                      nbNodesG, dirMapG, TmapG,
-                                                      stateMapG, VCmap, 
-                                                      aspectMap, anisotropyMap,
-                                                      maxAnisoMapG, Xmap, Ymap,
-                                                      res, gridtype)
+            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateTNarrowBand(
+                nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, 
+                aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
+                gridtype)
        
         if nbNodesS:
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
-            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(nodeTargetS, nbTS, 
-                                                     nbNodesS, dirMapS, 
-                                                     TmapS, stateMapS, VCmapS, 
-                                                     aspectMap, anisotropyMap,
-                                                     maxAnisoMapS, Xmap, Ymap, 
-                                                     res, gridtype)  
-            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(nodeTargetS, nbTS, 
-                                                      nbNodesS, dirMapS, TmapS,
-                                                      stateMapS, VCmapS, 
-                                                      aspectMap, anisotropyMap,
-                                                      maxAnisoMapS, Xmap, Ymap,
-                                                      res, gridtype)
+            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
+                nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
+                aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
+                gridtype)  
+            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(
+                nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
+                aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
+                gridtype)
 
         if len(nodeLink) == 0:
             if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:        
@@ -201,7 +195,8 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
                 if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
                     nodeLink = nodeTargetS
                     break
-        elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],nodeLink[0]] == 2:
+        elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],
+                                                             nodeLink[0]] == 2:
             break
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, \
            d1, d2 - np.pi
@@ -242,24 +237,42 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                 R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
             afList = []
             
-            afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList)
-            
+            if gridtype == 'hex':
+                afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, 
+                                      afList)
+            elif gridtype == 'sq':
+                afList = getSqAFlist(nodeTarget, R, stateMap, anisotropy, 
+                                      afList)
+            else:
+                raise ValueError('Wrong grid type')
+                
             localAFPairs = []
             SS = []
             SS[:] = afList
             while (len(SS)!=0):
                 ss = SS[0]
                 del SS[0]
+                if gridtype == 'sq':
+                    localAFPairs.append(np.concatenate((ss,ss)))
                 for j in SS:
-                    if areHexNeighbours(ss,j):
+                    if gridtype == 'hex' and areHexNeighbours(ss,j):
                         localAFPairs.append(np.concatenate((ss,j)))
+                    if gridtype == 'sq' and areSq8Neighbours(ss,j):
+                        localAFPairs.append(np.concatenate((ss,j)))
+                        
             nfPairs = []
             for j in localAFPairs:
-                if checkHexNF(j,nodeTarget,anisotropy,res):
+                if gridtype == 'hex' and checkHexNF(j,nodeTarget,anisotropy,
+                                                    res):
                     nfPairs.append(j)
+                if gridtype == 'sq' and checkSqNF(j,nodeTarget,anisotropy,
+                                                    res):
+                    nfPairs.append(j)
+            
             if len(nfPairs) == 0:
                 for j in afList:
                     nfPairs.append(np.concatenate((j,j)))
+                    
         Q1 = VCmap[0,nodeTarget[1],nodeTarget[0]]
         Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
@@ -275,6 +288,21 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
         maxAnisoMap[nodeTarget[1],nodeTarget[0]] = nfAnisotropy
     return Tmap, dirMap, maxAnisoMap, nbT, nbNodes 
+
+def getSqAFlist(nodeTarget, R, stateMap, anisotropy, afList):
+    for j in range(-R,R+1):
+        for k in range(-R,R+1):
+            try:
+                if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
+                    if anisotropy == 1.0:
+                        if areSq8Neighbours(nodeTarget+[k,j],nodeTarget):
+                            afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+                    else:
+                        afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
+            except:
+                pass
+    return afList
+
 
 def getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList):
     for j in range(-R,1):
@@ -301,8 +329,25 @@ def getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList):
                 pass 
     return afList
 
-def getHexConsideredList(node, R, stateMap, relAnisotropy, consideredList):
+
+def getSqConsideredList(node, R, stateMap, relAnisotropy, consideredList):
     for j in range(-R,R+1):
+        for k in range(-R,R+1):
+            try:
+                if stateMap[node[1]+j,node[0]+k]==0 and not any(
+                        node[0]+k==x[0] and node[1]+j==x[1] for x in 
+                        consideredList):
+                    if relAnisotropy == 1.0:
+                        if areSq8Neighbours(node+[k,j],node):
+                            consideredList.append([node[0]+k,node[1]+j])
+                    else:
+                        consideredList.append([node[0]+k,node[1]+j])
+            except:
+                pass
+    return consideredList
+
+def getHexConsideredList(node, R, stateMap, relAnisotropy, consideredList):
+    for j in range(-R,1):
         for k in range(-R-j,R+1):
             try:
                 if stateMap[node[1]+j,node[0]+k]==0 and not any(
@@ -351,8 +396,16 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         node[:] = nodeTarget[:]
         relAnisotropy = maxAnisoMap[node[1],node[0]]
         R = int(1)
-        consideredList = getHexConsideredList(node, R, stateMap, relAnisotropy,
-                                              consideredList)
+        if gridtype == 'hex':
+            consideredList = getHexConsideredList(node, R, stateMap, 
+                                                  relAnisotropy, 
+                                                  consideredList)
+        elif gridtype == 'sq':
+            consideredList = getSqConsideredList(node, R, stateMap, 
+                                                 relAnisotropy, consideredList)
+        else:
+            raise ValueError('Wrong grid type')
+        
     else:
         #Now the considered nodes to re-evaluate are selected   
         for i in range(len(subAFlist)):
@@ -364,9 +417,16 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                 R = int(1)
             else:
                 R = int(np.ceil(relAnisotropy*1.1547005383792517))#2/sqrt(3)
-            consideredList = getHexConsideredList(node, R, stateMap, 
-                                                  relAnisotropy, 
-                                                  consideredList)
+            if gridtype == 'hex':
+                consideredList = getHexConsideredList(node, R, stateMap, 
+                                                      relAnisotropy, 
+                                                      consideredList)
+            elif gridtype == 'sq':
+                consideredList = getSqConsideredList(node, R, stateMap, 
+                                                     relAnisotropy, 
+                                                     consideredList)
+            else:
+                raise ValueError('Wrong grid type')
     
     for i in range(len(consideredList)):
         nodeTarget = np.empty([2],dtype=int)
@@ -379,7 +439,14 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         else:
             R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
         afList = []
-        afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, afList)
+        if gridtype == 'hex':
+            afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, 
+                                  afList)
+        elif gridtype == 'sq':
+            afList = getSqAFlist(nodeTarget, R, stateMap, anisotropy, 
+                                  afList)
+        else:
+            raise ValueError('Wrong grid type')
             
         localAFPairs = []
         SS = []
@@ -387,13 +454,23 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         while (len(SS)!=0):
             ss = SS[0]
             del SS[0]
+            if gridtype == 'sq':
+                localAFPairs.append(np.concatenate((ss,ss)))
             for j in SS:
-                if areHexNeighbours(ss,j):
+                if gridtype == 'hex' and areHexNeighbours(ss,j):
                     localAFPairs.append(np.concatenate((ss,j)))
+                if gridtype == 'sq' and areSq8Neighbours(ss,j):
+                    localAFPairs.append(np.concatenate((ss,j)))
+                    
         nfPairs = []
         for j in localAFPairs:
-            if checkHexNF(j,nodeTarget,anisotropy,res):
+            if gridtype == 'hex' and checkHexNF(j,nodeTarget,anisotropy,
+                                                res):
                 nfPairs.append(j)
+            if gridtype == 'sq' and checkSqNF(j,nodeTarget,anisotropy,
+                                                res):
+                nfPairs.append(j)
+                
         if not len(nfPairs) == 0:
             Q1 = VCmap[0,nodeTarget[1],nodeTarget[0]]
             Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
@@ -472,6 +549,35 @@ def areSqNeighbours(n1,n2):
     dx = n1[0] - n2[0]
     dy = n1[1] - n2[1]
     return any(dx==x[0] and dy==x[1] for x in neighbours)
+
+def areSq8Neighbours(n1,n2):
+    neighbours = [[1,0], [0,1], [-1,0], [0,-1],
+                  [-1,-1], [-1,1], [1,1], [1,-1],]
+    dx = n1[0] - n2[0]
+    dy = n1[1] - n2[1]
+    return any(dx==x[0] and dy==x[1] for x in neighbours)
+
+def checkSqNF(afPair, n, anisotropy,res):
+    C1 = afPair[2]-n[0];
+    C2 = afPair[3]-n[1];
+    C3 = afPair[0]-afPair[2];
+    C4 = afPair[1]-afPair[3];
+    C5 = afPair[0]-n[0];
+    C6 = afPair[1]-n[1];
+    if anisotropy < 1.01:
+        return math.sqrt(C1**2+C2**2) <= anisotropy and math.sqrt(
+            C5**2+C6**2) <= anisotropy
+        # return areSqNeighbours(afPair[0:2], n) and areSqNeighbours(
+        #         afPair[2:4], n)
+    else:
+        C1 = afPair[2]-n[0];
+        C2 = afPair[3]-n[1];
+        C3 = afPair[0]-n[0];
+        C4 = afPair[1]-n[1];
+        return math.sqrt(C1**2+C2**2) <= anisotropy or math.sqrt(
+            C3**2+C4**2) <= anisotropy
+
+
 
 #@jit(nopython=True)  
 def checkHexNF(afPair, n, anisotropy,res):

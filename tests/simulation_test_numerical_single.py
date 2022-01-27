@@ -115,9 +115,11 @@ aniso_01 = camis.CamisDrivingModel(cuadriga_data)
 #aniso_01.showCAMIS(25)
 env_CUAD01_scene01, env_isoCUAD01_scene01 = getMapLists(aniso_01)
 
-env_CUAD01_scene01[0].executeHexBiPlanning(posB,posA)
+# env_CUAD01_scene01[0].executeHexBiPlanning(posB,posA)
 
 
+env_isoCUAD01_scene01[0].executeSqBiPlanning(posB,posA)
+env_isoCUAD01_scene01[0].showSqBiTmaps()
 
 # computeAllPlannings(env_CUAD01_scene01)
 # computeAllPlannings(env_isoCUAD01_scene01)
