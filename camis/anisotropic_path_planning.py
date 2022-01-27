@@ -252,8 +252,9 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
             while (len(SS)!=0):
                 ss = SS[0]
                 del SS[0]
-                if gridtype == 'sq':
-                    localAFPairs.append(np.concatenate((ss,ss)))
+                # if gridtype == 'sq':
+                #     localAFPairs.append(np.concatenate((ss,ss)))
+                localAFPairs.append(np.concatenate((ss,ss)))
                 for j in SS:
                     if gridtype == 'hex' and areHexNeighbours(ss,j):
                         localAFPairs.append(np.concatenate((ss,j)))
@@ -454,8 +455,9 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         while (len(SS)!=0):
             ss = SS[0]
             del SS[0]
-            if gridtype == 'sq':
-                localAFPairs.append(np.concatenate((ss,ss)))
+            # if gridtype == 'sq':
+            #     localAFPairs.append(np.concatenate((ss,ss)))
+            localAFPairs.append(np.concatenate((ss,ss)))
             for j in SS:
                 if gridtype == 'hex' and areHexNeighbours(ss,j):
                     localAFPairs.append(np.concatenate((ss,j)))
@@ -635,8 +637,12 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
         # ToDo: create getEikonal for sq option
         if (anisotropy < 1.0001) and gridtype == 'hex':
             preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
-            # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+            # preT2, preDir2 = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
             #                             anisotropy)
+            # if np.abs(preT - preT2) > 0.0001:
+            #     print('There is a problem with the eikonal solver')
+            # if np.abs(preDir - preDir2) > 0.0001:
+            #     print('There is a problem with the eikonal solver')
         else:
             preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
                                         anisotropy)
@@ -656,8 +662,13 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
             # ToDo: create getEikonal for sq option
             if (anisotropy < 1.0001) and gridtype == 'hex':
                 preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
-                # preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
+                # preT2, preDir2 = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
                 #                             anisotropy)
+                # if np.abs(preT - preT2) > 0.0001:
+                #     print('There is a problem with the eikonal solver')
+                #     preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
+                # if np.abs(preDir - preDir2) > 0.0001:
+                #     print('There is a problem with the eikonal solver')
             else:
                 preT, preDir = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
                                             anisotropy)
@@ -759,12 +770,18 @@ def getEikonalCost(x,xj,xk,Tj,Tk,Q):
     else:
         # Be careful, here Q is cost**2
         dTjk = np.abs(Tj - Tk)
-        sqValue = dTjk**2 + 3*h**2*Q - 4*dTjk
+        sqValue = dTjk**2 + 3*h**2*Q - 4*dTjk**2
         if sqValue < 0.0:
-            T = min(Tj,Tk) +  h/math.sqrt(Q)
+            T = min(Tj,Tk) +  h*math.sqrt(Q)
         else:  
             T = min(Tj,Tk) +  (dTjk + math.sqrt(sqValue))/2
         # T = (Tj + Tk + math.sqrt((Tj+Tk)**2 + 3*h**2*Q - 4*(Tj**2+Tk**2-Tj*Tk)))/2
+        
+        # Upwind condition
+        ratio = min(T-Tj,T-Tk) / max(T-Tj,T-Tk)
+        if not ((dTjk < max(T-Tj,T-Tk)) and (ratio > 0.5) and (ratio < 2.0)):
+            T = min(Tj,Tk) +  h*math.sqrt(Q)
+        
         
         # This is (x - xj)/h = [djx, djy]
         djx = (x[0] - xj[0])/h
@@ -797,6 +814,37 @@ def getMinNB(nbT,nbNodes):
     nodeTarget = nbNodes.pop(0)
     del nbT[0]
     return nodeTarget, nbT, nbNodes
+
+
+def getSqPath(dirMap, initWaypoint, endWaypoint, Xmin, Ymin, res):
+    path = []
+    heading = []
+    path.append(initWaypoint)
+    init = time()
+    heading = np.zeros_like(initWaypoint,float)
+    headingarray = []
+    ij = np.empty([2],dtype=float)
+    while time() - init < 10:
+        waypoint = path[-1]
+        try:
+            ij[:] = (waypoint-[Xmin,Ymin])/res
+            heading[0] = interpolatePoint(ij,np.cos(dirMap))
+            heading[1] = interpolatePoint(ij,np.sin(dirMap))
+        except:
+            print('ERROR: path is not fully computed')
+            return path, headingarray
+        heading = heading / np.linalg.norm(heading)
+        k1 = .1*res*heading
+        headingarray.append(heading)
+        if any(np.isnan(k1)):
+            break
+        if (k1[0] == 0)and(k1[1] == 0):
+            break
+        waypoint = path[-1]-k1
+        path.append(waypoint)
+        if math.sqrt((path[-1][0] - endWaypoint[0])**2+(path[-1][1] - endWaypoint[1])**2) < 1.5*res:
+            break
+    return path, headingarray
 
 
 def getPath(dirMap, IJ2XY, XY2IJ, initWaypoint, endWaypoint, Xmin, Ymin, res):

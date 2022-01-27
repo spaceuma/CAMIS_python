@@ -486,21 +486,35 @@ class AnisotropicMap:
               ' and the position is ' + str(self.sqXmap[ijStart[1]][ijStart[0]]) + 
               ','  + str(self.sqYmap[ijStart[1]][ijStart[0]]))
         
-        self.sqTmapG, self.sqTmapS, self.sqDirMapG, self.sqDirMapS, nodeLink,\
-        stateMapG, stateMapS, self.dirLinkG, self.dqDirLinkS = \
+        self.sqTmapG, self.sqTmapS, self.sqDirMapG, self.sqDirMapS, \
+            self.sqLinkNode, stateMapG, stateMapS, self.dirLinkG, \
+                self.dqDirLinkS = \
         ap.computeBiTmap(self.sqVCMap, self.sqAspectMap, 
                          self.sqAnisotropyMap, ijGoal, ijStart, self.sqXmap, 
-                         self.sqYmap, self.planRes,'sq')
+                         self.sqYmap, self.sqCellLateral,'sq')
         
         print('Elapsed time to compute the Total Cost Map: ' + 
               str(time()-init)  +  ' seconds')
-        TlinkG = self.sqTmapG[nodeLink[1],nodeLink[0]]
-        TlinkS = self.sqTmapS[nodeLink[1],nodeLink[0]]
+        TlinkG = self.sqTmapG[self.sqLinkNode[1],self.sqLinkNode[0]]
+        TlinkS = self.sqTmapS[self.sqLinkNode[1],self.sqLinkNode[0]]
         self.sqTmap = np.zeros_like(self.sqTmapG)
         self.sqTmap[:] = self.sqTmapG
         self.sqTmap[np.where(self.sqTmapS != np.inf)] = TlinkS + TlinkG - self.sqTmapS[np.where(self.sqTmapS != np.inf)]
         self.sqTmap[np.where(self.sqTmap < 0.0)] = np.inf
-    
+        
+        self.sqLinkPos = np.empty([2],dtype=float)
+        self.sqLinkPos[:] = [self.sqXmap[self.sqLinkNode[1],
+                                         self.sqLinkNode[0]],
+                             self.sqYmap[self.sqLinkNode[1],
+                                         self.sqLinkNode[0]]]
+        
+        self.sqPathG,uu = ap.getSqPath(self.sqDirMapG, self.sqLinkPos, goal, 
+                                     self.xMin, self.yMin, self.sqCellLateral)
+        self.sqPathS,uu = ap.getSqPath(self.sqDirMapS, self.sqLinkPos, start, 
+                                     self.xMin, self.yMin, self.sqCellLateral)
+        self.sqPath = np.concatenate((np.flipud(np.asarray(self.sqPathS)),
+                                    np.asarray(self.sqPathG)))
+        
     def executeHexBiPlanning(self, goal, start):
         init = time()
         IJ2XY = np.zeros([2,self.hexXmap.shape[0],self.hexYmap.shape[1]])
@@ -523,8 +537,10 @@ class AnisotropicMap:
         self.linkNode = nodeLink
         self.linkPos = IJ2XY[:,nodeLink[1],nodeLink[0]]
         
-        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, self.linkPos, goal, self.xMin, self.yMin, self.planRes)
-        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, self.linkPos, start, self.xMin, self.yMin, self.planRes)
+        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, self.linkPos, 
+                                   goal, self.xMin, self.yMin, self.planRes)
+        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, self.linkPos, 
+                                   start, self.xMin, self.yMin, self.planRes)
         
         self.IJ2XY = IJ2XY
         self.XY2IJ = XY2IJ
@@ -534,7 +550,8 @@ class AnisotropicMap:
         
         self.pathS = self.pathS[1:-1]
         
-        self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),np.asarray(self.pathG)))
+        self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),
+                                    np.asarray(self.pathG)))
         self.Tmap = np.zeros_like(self.TmapG)
         self.Tmap[:] = self.TmapG
         self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
@@ -777,8 +794,9 @@ class AnisotropicMap:
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
         plt.show()
+        
+        
     def showHexAspectMap(self):
-        levels = np.linspace(0.0,45.0,46)
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.rad2deg*np.arctan2(self.hexAspectMap[1],self.hexAspectMap[0]), cmap="hsv",s=20)
         ax.set_aspect('equal')
@@ -794,6 +812,24 @@ class AnisotropicMap:
         ax.set_xlabel('X-axis [m]')
         ax.set_ylabel('Y-axis [m]')
         plt.show()
+        
+    def showSqAspectMap(self):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.sqXmap, self.sqYmap, 
+                        c = self.rad2deg*np.arctan2(self.sqAspectMap[1],
+                                                    self.sqAspectMap[0]), 
+                        cmap="hsv",s=20)
+        ax.set_aspect('equal')
+        
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Aspect (deg)')
+        ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
+        plt.show()
+        
     def showHexBiTmaps(self):
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.contourf(self.hexXmap, self.hexYmap, self.TmapG, 100, cmap = 'nipy_spectral', alpha = .5)
@@ -837,10 +873,11 @@ class AnisotropicMap:
     
     def showSqBiTmaps(self):
         fig, ax = plt.subplots(constrained_layout=True)
-        cc = ax.contourf(self.sqXmap, self.sqYmap, self.Tmap, 100, 
+        cc = ax.contourf(self.sqXmap, self.sqYmap, self.sqTmap, 100, 
                          cmap = 'nipy_spectral', alpha = .5)
-        ax.contour(self.sqXmap, self.sqYmap, self.Tmap, 100, 
+        ax.contour(self.sqXmap, self.sqYmap, self.sqTmap, 100, 
                    cmap = 'nipy_spectral')
+        ax.plot(self.sqPath[:,0],self.sqPath[:,1],'r')
         cbar = fig.colorbar(cc)
         cbar.set_label('Total Cost')
         ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
@@ -848,7 +885,21 @@ class AnisotropicMap:
         ax.set_aspect('equal')
         plt.show()
     
-    
+    def showSqBiHeading(self):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.sqXmap, self.sqYmap, 
+                        c = self.rad2deg*self.sqDirMapS, 
+                        cmap="hsv",s=20)
+        ax.set_aspect('equal')
+        
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Heading (deg)')
+        ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]')
+        ax.set_ylabel('Y-axis [m]')
+        plt.show()
         
     def showResults(self):
         fig, ax = plt.subplots(constrained_layout=True)
