@@ -61,12 +61,14 @@ z = np.ones_like(xmesh)
 #         z[j,i] =  3*(1-x)**2*np.exp(-(x**2)/1.0 - (y+1)**2/1.0) - \
 #         10*(x/5 - x**3 - y**5)*np.exp(-x**2-y**2) - \
 #         1/3*np.exp(-(x+1)**2 - y**2) 
+        
 
 for j,y in enumerate(yy):
     for i,x in enumerate(xx):
         z[j,i] =  3*(1-x)**2*np.exp(-(x**2)/1.0 - (y+1)**2/1.0) - \
         10*(x/5 - x**3 - y**5)*np.exp(-x**2-y**2) - \
-        1/3*np.exp(-(x+1)**2 - y**2) - 2*x
+        1/3*np.exp(-(x+1)**2 - y**2)
+        z[j,i] = z[j,i] * 0.5 - 2*x
 
 xmesh *= 10.0
 ymesh *= 10.0
@@ -79,11 +81,14 @@ occupancy_radius = 0.5
 tracking_error = 0.5
 #posA = np.asarray([20,45])
 #posB = np.asarray([30,5])
-posA = np.asarray([27,5])
-posB = np.asarray([20,45])
+posA = np.asarray([40,10])
+posB = np.asarray([10,40])
 env = camis.AnisotropicMap(z, hiRes, hexRes,\
                                offset, occupancy_radius, tracking_error)
 
+env.showSqElevationMap(16)
+
+env.showSqSlopeGradientMap(16)
 
 #cc.set_clim(0,50.0)
 #cbar.set_label('Steepness (deg)')
@@ -97,8 +102,12 @@ tracking_error = 0.5
 print('TEST_DEMO: DEM is loaded')
 
 def computeAllPlannings(anisoMapList):
-    anisoMapList[0].executeHexBiPlanning(posB,posA)
-    anisoMapList[1].executeHexBiPlanning(posA,posB)
+    anisoMapList[0].executeHexBiPlanning(posB,posA, nbUpdate = True, 
+                                                  anisoSearch = 'single',
+                                                  dirPolicy = 'bidir')
+    anisoMapList[1].executeHexBiPlanning(posA,posB, nbUpdate = True, 
+                                                  anisoSearch = 'single',
+                                                  dirPolicy = 'bidir')
 
 def getMapLists(camisInput):
     iso_model = copy.deepcopy(camisInput)
@@ -115,30 +124,47 @@ def getMapLists(camisInput):
 
 
 
-with open("data/sim01/cuadriga_aniso_03.yml", 'r') as file:
+with open("data/thesis/cuadriga_aniso_01.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_01 = camis.CamisDrivingModel(cuadriga_data)
-#aniso_01.showCAMIS(25)
+aniso_01.showCAMIS(12)
 env_CUAD01_scene01, env_isoCUAD01_scene01 = getMapLists(aniso_01)
 
-# env_CUAD01_scene01[0].executeHexBiPlanning(posB,posA)
 
-env_isoCUAD01_scene01[1].executeSqBiPlanning(posB, posA, nbUpdate = True, 
-                                             anisoSearch = 'single')
-env_isoCUAD01_scene01[1].showSqBiTmaps()
 
-env_isoCUAD01_scene01[1].executeHexBiPlanning(posB, posA, nbUpdate = True, 
-                                             anisoSearch = 'single')
-env_isoCUAD01_scene01[1].showHexBiTmaps()
+
+
+# env_isoCUAD01_scene01[1].executeSqBiPlanning(posB, posA, nbUpdate = False, 
+#                                               anisoSearch = 'double')
+# env_isoCUAD01_scene01[1].showSqBiTmaps()
+
+# env_isoCUAD01_scene01[1].executeHexBiPlanning(posB, posA, nbUpdate = True, 
+#                                              anisoSearch = 'single')
+# env_isoCUAD01_scene01[1].showHexBiTmaps()
 
 # ToDo: 'double' option has yet to be implemented!!
-env_CUAD01_scene01[1].executeSqBiPlanning(posB, posA, nbUpdate = False, 
-                                             anisoSearch = 'double')
-env_CUAD01_scene01[1].showSqBiTmaps()
+env_CUAD01_scene01[0].executeHexBiPlanning(posB, posA, nbUpdate = True, 
+                                           anisoSearch = 'single',
+                                           dirPolicy = 'bidir')
+env_CUAD01_scene01[0].showHexBiTmaps()
 
-env_CUAD01_scene01[1].executeHexBiPlanning(posB,posA, nbUpdate = False, 
-                                             anisoSearch = 'double')
-env_CUAD01_scene01[1].showHexBiTmaps()
+
+env_isoCUAD01_scene01[0].executeSqBiPlanning(posB, posA, nbUpdate = True, 
+                                             anisoSearch = 'single',
+                                             dirPolicy = 'bidir')
+env_isoCUAD01_scene01[0].showSqBiTmaps()
+
+
+
+
+
+# env_CUAD01_scene01[1].executeHexBiPlanning(posB,posA, nbUpdate = False, 
+#                                               anisoSearch = 'double',
+#                                               dirPolicy = 'goal')
+# env_CUAD01_scene01[1].showHexBiTmaps()
+
+
+
 # env_isoCUAD01_scene01[0].showSqBiHeading()
 
 # computeAllPlannings(env_CUAD01_scene01)

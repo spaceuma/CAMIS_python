@@ -96,7 +96,7 @@ def computeTmap(VCmap,aspectMap,anisotropyMap,goal,start,Xmap,Ymap,res,gridtype)
 #            considered nodes). It can be True or False.
 # anisoSearch = 'single' or 'double'. Increases R for a bigger search circle
 def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap, 
-                  res, gridtype, nbUpdate, anisoSearch):
+                  res, gridtype, nbUpdate, anisoSearch, dirPolicy):
     VCmapS = np.ones_like(VCmap)
     VCmapS[0] = VCmap[0]
     VCmapS[1] = VCmap[1]
@@ -151,21 +151,22 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
     TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
         nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, 
         aspectMap, anisotropyMap, maxAnisoMapG,  Xmap, Ymap, res, gridtype, 
-        anisoSearch, goal)
+        anisoSearch, nbUpdate, goal)
     TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
         nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
         aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, gridtype,
-        anisoSearch, start)   
+        anisoSearch, nbUpdate, start)   
  
     nodeLink = []
     while nbNodesG or nbNodesS:
-        if nbNodesG:
+        
+        if nbNodesG and (dirPolicy == 'bidir' or dirPolicy == 'goal'):
             nodeTargetG, nbTG, nbNodesG = getMinNB(nbTG, nbNodesG)
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
             TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
                 nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap,  
                 aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
-                gridtype, anisoSearch)
+                gridtype, anisoSearch, nbUpdate)
             if nbUpdate:
                 TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = \
                     updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, 
@@ -173,36 +174,49 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
                                       anisotropyMap, maxAnisoMapG, Xmap, Ymap, 
                                       res, gridtype, anisoSearch)
        
-        if nbNodesS:
+        if nbNodesS and (dirPolicy == 'bidir' or dirPolicy == 'start'):
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
             TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
                 nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                 aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
-                gridtype, anisoSearch)  
+                gridtype, anisoSearch, nbUpdate)  
             if nbUpdate:
                 TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(
                     nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                     aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
                     gridtype, anisoSearch)
 
-        if len(nodeLink) == 0:
-            if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:        
-                d1 = dirMapS[nodeTargetG[1],nodeTargetG[0]]
-                d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
-                if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
-                    nodeLink = nodeTargetG
-                    break
-            if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 1:
-                nodeLink = nodeTargetS
-                d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
-                d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
-                if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
+        if dirPolicy == 'goal':
+            if stateMapG[start[1],start[0]] == 2:
+                nodeLink = start
+                d1 = dirMapS[start[1],start[0]]
+                d2 = dirMapG[start[1],start[0]] + np.pi
+                break
+        if dirPolicy == 'start':
+            if stateMapS[goal[1],goal[0]] == 2:
+                nodeLink = goal
+                d1 = dirMapS[goal[1],goal[0]]
+                d2 = dirMapG[goal[1],goal[0]] + np.pi
+                break
+        if dirPolicy == 'bidir':
+            if len(nodeLink) == 0:
+                if stateMapS[nodeTargetG[1],nodeTargetG[0]] == 1:        
+                    d1 = dirMapS[nodeTargetG[1],nodeTargetG[0]]
+                    d2 = dirMapG[nodeTargetG[1],nodeTargetG[0]] + np.pi
+                    if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
+                        nodeLink = nodeTargetG
+                        break
+                if stateMapG[nodeTargetS[1],nodeTargetS[0]] == 1:
                     nodeLink = nodeTargetS
-                    break
-        elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],
-                                                             nodeLink[0]] == 2:
-            break
+                    d1 = dirMapS[nodeTargetS[1],nodeTargetS[0]]
+                    d2 = dirMapG[nodeTargetS[1],nodeTargetS[0]] + np.pi
+                    if np.arccos(np.cos(d1)*np.cos(d2)+np.sin(d1)*np.sin(d2)) < .2:
+                        nodeLink = nodeTargetS
+                        break
+            elif stateMapS[nodeLink[1],nodeLink[0]] == 2 and stateMapG[nodeLink[1],
+                                                                 nodeLink[0]] == 2:
+                break
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, \
            d1, d2 - np.pi
 
@@ -211,7 +225,7 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
 
 def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
                      aspectMap, anisotropyMap, maxAnisoMap, Xmap, Ymap, res, 
-                     gridtype, anisoSearch, startingNode = []):
+                     gridtype, anisoSearch, nbUpdate, startingNode = []):
     NN = getNeighbours(nodeTarget, gridtype)
     NN.append(nodeTarget)
     N = []
@@ -236,10 +250,18 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         if len(startingNode)!= 0:
             nfPairs = np.concatenate((startingNode,startingNode))
         else:
-            if anisotropy == 1.0 and anisoSearch == 'single':
+            if anisotropy == 1.0 and anisoSearch == 'single' and nbUpdate:
+                # This is Fast Marching
                 R = int(1)
             else:
-                R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
+                if gridtype == 'hex':
+                    if anisoSearch == 'double':
+                        anisotropy = 2.0*anisotropy
+                    R = int(np.ceil(anisotropy*1.1547005383792517*2.0))
+                elif gridtype == 'sq':
+                    if anisoSearch == 'double':
+                        anisotropy = 2.0*anisotropy
+                    R = int(np.ceil(anisotropy))
             afList = []
             
             if gridtype == 'hex':
@@ -247,7 +269,7 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                                       afList, anisoSearch)
             elif gridtype == 'sq':
                 afList = getSqAFlist(nodeTarget, R, stateMap, anisotropy, 
-                                      afList, anisoSearch)
+                                      afList, anisoSearch, nbUpdate)
             else:
                 raise ValueError('Wrong grid type')
                 
@@ -269,10 +291,11 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
             nfPairs = []
             for j in localAFPairs:
                 if gridtype == 'hex' and checkHexNF(j,nodeTarget,anisotropy,
-                                                    res,anisoSearch):
+                                                    res):
                     nfPairs.append(j)
                 if gridtype == 'sq' and checkSqNF(j,nodeTarget,anisotropy,
-                                                    res, anisoSearch):
+                                                    res, anisoSearch,
+                                                    nbUpdate):
                     nfPairs.append(j)
             
             if len(nfPairs) == 0:
@@ -295,12 +318,13 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         maxAnisoMap[nodeTarget[1],nodeTarget[0]] = nfAnisotropy
     return Tmap, dirMap, maxAnisoMap, nbT, nbNodes 
 
-def getSqAFlist(nodeTarget, R, stateMap, anisotropy, afList, anisoSearch):
+def getSqAFlist(nodeTarget, R, stateMap, anisotropy, afList, anisoSearch,
+                nbUpdate):
     for j in range(-R,R+1):
         for k in range(-R,R+1):
             try:
                 if stateMap[nodeTarget[1]+j,nodeTarget[0]+k]==1:
-                    if anisotropy == 1.0 and anisoSearch == 'single':
+                    if anisotropy == 1.0 and anisoSearch == 'single' and nbUpdate:
                         if areSq8Neighbours(nodeTarget+[k,j],nodeTarget):
                             afList.append([nodeTarget[0]+k,nodeTarget[1]+j])
                     else:
@@ -397,7 +421,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
     subAFlist = getAccepted(NN,stateMap)
     
     #If nodeTarget is isotropic, this is more simple
-    if maxAnisoMap[nodeTarget[1],nodeTarget[0]] < 1.01:
+    if maxAnisoMap[nodeTarget[1],nodeTarget[0]] == 1.0:
         node = np.empty([2],dtype=int)
         node[:] = nodeTarget[:]
         relAnisotropy = maxAnisoMap[node[1],node[0]]
@@ -440,17 +464,30 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         nfPairs = []
         aspect = aspectMap[:,nodeTarget[1],nodeTarget[0]]
         anisotropy = anisotropyMap[nodeTarget[1],nodeTarget[0]]
-        if anisotropy == 1.0:
+        if anisotropy == 1.0 and anisoSearch == 'single':
             R = int(1)
         else:
-            R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
+            if gridtype == 'hex':
+                if anisoSearch == 'single':
+                    R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
+                else:
+                    R = int(np.ceil(anisotropy*1.1547005383792517*2.0))
+            elif gridtype == 'sq':
+                if anisoSearch == 'single':
+                    R = int(np.ceil(anisotropy))#2/sqrt(3)
+                else:
+                    R = int(np.ceil(anisotropy*2.0))
+        # if anisotropy == 1.0:
+        #     R = int(1)
+        # else:
+        #     R = int(np.ceil(anisotropy*1.1547005383792517))#2/sqrt(3)
         afList = []
         if gridtype == 'hex':
             afList = getHexAFlist(nodeTarget, R, stateMap, anisotropy, 
                                   afList, anisoSearch)
         elif gridtype == 'sq':
             afList = getSqAFlist(nodeTarget, R, stateMap, anisotropy, 
-                                  afList, anisoSearch)
+                                  afList, anisoSearch, nbUpdate = True)
         else:
             raise ValueError('Wrong grid type')
             
@@ -472,10 +509,11 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         nfPairs = []
         for j in localAFPairs:
             if gridtype == 'hex' and checkHexNF(j,nodeTarget,anisotropy,
-                                                res, anisoSearch):
+                                                res):
                 nfPairs.append(j)
             if gridtype == 'sq' and checkSqNF(j,nodeTarget,anisotropy,
-                                                res, anisoSearch):
+                                                res, anisoSearch, 
+                                                nbUpdate = True):
                 nfPairs.append(j)
                 
         if not len(nfPairs) == 0:
@@ -546,10 +584,11 @@ def getNeighbours(nodeTarget, gridtype):
 # This function returns whether two nodes are hexagonal neighbours or not
 #@jit(nopython=True)
 def areHexNeighbours(n1,n2):
-    neighbours = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1],]
+    # neighbours = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1],]
     dx = n1[0] - n2[0]
     dy = n1[1] - n2[1]
-    return any(dx==x[0] and dy==x[1] for x in neighbours)
+    return (abs(dx) <= 1.0 and abs(dy) <= 1.0 and not dx == dy)
+    # return any(dx==x[0] and dy==x[1] for x in neighbours)
 
 def areSqNeighbours(n1,n2):
     neighbours = [[1,0], [0,1], [-1,0], [0,-1],]
@@ -564,14 +603,15 @@ def areSq8Neighbours(n1,n2):
     dy = n1[1] - n2[1]
     return any(dx==x[0] and dy==x[1] for x in neighbours)
 
-def checkSqNF(afPair, n, anisotropy,res, anisoSearch):
+def checkSqNF(afPair, n, anisotropy,res, anisoSearch, nbUpdate):
     C1 = afPair[2]-n[0];
     C2 = afPair[3]-n[1];
     C3 = afPair[0]-afPair[2];
     C4 = afPair[1]-afPair[3];
     C5 = afPair[0]-n[0];
     C6 = afPair[1]-n[1];
-    if anisotropy < 1.01 and anisoSearch == 'single':
+    if anisotropy == 1.0 and anisoSearch == 'single' and nbUpdate:
+        # Fast Marching Method
         return math.sqrt(C1**2+C2**2) <= anisotropy and math.sqrt(
             C5**2+C6**2) <= anisotropy
         # return areSqNeighbours(afPair[0:2], n) and areSqNeighbours(
@@ -586,23 +626,23 @@ def checkSqNF(afPair, n, anisotropy,res, anisoSearch):
 
 
 
-#@jit(nopython=True)  
-def checkHexNF(afPair, n, anisotropy,res,anisoSearch):
+@jit(nopython=True)  
+def checkHexNF(afPair, n, anisotropy,res):
     C1 = afPair[2]-n[0];
     C2 = afPair[3]-n[1];
     C3 = afPair[0]-afPair[2];
     C4 = afPair[1]-afPair[3];
     # C5 = afPair[0]-n[0];
     # C6 = afPair[1]-n[1];
-    if anisotropy < 1.01 and anisoSearch == 'single':
-        return areHexNeighbours(afPair[0:2], n) and areHexNeighbours(
-                afPair[2:4], n)
-        # neighbours = [[1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1],]
-        # if any(C1==x[0] and C2==x[1] for x in neighbours) and any(
-        #         C5==x[0] and C6==x[1] for x in neighbours):
-        #     return True
-        # else:
-        #     return False
+    if anisotropy < 1.0000001:
+        dx = afPair[0] - n[0]
+        dy = afPair[1] - n[1]
+        dx2 = afPair[2] - n[0]
+        dy2 = afPair[3] - n[1]
+        return (abs(dx) <= 1.0 and abs(dy) <= 1.0 and not dx == dy) and \
+            (abs(dx2) <= 1.0 and abs(dy2) <= 1.0 and not dx2 == dy2)
+        # return areHexNeighbours(afPair[0:2], n) and areHexNeighbours(
+        #         afPair[2:4], n)
     else:
         amin = -.5*(2*C1*C3 + C1*C4 + C2*C3 + 2*C2*C4)
         ddp = 2*res**2
@@ -634,13 +674,16 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
     nfAnisotropy = 1.0
     x = np.asarray([Xmap[nodeTarget[1],nodeTarget[0]],
                     Ymap[nodeTarget[1],nodeTarget[0]]])
+    xj = np.empty([2],dtype=float)
+    xk = np.empty([2],dtype=float)
     if len(np.shape(nfPairs)) == 1:
-        xj = np.asarray([Xmap[nfPairs[1],nfPairs[0]],Ymap[nfPairs[1],nfPairs[0]]])
-        xk = np.asarray([Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]])
+        xj[:] = [Xmap[nfPairs[1],nfPairs[0]],Ymap[nfPairs[1],nfPairs[0]]]
+        xk[:] = [Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]]
         Tj = Tmap[nfPairs[1],nfPairs[0]]
         Tk = Tmap[nfPairs[3],nfPairs[2]]
         # ToDo: create getEikonal for sq option
-        if (anisotropy < 1.0001) and anisoSearch == 'single' and gridtype == 'hex':
+        if (anisotropy < 1.0001) and anisoSearch == 'single' and \
+            gridtype == 'hex':
             preT, preDir = getEikonalCost(x,xj,xk,Tj,Tk,Q1)
             # preT2, preDir2 = optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,
             #                             anisotropy)
@@ -658,10 +701,10 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
                                anisotropyMap[nfPairs[3],nfPairs[2]])
     else:
         for i in range(len(nfPairs)):
-            xj = np.asarray([Xmap[nfPairs[i][1],nfPairs[i][0]],
-                             Ymap[nfPairs[i][1],nfPairs[i][0]]])
-            xk = np.asarray([Xmap[nfPairs[i][3],nfPairs[i][2]],
-                             Ymap[nfPairs[i][3],nfPairs[i][2]]])
+            xj[:] =[Xmap[nfPairs[i][1],nfPairs[i][0]],
+                             Ymap[nfPairs[i][1],nfPairs[i][0]]]
+            xk[:] =[Xmap[nfPairs[i][3],nfPairs[i][2]],
+                             Ymap[nfPairs[i][3],nfPairs[i][2]]]
             Tj = Tmap[nfPairs[i][1],nfPairs[i][0]]
             Tk = Tmap[nfPairs[i][3],nfPairs[i][2]]
             # ToDo: create getEikonal for sq option
@@ -753,7 +796,7 @@ def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
     minDir = math.atan2(minDirVector[1],minDirVector[0])
     return minT,minDir
 
-# @jit(nopython=True)  
+@jit(nopython=True)  
 def getEikonalCost(x,xj,xk,Tj,Tk,Q):
     # We assume it is a regular grid
     

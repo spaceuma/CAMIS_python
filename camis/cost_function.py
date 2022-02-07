@@ -771,10 +771,11 @@ class CamisDrivingModel:
 #        return np.max((self.getCd(steepness_deg), rawC * W)) # TODO: make this configurable?
     
     def getCn(self,slope): #TODO - check this
-        cd = self.getCd(slope)
-        ca = self.getCa(slope)
-        cl = self.getCl(slope)
-        return (ca + cd)/2*np.sqrt(cl/np.sqrt(ca*cd))
+        return self.getCa(slope)
+        # cd = self.getCd(slope)
+        # ca = self.getCa(slope)
+        # cl = self.getCl(slope)
+        # return (ca + cd)/2*np.sqrt(cl/np.sqrt(ca*cd))
     
     def computeAniCoLUT(self):
         linearGradient = np.linspace(0,89,90)
@@ -999,9 +1000,9 @@ class CamisDrivingModel:
         heading = np.arange(0, 2*np.pi, 0.01)
         aspect = [1,0]
         
-        fig = plt.figure()
+        fig = plt.figure(figsize=(14.0, 3.5))
         
-        axes3 = fig.add_subplot(221, projection='3d')
+        axes3 = fig.add_subplot(131, projection='3d')
         Xs = []
         Ys = []
         
@@ -1009,6 +1010,8 @@ class CamisDrivingModel:
         Ca = np.zeros_like(linearGradient)
         Cl1 = np.zeros_like(linearGradient)
         Cl2 = np.zeros_like(linearGradient)
+        
+        lastCa = []
          
         for i,g in enumerate(linearGradient):
             Cd[i] = np.min((self.limit_cost, self.getCd(linearGradient[i])))
@@ -1020,16 +1023,17 @@ class CamisDrivingModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Xs.append(B[0]*preCost)
                 Ys.append(B[1]*preCost)
-            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/self.limit_angle_deg))
+            axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/limAngle))
             Xs = []
             Ys = []
+            lastCa = max(Ca[i],Cl1[i])
         
-        axes3.set_xlim(-self.limit_cost,self.limit_cost)
-        axes3.set_ylim(-self.limit_cost,self.limit_cost)
+        axes3.set_xlim(-lastCa,lastCa)
+        axes3.set_ylim(-lastCa,lastCa)
         axes3.set_zlim(0,1.2*linearGradient[-1])
-        axes3.set_xlabel('Parallel Cost',fontsize='medium')
-        axes3.set_ylabel('Perpendicular Cost',fontsize='medium')
-        axes3.set_zlabel('Steepness (deg)',fontsize='medium')
+        axes3.set_xlabel('Ascent-Descent Cost [As/m]',fontsize='medium')
+        axes3.set_ylabel('Lateral Cost [As/m]',fontsize='medium')
+        axes3.set_zlabel('Steepness $α_{ij}$ [deg]',fontsize='medium')
         axes3.xaxis.labelpad=-12
         axes3.yaxis.labelpad=-12
         axes3.zaxis.labelpad=-14
@@ -1041,10 +1045,10 @@ class CamisDrivingModel:
         for spine in axes3.spines.values():
             spine.set_visible(False)
         
-        
-        axes5 = plt.subplot(222, projection='polar')
-        axes6 = plt.subplot(224, projection='polar')
-        axes5.set_facecolor('xkcd:light blue')
+        axes3.set_facecolor('w')
+        # axes5 = plt.subplot(222, projection='polar')
+        axes6 = plt.subplot(132, projection='polar')
+        # axes5.set_facecolor('xkcd:light blue')
         axes6.set_facecolor('xkcd:light sage')
         Bs = []
         Ps = []
@@ -1056,14 +1060,14 @@ class CamisDrivingModel:
                 preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
                 Ps.append(1/preCost)
-            axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
-            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
+            # axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
+            axes6.plot(Bs, Ps, 'xkcd:leaf', lw = 2, color = plt.cm.jet(float(g)/limAngle))
             Cs = []
             Ps = []
             Bs = []
         fig.tight_layout()
         
-        ax3 = fig.add_subplot(223)
+        ax3 = fig.add_subplot(133)
         sqrtQ1 = np.zeros_like(linearGradient)
         sqrtQ2 = np.zeros_like(linearGradient)
         D1 = np.zeros_like(linearGradient)
@@ -1075,13 +1079,13 @@ class CamisDrivingModel:
             D1[i] = (Ca[i]-Cd[i])/2
             D2[i] = (Cl2[i]-Cl1[i])/2
 #            Cn[i] = math.sqrt((Ca[i]+Cd[i])*(Cl1[i]+Cl2[i])/4)
-        l1 = ax3.plot(linearGradient,sqrtQ1,color='b', label = '$K_∥$')
-        l2 = ax3.plot(linearGradient,sqrtQ2,color='g', label = '$K_⊥$')
-        l3 = ax3.plot(linearGradient,D1,color='m', label = '$D_∥$')
+        # l1 = ax3.plot(linearGradient,sqrtQ1,color='b', label = '$K_∥$')
+        # l2 = ax3.plot(linearGradient,sqrtQ2,color='g', label = '$K_⊥$')
+        # l3 = ax3.plot(linearGradient,D1,color='m', label = '$D_∥$')
         #l4 = ax3.plot(linearGradient,D2,color='y', label = '$D_⊥$')
-        l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C_a$')
-        l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C_d$')
-        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C_{l}$')
+        l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C^a(x_{ij})$')
+        l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C^d(x_{ij})$')
+        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C^l(x_{ij})$')
         #l8 = ax3.plot(linearGradient,Cl2,color='y', linestyle='dashed', label = '$C_{l2}$')
 #        box = ax3.get_position()
 #        ax3.set_position([box.x0, box.y0, box.width * 0.5, box.height])
@@ -1104,13 +1108,14 @@ class CamisDrivingModel:
             Cs = []
             Bs = []
         ax3b = ax3.twinx()
-        l9 = ax3b.plot(linearGradient,Anisotropy,color='r', label = '$ϒ$')
-        l10 = ax3b.plot(linearGradient,Cn,color='r', linestyle='dashed', label = '$C_n/C_o$')
-        ax3b.set_ylabel('Ratio', color='r')
+        l9 = ax3b.plot(linearGradient,Anisotropy,color='r', label = '$ϒ(x_{ij})$')
+        # l10 = ax3b.plot(linearGradient,Cn,color='r', linestyle='dashed', label = '$C_n/C_o$')
+        ax3b.set_ylabel('Anisotropy Ratio', color='r')
         ax3b.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax3b.tick_params('y', colors='r')
-        lns = l1+l2+l3+l5+l6 + l7 + l9 + l10
+        lns = l5+l6 + l7 + l9
         labs = [l.get_label() for l in lns]
-        ax3.legend(lns, labs, fontsize='small',\
-            loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
+        # ax3.legend(lns, labs, fontsize='small',\
+        #     loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
+        ax3.legend(lns, labs, fontsize='large', ncol=2)
         fig.tight_layout()

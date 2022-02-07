@@ -473,7 +473,8 @@ class AnisotropicMap:
         return elapsedTime
     
     # Executing BiOUM to compute the path faster
-    def executeSqBiPlanning(self, goal, start, nbUpdate, anisoSearch):
+    def executeSqBiPlanning(self, goal, start, nbUpdate, anisoSearch, 
+                            dirPolicy):
         init = time()
         ijStart = np.round([(start[0] - 
                             self.sqXmap[0][0])/self.sqCellLateral,(start[1] - 
@@ -492,31 +493,43 @@ class AnisotropicMap:
         ap.computeBiTmap(self.sqVCMap, self.sqAspectMap, 
                          self.sqAnisotropyMap, ijGoal, ijStart, self.sqXmap, 
                          self.sqYmap, self.sqCellLateral, gridtype='sq',
-                         nbUpdate = nbUpdate, anisoSearch = anisoSearch)
+                         nbUpdate = nbUpdate, anisoSearch = anisoSearch,
+                         dirPolicy = dirPolicy)
         
         print('Elapsed time to compute the Total Cost Map: ' + 
               str(time()-init)  +  ' seconds')
-        TlinkG = self.sqTmapG[self.sqLinkNode[1],self.sqLinkNode[0]]
-        TlinkS = self.sqTmapS[self.sqLinkNode[1],self.sqLinkNode[0]]
-        self.sqTmap = np.zeros_like(self.sqTmapG)
-        self.sqTmap[:] = self.sqTmapG
-        self.sqTmap[np.where(self.sqTmapS != np.inf)] = TlinkS + TlinkG - self.sqTmapS[np.where(self.sqTmapS != np.inf)]
-        self.sqTmap[np.where(self.sqTmap < 0.0)] = np.inf
-        
-        self.sqLinkPos = np.empty([2],dtype=float)
-        self.sqLinkPos[:] = [self.sqXmap[self.sqLinkNode[1],
-                                         self.sqLinkNode[0]],
-                             self.sqYmap[self.sqLinkNode[1],
-                                         self.sqLinkNode[0]]]
-        
-        self.sqPathG,uu = ap.getSqPath(self.sqDirMapG, self.sqLinkPos, goal, 
-                                     self.xMin, self.yMin, self.sqCellLateral)
-        self.sqPathS,uu = ap.getSqPath(self.sqDirMapS, self.sqLinkPos, start, 
-                                     self.xMin, self.yMin, self.sqCellLateral)
-        self.sqPath = np.concatenate((np.flipud(np.asarray(self.sqPathS)),
-                                    np.asarray(self.sqPathG)))
-        
-    def executeHexBiPlanning(self, goal, start, nbUpdate, anisoSearch):
+        if dirPolicy == 'bidir':
+            TlinkG = self.sqTmapG[self.sqLinkNode[1],self.sqLinkNode[0]]
+            TlinkS = self.sqTmapS[self.sqLinkNode[1],self.sqLinkNode[0]]
+            self.sqTmap = np.zeros_like(self.sqTmapG)
+            self.sqTmap[:] = self.sqTmapG
+            self.sqTmap[np.where(self.sqTmapS != np.inf)] = TlinkS + TlinkG - self.sqTmapS[np.where(self.sqTmapS != np.inf)]
+            self.sqTmap[np.where(self.sqTmap < 0.0)] = np.inf
+            
+            self.sqLinkPos = np.empty([2],dtype=float)
+            self.sqLinkPos[:] = [self.sqXmap[self.sqLinkNode[1],
+                                             self.sqLinkNode[0]],
+                                 self.sqYmap[self.sqLinkNode[1],
+                                             self.sqLinkNode[0]]]
+            
+            self.sqPathG,uu = ap.getSqPath(self.sqDirMapG, self.sqLinkPos, goal, 
+                                         self.xMin, self.yMin, self.sqCellLateral)
+            self.sqPathS,uu = ap.getSqPath(self.sqDirMapS, self.sqLinkPos, start, 
+                                         self.xMin, self.yMin, self.sqCellLateral)
+            self.sqPath = np.concatenate((np.flipud(np.asarray(self.sqPathS)),
+                                        np.asarray(self.sqPathG)))
+        if dirPolicy == 'goal':
+            self.sqTmap = self.sqTmapG
+            path,uu = ap.getSqPath(self.sqDirMapG, start, goal, 
+                                         self.xMin, self.yMin, 
+                                         self.sqCellLateral)
+            self.sqPath = np.asarray(path)
+        # self.getSqPathData()
+    # nbUpdate = True, False
+    # anisoSearch = 'single', 'double'
+    # dirPolicy = 'start','goal','bidir'
+    def executeHexBiPlanning(self, goal, start, nbUpdate, anisoSearch, 
+                             dirPolicy):
         init = time()
         IJ2XY = np.zeros([2,self.hexXmap.shape[0],self.hexYmap.shape[1]])
         IJ2XY[0] = self.hexXmap
@@ -533,31 +546,31 @@ class AnisotropicMap:
         ap.computeBiTmap(self.hexVCMap, self.hexAspectMap, 
                          self.hexAnisotropyMap, ijGoal, ijStart, self.hexXmap, 
                          self.hexYmap, self.planRes, gridtype='hex',
-                         nbUpdate = nbUpdate, anisoSearch = anisoSearch)
+                         nbUpdate = nbUpdate, anisoSearch = anisoSearch,
+                         dirPolicy = dirPolicy)
         elapsedTime = time()-init
         print('Elapsed time to compute the Total Cost Map: '+str(elapsedTime))
         self.linkNode = nodeLink
         self.linkPos = IJ2XY[:,nodeLink[1],nodeLink[0]]
-        
-        self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, self.linkPos, 
-                                   goal, self.xMin, self.yMin, self.planRes)
-        self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, self.linkPos, 
-                                   start, self.xMin, self.yMin, self.planRes)
-        
         self.IJ2XY = IJ2XY
         self.XY2IJ = XY2IJ
+        if dirPolicy == 'bidir':
+            self.pathG,uu = ap.getPath(self.dirMapG, IJ2XY, XY2IJ, self.linkPos, 
+                                       goal, self.xMin, self.yMin, self.planRes)
+            self.pathS,uu = ap.getPath(self.dirMapS, IJ2XY, XY2IJ, self.linkPos, 
+                                       start, self.xMin, self.yMin, self.planRes)
         
-        TlinkG = self.TmapG[nodeLink[1],nodeLink[0]]
-        TlinkS = self.TmapS[nodeLink[1],nodeLink[0]]
+            TlinkG = self.TmapG[nodeLink[1],nodeLink[0]]
+            TlinkS = self.TmapS[nodeLink[1],nodeLink[0]]
         
-        self.pathS = self.pathS[1:-1]
-        
-        self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),
-                                    np.asarray(self.pathG)))
-        self.Tmap = np.zeros_like(self.TmapG)
-        self.Tmap[:] = self.TmapG
-        self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
-        self.Tmap[np.where(self.Tmap < 0.0)] = np.inf
+            self.pathS = self.pathS[1:-1]
+            
+            self.path = np.concatenate((np.flipud(np.asarray(self.pathS)),
+                                        np.asarray(self.pathG)))
+            self.Tmap = np.zeros_like(self.TmapG)
+            self.Tmap[:] = self.TmapG
+            self.Tmap[np.where(self.TmapS != np.inf)] = TlinkS + TlinkG - self.TmapS[np.where(self.TmapS != np.inf)]
+            self.Tmap[np.where(self.Tmap < 0.0)] = np.inf
         self.getPathData()
         self.elapsedTime = elapsedTime
         return elapsedTime
@@ -595,6 +608,13 @@ class AnisotropicMap:
                 s = np.nan
             slope.append(s)
         return slope
+       
+    def getSqPathData(self):
+        pathElevation = []
+        for index, waypoint in enumerate(self.sqPath):
+            pathElevation.append(ap.interpolatePoint(
+                waypoint/self.sqCellLateral,self.elevationMap))
+        self.pathElevation = pathElevation
         
     def getPathData(self):
         pathElevation = []
@@ -757,14 +777,31 @@ class AnisotropicMap:
         cbar.set_label('Anisotropy')
         ax.set_aspect('equal')
         plt.show()
+       
+    def showElevationMap(self,fontsize):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.contourf(self.xMap, self.yMap, self.elevationMap, 
+                         50, cmap = cm.gist_earth, extend='both')
+        ax.contour(self.xMap, self.yMap, self.hexElevationMap, 
+                   20, colors = 'k', alpha=.3)
+        # cc = ax.scatter(self.hexXmap, self.hexYmap, 
+        #                 c = self.hexElevationMap, cmap=cm.gist_earth,s=20)
+        ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Elevation [m]', fontsize = fontsize)
+        ax.set_aspect('equal')
         
-    def showHexElevationMap(self):
-        self.showNavElevationMap('hex')
+        ax.set_xlabel('X-axis [m]', fontsize = fontsize)
+        ax.set_ylabel('Y-axis [m]', fontsize = fontsize)
         
-    def showSqElevationMap(self):
-        self.showNavElevationMap('sq')
+    def showHexElevationMap(self, fontsize):
+        self.showNavElevationMap('hex', fontsize)
+        
+    def showSqElevationMap(self, fontsize):
+        self.showNavElevationMap('sq', fontsize)
     
-    def showNavElevationMap(self, option):
+    def showNavElevationMap(self, option, fontsize):
         fig, ax = plt.subplots(constrained_layout=True)
         if option == 'sq':
             cc = ax.scatter(self.sqXmap, self.sqYmap, c = self.sqElevationMap, 
@@ -772,29 +809,49 @@ class AnisotropicMap:
             ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
             ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         elif option == 'hex':
-            cc = ax.scatter(self.hexXmap, self.hexYmap, 
-                            c = self.hexElevationMap, cmap=cm.gist_earth,s=20)
+            cc = ax.contourf(self.hexXmap, self.hexYmap, self.hexElevationMap, 
+                             50, cmap = cm.gist_earth, extend='both')
+            ax.contour(self.hexXmap, self.hexYmap, self.hexElevationMap, 
+                       10, colors = 'k', alpha=.3)
+            # cc = ax.scatter(self.hexXmap, self.hexYmap, 
+            #                 c = self.hexElevationMap, cmap=cm.gist_earth,s=20)
             ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
             ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
         cbar = fig.colorbar(cc)
-        cbar.set_label('Elevation (m)')
+        cbar.set_label('Elevation [m]', fontsize = fontsize)
         ax.set_aspect('equal')
         
-        ax.set_xlabel('X-axis [m]')
-        ax.set_ylabel('Y-axis [m]')
+        ax.set_xlabel('X-axis [m]', fontsize = fontsize)
+        ax.set_ylabel('Y-axis [m]', fontsize = fontsize)
 
-        
-    def showHexSteepnessMap(self):
+    def showSqSlopeGradientMap(self, fontsize, maxGradient = 0.0):
+        fig, ax = plt.subplots(constrained_layout=True)
+        cc = ax.scatter(self.sqXmap, self.sqYmap, c = 
+                        self.rad2deg*self.sqSlopeMap, 
+                        cmap="nipy_spectral",s=20)
+        if maxGradient > 0.0:
+            cc.set_clim(0,maxGradient)
+        ax.set_aspect('equal')
+        cbar = fig.colorbar(cc)
+        cbar.set_label('Slope Gradient [deg]', fontsize = fontsize)
+        ax.set_aspect('equal')
+        ax.set_xlim([self.xMap[0,0], self.xMap[-1,-1]])
+        ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
+        ax.set_xlabel('X-axis [m]', fontsize = fontsize)
+        ax.set_ylabel('Y-axis [m]', fontsize = fontsize)
+        plt.show()    
+    
+    def showHexSteepnessMap(self, fontsize):
         fig, ax = plt.subplots(constrained_layout=True)
         cc = ax.scatter(self.hexXmap, self.hexYmap, c = self.rad2deg*self.hexSlopeMap, cmap="nipy_spectral",s=20)
         ax.set_aspect('equal')
         cbar = fig.colorbar(cc)
-        cbar.set_label('Slope (deg)')
+        cbar.set_label('Slope (deg)', fontsize = fontsize)
         ax.set_aspect('equal')
         ax.set_xlim([self.xMap[0,2], self.xMap[-1,-4]])
         ax.set_ylim([self.yMap[0,0], self.yMap[-1,-1]])
-        ax.set_xlabel('X-axis [m]')
-        ax.set_ylabel('Y-axis [m]')
+        ax.set_xlabel('X-axis [m]', fontsize = fontsize)
+        ax.set_ylabel('Y-axis [m]', fontsize = fontsize)
         plt.show()
         
         
