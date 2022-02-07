@@ -542,7 +542,7 @@ class AnisotropicMap:
         
         # TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS
         self.TmapG, self.TmapS, self.dirMapG, self.dirMapS, nodeLink,\
-        stateMapG, stateMapS, self.dirLinkG, self.dirLinkS = \
+        stateMapG, stateMapS, self.dirLinkG, self.dirLinkS, self.numUpdates = \
         ap.computeBiTmap(self.hexVCMap, self.hexAspectMap, 
                          self.hexAnisotropyMap, ijGoal, ijStart, self.hexXmap, 
                          self.hexYmap, self.planRes, gridtype='hex',

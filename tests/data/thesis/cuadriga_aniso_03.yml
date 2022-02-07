@@ -6,7 +6,7 @@ speed: 1.0
 rolling_resistance_mode: nominal
 friction: 0.9
 kmg: 9.81
-steepness_brake_margin: 5.0
+steepness_brake_margin: 10.0
 slip_ratio_A: 0.07
 slip_ratio_B: 0.10
 slip_angle_A: 0.0

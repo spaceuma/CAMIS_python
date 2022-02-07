@@ -994,7 +994,7 @@ class CamisDrivingModel:
         ax1.set_xlabel('Steepness α [degrees]')
         ax1.set_ylabel('Cost [Ws/m]')
         plt.style.use('default')
-    def showCAMIS(self,limAngle):
+    def showCAMIS(self,limAngle, iso = False):
         
         linearGradient = np.linspace(0,limAngle,limAngle+1)
         heading = np.arange(0, 2*np.pi, 0.01)
@@ -1020,7 +1020,10 @@ class CamisDrivingModel:
             Cl2[i] = np.min((self.limit_cost, self.getCl(linearGradient[i])))
             for theta in heading:
                 B = computeBeta(aspect,theta)
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                if iso:
+                    preCost = computeCAMIScost(B,Ca[i],Ca[i],Ca[i],Ca[i])
+                else:
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Xs.append(B[0]*preCost)
                 Ys.append(B[1]*preCost)
             axes3.plot(Xs, Ys, g, color=plt.cm.jet(float(g)/limAngle))
@@ -1031,9 +1034,9 @@ class CamisDrivingModel:
         axes3.set_xlim(-lastCa,lastCa)
         axes3.set_ylim(-lastCa,lastCa)
         axes3.set_zlim(0,1.2*linearGradient[-1])
-        axes3.set_xlabel('Ascent-Descent Cost [As/m]',fontsize='medium')
-        axes3.set_ylabel('Lateral Cost [As/m]',fontsize='medium')
-        axes3.set_zlabel('Steepness $α_{ij}$ [deg]',fontsize='medium')
+        axes3.set_xlabel('Ascent-Descent Cost \n [As/m]',fontsize='large')
+        axes3.set_ylabel('Lateral Cost \n [As/m]',fontsize='large')
+        axes3.set_zlabel('Slope Gradient $α_{ij}$ \n [deg]',fontsize='large')
         axes3.xaxis.labelpad=-12
         axes3.yaxis.labelpad=-12
         axes3.zaxis.labelpad=-14
@@ -1057,7 +1060,10 @@ class CamisDrivingModel:
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 Bs.append(np.arctan2(B[1],B[0]))
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                if iso:
+                    preCost = computeCAMIScost(B,Ca[i],Ca[i],Ca[i],Ca[i])
+                else:
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
                 Ps.append(1/preCost)
             # axes5.plot(Bs, Cs, 'xkcd:sea blue', lw = 2, color = plt.cm.jet(float(g)/self.limit_angle_deg))
@@ -1083,9 +1089,12 @@ class CamisDrivingModel:
         # l2 = ax3.plot(linearGradient,sqrtQ2,color='g', label = '$K_⊥$')
         # l3 = ax3.plot(linearGradient,D1,color='m', label = '$D_∥$')
         #l4 = ax3.plot(linearGradient,D2,color='y', label = '$D_⊥$')
-        l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C^a(x_{ij})$')
-        l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C^d(x_{ij})$')
-        l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C^l(x_{ij})$')
+        if iso:
+            l1 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C(x_{ij})$')
+        else:
+            l5 = ax3.plot(linearGradient,Ca,color='b', linestyle='dashed', label = '$C^a(x_{ij})$')
+            l6 = ax3.plot(linearGradient,Cd,color='g', linestyle='dashed', label = '$C^d(x_{ij})$')
+            l7 = ax3.plot(linearGradient,Cl1,color='m', linestyle='dashed', label = '$C^l(x_{ij})$')
         #l8 = ax3.plot(linearGradient,Cl2,color='y', linestyle='dashed', label = '$C_{l2}$')
 #        box = ax3.get_position()
 #        ax3.set_position([box.x0, box.y0, box.width * 0.5, box.height])
@@ -1100,7 +1109,10 @@ class CamisDrivingModel:
             for theta in heading:
                 B = computeBeta(aspect,theta)
                 Bs.append(np.arctan2(B[1],B[0]))
-                preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
+                if iso:
+                    preCost = computeCAMIScost(B,Ca[i],Ca[i],Ca[i],Ca[i])
+                else:
+                    preCost = computeCAMIScost(B,Cd[i],Ca[i],Cl1[i],Cl2[i])
                 Cs.append(preCost)
             Anisotropy[i] = max(Cs)/min(Cs)
 #            Cn[i] = math.sqrt((Ca[i]+Cd[i])*(Cl1[i]+Cl2[i])/4)/Cd[0]
@@ -1113,7 +1125,10 @@ class CamisDrivingModel:
         ax3b.set_ylabel('Anisotropy Ratio', color='r')
         ax3b.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax3b.tick_params('y', colors='r')
-        lns = l5+l6 + l7 + l9
+        if iso:
+            lns = l1
+        else:
+            lns = l5+l6 + l7 + l9
         labs = [l.get_label() for l in lns]
         # ax3.legend(lns, labs, fontsize='small',\
         #     loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)

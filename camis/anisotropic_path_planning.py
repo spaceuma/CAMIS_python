@@ -146,16 +146,19 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
     TmapS = np.ones_like(anisotropyMap)*np.inf
     TmapS[nodeTargetS[1],nodeTargetS[0]] = 0
     
+    #To count the number of total cost updates
+    numUpdates = 0
+    
     # Initial T update
     
     TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
         nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, 
         aspectMap, anisotropyMap, maxAnisoMapG,  Xmap, Ymap, res, gridtype, 
-        anisoSearch, nbUpdate, goal)
+        anisoSearch, nbUpdate, numUpdates, goal)
     TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
         nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
         aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, gridtype,
-        anisoSearch, nbUpdate, start)   
+        anisoSearch, nbUpdate, numUpdates, start)   
  
     nodeLink = []
     while nbNodesG or nbNodesS:
@@ -166,13 +169,13 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
             TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
                 nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap,  
                 aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
-                gridtype, anisoSearch, nbUpdate)
+                gridtype, anisoSearch, nbUpdate. numUpdates)
             if nbUpdate:
                 TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = \
                     updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, 
                                       TmapG, stateMapG, VCmap, aspectMap, 
                                       anisotropyMap, maxAnisoMapG, Xmap, Ymap, 
-                                      res, gridtype, anisoSearch)
+                                      res, gridtype, anisoSearch, numUpdates)
        
         if nbNodesS and (dirPolicy == 'bidir' or dirPolicy == 'start'):
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
@@ -180,12 +183,12 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
             TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
                 nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                 aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
-                gridtype, anisoSearch, nbUpdate)  
+                gridtype, anisoSearch, nbUpdate, numUpdates)  
             if nbUpdate:
                 TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(
                     nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                     aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
-                    gridtype, anisoSearch)
+                    gridtype, anisoSearch, numUpdates)
 
         if dirPolicy == 'goal':
             if stateMapG[start[1],start[0]] == 2:
@@ -218,14 +221,15 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
                                                                  nodeLink[0]] == 2:
                 break
     return TmapG, TmapS, dirMapG, dirMapS, nodeLink, stateMapG, stateMapS, \
-           d1, d2 - np.pi
+           d1, d2 - np.pi, numUpdates
 
 
 
 
 def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
                      aspectMap, anisotropyMap, maxAnisoMap, Xmap, Ymap, res, 
-                     gridtype, anisoSearch, nbUpdate, startingNode = []):
+                     gridtype, anisoSearch, nbUpdate, numUpdates,
+                     startingNode = []):
     NN = getNeighbours(nodeTarget, gridtype)
     NN.append(nodeTarget)
     N = []
@@ -306,17 +310,17 @@ def updateNeighbours(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
         Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
         D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
         D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
-        T,direc,nfAnisotropy = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, 
+        T,direc,nfAnisotropy, numUpdates = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, 
                                         aspect, Tmap, dirMap, Xmap, Ymap,
                                         anisotropy, anisotropyMap, res,
-                                        gridtype,anisoSearch)
+                                        gridtype,anisoSearch, numUpdates)
         nIndex = bisect.bisect_left(nbT,T)
         nbT.insert(nIndex,T)
         nbNodes.insert(nIndex, nodeTarget)
         Tmap[nodeTarget[1],nodeTarget[0]] = T
         dirMap[nodeTarget[1],nodeTarget[0]] = direc
         maxAnisoMap[nodeTarget[1],nodeTarget[0]] = nfAnisotropy
-    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes 
+    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes, numUpdates 
 
 def getSqAFlist(nodeTarget, R, stateMap, anisotropy, afList, anisoSearch,
                 nbUpdate):
@@ -409,7 +413,7 @@ def getHexConsideredList(node, R, stateMap, relAnisotropy, consideredList):
 # This function re-evaluates certain considered nodes
 def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap, 
                       aspectMap, anisotropyMap, maxAnisoMap, Xmap, Ymap, res,
-                      gridtype, anisoSearch):
+                      gridtype, anisoSearch, numUpdates):
     
     #Initialization of lists
     consideredList = [] 
@@ -521,8 +525,8 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
             Q2 = VCmap[1,nodeTarget[1],nodeTarget[0]]
             D1 = VCmap[2,nodeTarget[1],nodeTarget[0]]
             D2 = VCmap[3,nodeTarget[1],nodeTarget[0]]
-            T,direc,nfAnisotropy = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, 
-                               Tmap, dirMap,Xmap,Ymap,anisotropy,anisotropyMap,res,gridtype,anisoSearch)
+            T,direc,nfAnisotropy,numUpdates = computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, 
+                               Tmap, dirMap,Xmap,Ymap,anisotropy,anisotropyMap,res,gridtype,anisoSearch,numUpdates)
             if T < Tmap[nodeTarget[1],nodeTarget[0]]-0.0001:
                 tempT = Tmap[nodeTarget[1],nodeTarget[0]]
                 nIndex = bisect.bisect_left(nbT,tempT)
@@ -542,7 +546,7 @@ def updateTNarrowBand(nodeTarget, nbT, nbNodes, dirMap, Tmap, stateMap, VCmap,
                 except StopIteration:
                     print('What the...')
                     exit()
-    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes
+    return Tmap, dirMap, maxAnisoMap, nbT, nbNodes, numUpdates
 
 
 
@@ -666,7 +670,7 @@ def checkHexNF(afPair, n, anisotropy,res):
 #     return math.sqrt(dx**2+dy**2)
 
 def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
-             Ymap, anisotropy, anisotropyMap, res, gridtype, anisoSearch):
+             Ymap, anisotropy, anisotropyMap, res, gridtype, anisoSearch,numUpdates):
     if np.isnan(aspect[0]) or np.isnan(aspect[1]):
         aspect = [1,0]
     T = np.inf
@@ -677,6 +681,7 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
     xj = np.empty([2],dtype=float)
     xk = np.empty([2],dtype=float)
     if len(np.shape(nfPairs)) == 1:
+        numUpdates = numUpdates + 1
         xj[:] = [Xmap[nfPairs[1],nfPairs[0]],Ymap[nfPairs[1],nfPairs[0]]]
         xk[:] = [Xmap[nfPairs[3],nfPairs[2]],Ymap[nfPairs[3],nfPairs[2]]]
         Tj = Tmap[nfPairs[1],nfPairs[0]]
@@ -701,6 +706,7 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
                                anisotropyMap[nfPairs[3],nfPairs[2]])
     else:
         for i in range(len(nfPairs)):
+            numUpdates = numUpdates + 1
             xj[:] =[Xmap[nfPairs[i][1],nfPairs[i][0]],
                              Ymap[nfPairs[i][1],nfPairs[i][0]]]
             xk[:] =[Xmap[nfPairs[i][3],nfPairs[i][2]],
@@ -725,7 +731,7 @@ def computeT(nodeTarget, nfPairs, Q1, Q2, D1, D2, aspect, Tmap, dirMap, Xmap,
                 direc = preDir
                 nfAnisotropy = max(anisotropyMap[nfPairs[i][1],nfPairs[i][0]],
                                    anisotropyMap[nfPairs[i][3],nfPairs[i][2]])
-    return T,direc, nfAnisotropy
+    return T,direc, nfAnisotropy, numUpdates
    
 @jit(nopython=True)  
 def optimizeCost(x,xj,xk,Tj,Tk,Q1,Q2,D1,D2,aspect,anisotropy):
