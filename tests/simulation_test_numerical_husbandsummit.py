@@ -375,28 +375,42 @@ coeffsLabels = ['$ρ_{ij}= 0.15$','$ρ_{ij} = 0.3$',\
                 '$ρ_{ij} = 0.45$','$ρ_{ij} = 0.6$',\
                 '$ρ_{ij} = 0.75$','$ρ_{ij} = 0.9$']
 anisoTotalCostWheel = [0,0,0,0,0,0]
-anisoTotalCostTrack = [0,0,0,0,0,0]
+anisoTotalCostEstimatedWheel = [0,0,0,0,0,0]
+anisoNumUpdatesWheel = [0,0,0,0,0,0]
+
 isoTotalCostWheel = [0,0,0,0,0,0]
+isoTotalCostEstimatedWheel = [0,0,0,0,0,0]
+isoNumUpdatesWheel = [0,0,0,0,0,0]
+
+
+anisoTotalCostTrack = [0,0,0,0,0,0]
+anisoTotalCostEstimatedTrack = [0,0,0,0,0,0]
 isoTotalCostTrack = [0,0,0,0,0,0]
+isoTotalCostEstimatedTrack = [0,0,0,0,0,0]
+anisoNumUpdatesTrack = [0,0,0,0,0,0]
+isoNumUpdatesTrack = [0,0,0,0,0,0]
 anisoTR = [0,0]
 isoTR = [0,0]
 
 for i,res in enumerate(anisowheelresults):
-    anisoTotalCostWheel[i] = anisoTotalCostWheel[i] + \
-        res.pathComputedTotalCost[-1]
+    anisoTotalCostWheel[i] = res.pathComputedTotalCost[-1]
+    anisoTotalCostEstimatedWheel[i] = res.pathEstimatedTotalCost[0]
+    anisoNumUpdatesWheel[i] = res.numUpdates
 
 for i,res in enumerate(isowheelresults):
-    isoTotalCostWheel[i] = isoTotalCostWheel[i] + \
-        res.pathComputedTotalCost[-1]
-
+    isoTotalCostWheel[i] =  res.pathComputedTotalCost[-1]
+    isoTotalCostEstimatedWheel[i] = res.pathEstimatedTotalCost[0]
+    isoNumUpdatesWheel[i] = res.numUpdates
+    
 for i,res in enumerate(anisotrackresults):
-    anisoTotalCostTrack[i] = anisoTotalCostWheel[i] + \
-        res.pathComputedTotalCost[-1]
-
+    anisoTotalCostTrack[i] = res.pathComputedTotalCost[-1]
+    anisoTotalCostEstimatedTrack[i] = res.pathEstimatedTotalCost[0]
+    anisoNumUpdatesTrack[i] = res.numUpdates
+    
 for i,res in enumerate(isotrackresults):
-    isoTotalCostTrack[i] = isoTotalCostWheel[i] + \
-        res.pathComputedTotalCost[-1]
-
+    isoTotalCostTrack[i] = res.pathComputedTotalCost[-1]
+    isoTotalCostEstimatedTrack[i] = res.pathEstimatedTotalCost[0]
+    isoNumUpdatesTrack[i] = res.numUpdates
 
 x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
@@ -405,8 +419,8 @@ width = 0.48  # the width of the bars
 fig, ax = plt.subplots(figsize=(10,1.5), constrained_layout=True)
 #rects3 = ax.bar(x2 - 0.45/2, anisoTR, 0.45, label='Isotropic (ρ = 0.8)', color='lime')
 #rects4 = ax.bar(x2 + 0.45/2, isoTR, 0.45, label='Isotropic (ρ = 0.8)', color='g')
-rects1 = ax.bar(x - width/2, anisoTotalCostWheel, width, label='Isotropic (ρ_{ij} = 0.8)', color='r')
-rects2 = ax.bar(x + width/2, isoTotalCostWheel, width, label='Isotropic (ρ_{ij} = 0.8)', color = 'b')
+rects1 = ax.bar(x - width/2, anisoTotalCostTrack, width, label='Isotropic (ρ_{ij} = 0.8)', color='r')
+rects2 = ax.bar(x + width/2, isoTotalCostTrack, width, label='Isotropic (ρ_{ij} = 0.8)', color = 'b')
 
 gainWheel = []
 
@@ -439,7 +453,7 @@ ax.grid(True, which='both')
 #autolabel(rects1)
 #autolabel(rects2)
 ax.set_ylabel('Total Cost [As]', fontsize = 12)
-ax.set_ylim([0,700])
+ax.set_ylim([0,1200])
 ax.set_xlim([-0.75,5.75])
 #ax.set_xlabel('CAMIS')
 ax.set_xticks(x)
@@ -448,5 +462,28 @@ ax.legend(('Anisotropic','Isotropic'), fontsize = 12)
 plt.minorticks_on()  
 plt.show()
 
-fig, ax = plt.subplots(figsize=(10,1.5), constrained_layout=True)
-ax.plot(gainWheel)
+fig, ax = plt.subplots(figsize=(5,4), constrained_layout=True)
+ax.plot(np.divide(anisoNumUpdatesWheel,isoNumUpdatesWheel))
+ax.plot(np.divide(anisoNumUpdatesTrack,isoNumUpdatesTrack))
+ax.set_ylabel('Number of total cost updates \n in OUM with respect to FMM', fontsize = 14)
+ax.set_xlabel('Specific resistance $ρ_{ij}$', fontsize = 14)
+ax.legend(('Wheel Model','Track Model'), fontsize = 14)
+
+fig, ax = plt.subplots(figsize=(5,4), constrained_layout=True)
+ax.plot(np.divide(np.subtract(anisoTotalCostWheel,isoTotalCostWheel),
+                  anisoTotalCostWheel)*100)
+ax.plot(np.divide(np.subtract(anisoTotalCostTrack,isoTotalCostTrack),
+                  anisoTotalCostTrack)*100)
+ax.set_ylabel('Reduction of total cost \n considering anisotropic cost \n [%]', fontsize = 14)
+ax.set_xlabel('Specific resistance $ρ_{ij}$', fontsize = 14)
+# ax.set_xticks(np.arange(len(coeffsLabels)))
+# ax.set_xticklabels(coeffsLabels)
+ax.legend(('Wheel Model','Track Model'), fontsize = 14)
+
+
+### Total Cost Maps
+env_CUAD07_scene01[0].showHexBiTmaps()
+env_isoCUAD07_scene01[0].showHexBiTmaps()
+
+env_CUAD01_scene01[0].showHexBiTmaps()
+env_isoCUAD01_scene01[0].showHexBiTmaps()

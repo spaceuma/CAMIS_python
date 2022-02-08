@@ -151,11 +151,11 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
     
     # Initial T update
     
-    TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
+    TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG, numUpdates = updateNeighbours(
         nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap, 
         aspectMap, anisotropyMap, maxAnisoMapG,  Xmap, Ymap, res, gridtype, 
         anisoSearch, nbUpdate, numUpdates, goal)
-    TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
+    TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS, numUpdates = updateNeighbours(
         nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
         aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, gridtype,
         anisoSearch, nbUpdate, numUpdates, start)   
@@ -166,12 +166,12 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
         if nbNodesG and (dirPolicy == 'bidir' or dirPolicy == 'goal'):
             nodeTargetG, nbTG, nbNodesG = getMinNB(nbTG, nbNodesG)
             stateMapG[nodeTargetG[1],nodeTargetG[0]] = 1
-            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = updateNeighbours(
+            TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG, numUpdates = updateNeighbours(
                 nodeTargetG, nbTG, nbNodesG, dirMapG, TmapG, stateMapG, VCmap,  
                 aspectMap, anisotropyMap, maxAnisoMapG, Xmap, Ymap, res, 
-                gridtype, anisoSearch, nbUpdate. numUpdates)
+                gridtype, anisoSearch, nbUpdate, numUpdates)
             if nbUpdate:
-                TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG = \
+                TmapG, dirMapG, maxAnisoMapG, nbTG, nbNodesG, numUpdates = \
                     updateTNarrowBand(nodeTargetG, nbTG, nbNodesG, dirMapG, 
                                       TmapG, stateMapG, VCmap, aspectMap, 
                                       anisotropyMap, maxAnisoMapG, Xmap, Ymap, 
@@ -180,12 +180,12 @@ def computeBiTmap(VCmap, aspectMap, anisotropyMap, goal, start, Xmap, Ymap,
         if nbNodesS and (dirPolicy == 'bidir' or dirPolicy == 'start'):
             nodeTargetS, nbTS, nbNodesS = getMinNB(nbTS, nbNodesS)
             stateMapS[nodeTargetS[1],nodeTargetS[0]] = 1
-            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateNeighbours(
+            TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS, numUpdates = updateNeighbours(
                 nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                 aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
                 gridtype, anisoSearch, nbUpdate, numUpdates)  
             if nbUpdate:
-                TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS = updateTNarrowBand(
+                TmapS, dirMapS, maxAnisoMapS, nbTS, nbNodesS, numUpdates = updateTNarrowBand(
                     nodeTargetS, nbTS, nbNodesS, dirMapS, TmapS, stateMapS, VCmapS, 
                     aspectMap, anisotropyMap, maxAnisoMapS, Xmap, Ymap, res, 
                     gridtype, anisoSearch, numUpdates)
