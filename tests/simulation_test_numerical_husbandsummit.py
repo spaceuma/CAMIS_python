@@ -180,6 +180,7 @@ with open("data/thesis/cuadriga_aniso_07.yml", 'r') as file:
     cuadriga_data = yaml.full_load(file)
 aniso_07 = camis.CamisDrivingModel(cuadriga_data)
 aniso_07.showCAMIS(20)
+aniso_07.showCAMIS(20, iso = True)
 env_CUAD07_scene01, env_isoCUAD07_scene01 = getMapLists(aniso_07)
 computeAllPlannings(env_CUAD07_scene01)
 computeAllPlannings(env_isoCUAD07_scene01)
@@ -376,17 +377,21 @@ coeffsLabels = ['$ρ_{ij}= 0.15$','$ρ_{ij} = 0.3$',\
                 '$ρ_{ij} = 0.75$','$ρ_{ij} = 0.9$']
 anisoTotalCostWheel = [0,0,0,0,0,0]
 anisoTotalCostEstimatedWheel = [0,0,0,0,0,0]
+anisoTotalCostEstimatedErrorWheel = [0,0,0,0,0,0]
 anisoNumUpdatesWheel = [0,0,0,0,0,0]
 
 isoTotalCostWheel = [0,0,0,0,0,0]
 isoTotalCostEstimatedWheel = [0,0,0,0,0,0]
+isoTotalCostEstimatedErrorWheel = [0,0,0,0,0,0]
 isoNumUpdatesWheel = [0,0,0,0,0,0]
 
 
 anisoTotalCostTrack = [0,0,0,0,0,0]
 anisoTotalCostEstimatedTrack = [0,0,0,0,0,0]
+anisoTotalCostEstimatedErrorTrack = [0,0,0,0,0,0]
 isoTotalCostTrack = [0,0,0,0,0,0]
 isoTotalCostEstimatedTrack = [0,0,0,0,0,0]
+isoTotalCostEstimatedErrorTrack = [0,0,0,0,0,0]
 anisoNumUpdatesTrack = [0,0,0,0,0,0]
 isoNumUpdatesTrack = [0,0,0,0,0,0]
 anisoTR = [0,0]
@@ -395,22 +400,39 @@ isoTR = [0,0]
 for i,res in enumerate(anisowheelresults):
     anisoTotalCostWheel[i] = res.pathComputedTotalCost[-1]
     anisoTotalCostEstimatedWheel[i] = res.pathEstimatedTotalCost[0]
+    anisoTotalCostEstimatedErrorWheel[i] = (res.pathEstimatedTotalCost[0] -\
+                                            res.pathComputedTotalCost[-1])/\
+        res.pathEstimatedTotalCost[0]*100
     anisoNumUpdatesWheel[i] = res.numUpdates
 
 for i,res in enumerate(isowheelresults):
     isoTotalCostWheel[i] =  res.pathComputedTotalCost[-1]
     isoTotalCostEstimatedWheel[i] = res.pathEstimatedTotalCost[0]
+    isoTotalCostEstimatedErrorWheel[i] = (res.pathEstimatedTotalCost[0] -\
+                                            res.pathComputedTotalCost[-1])/\
+        res.pathEstimatedTotalCost[0]*100
     isoNumUpdatesWheel[i] = res.numUpdates
     
 for i,res in enumerate(anisotrackresults):
     anisoTotalCostTrack[i] = res.pathComputedTotalCost[-1]
     anisoTotalCostEstimatedTrack[i] = res.pathEstimatedTotalCost[0]
+    anisoTotalCostEstimatedErrorTrack[i] = (res.pathEstimatedTotalCost[0] -\
+                                            res.pathComputedTotalCost[-1])/\
+        res.pathEstimatedTotalCost[0]*100
     anisoNumUpdatesTrack[i] = res.numUpdates
     
 for i,res in enumerate(isotrackresults):
     isoTotalCostTrack[i] = res.pathComputedTotalCost[-1]
     isoTotalCostEstimatedTrack[i] = res.pathEstimatedTotalCost[0]
+    isoTotalCostEstimatedErrorTrack[i] = (res.pathEstimatedTotalCost[0] -\
+                                            res.pathComputedTotalCost[-1])/\
+        res.pathEstimatedTotalCost[0]*100
     isoNumUpdatesTrack[i] = res.numUpdates
+
+
+
+
+
 
 x = np.arange(len(coeffsLabels))  # the label locations
 x2 = np.arange(2)+1
@@ -467,6 +489,7 @@ ax.plot(np.divide(anisoNumUpdatesWheel,isoNumUpdatesWheel))
 ax.plot(np.divide(anisoNumUpdatesTrack,isoNumUpdatesTrack))
 ax.set_ylabel('Number of total cost updates \n in OUM with respect to FMM', fontsize = 14)
 ax.set_xlabel('Specific resistance $ρ_{ij}$', fontsize = 14)
+ax.set_xticklabels([0.0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9])
 ax.legend(('Wheel Model','Track Model'), fontsize = 14)
 
 fig, ax = plt.subplots(figsize=(5,4), constrained_layout=True)
@@ -477,7 +500,7 @@ ax.plot(np.divide(np.subtract(anisoTotalCostTrack,isoTotalCostTrack),
 ax.set_ylabel('Reduction of total cost \n considering anisotropic cost \n [%]', fontsize = 14)
 ax.set_xlabel('Specific resistance $ρ_{ij}$', fontsize = 14)
 # ax.set_xticks(np.arange(len(coeffsLabels)))
-# ax.set_xticklabels(coeffsLabels)
+ax.set_xticklabels([0.0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9])
 ax.legend(('Wheel Model','Track Model'), fontsize = 14)
 
 

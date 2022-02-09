@@ -756,7 +756,7 @@ class CamisDrivingModel:
         return rawC * W
         
     def getRawCl(self,steepness_deg):
-        S = self.getSSl(steepness_deg)
+        S = self.getSSl(steepness_deg)*self.getSSa(0)
         if self.rolling_resistance_mode == 'none':
             R = 1
         else:
@@ -1034,21 +1034,25 @@ class CamisDrivingModel:
         axes3.set_xlim(-lastCa,lastCa)
         axes3.set_ylim(-lastCa,lastCa)
         axes3.set_zlim(0,1.2*linearGradient[-1])
-        axes3.set_xlabel('Ascent-Descent Cost \n [As/m]',fontsize='large')
-        axes3.set_ylabel('Lateral Cost \n [As/m]',fontsize='large')
-        axes3.set_zlabel('Slope Gradient $α_{ij}$ \n [deg]',fontsize='large')
-        axes3.xaxis.labelpad=-12
-        axes3.yaxis.labelpad=-12
-        axes3.zaxis.labelpad=-14
+        axes3.set_xlabel('Ascent-Descent Cost \n [As/m]',fontsize='x-large')
+        axes3.set_ylabel('Lateral Cost \n [As/m]',fontsize='x-large')
+        axes3.set_zlabel('Slope Gradient $α_{ij}$ \n [deg]',fontsize='x-large')
+        axes3.tick_params(axis='both', which='major', labelsize='large')
+        # axes3.xaxis.labelpad=-12
+        # axes3.yaxis.labelpad=-12
+        # axes3.zaxis.labelpad=-14
         axes3.view_init(elev=30, azim=-50)
-        axes3.tick_params(axis="x",direction="in", pad=-6)
-        axes3.tick_params(axis="y",direction="in", pad=-6)
+        axes3.tick_params(axis="x",direction="in", pad=-3)
+        axes3.tick_params(axis="y",direction="in", pad=-3)
 #        axes3.set_aspect('equal')
-        axes3.dist = 7
+        # axes3.dist = 7
         for spine in axes3.spines.values():
             spine.set_visible(False)
         
         axes3.set_facecolor('w')
+        
+        fig.tight_layout()
+        
         # axes5 = plt.subplot(222, projection='polar')
         axes6 = plt.subplot(132, projection='polar')
         # axes5.set_facecolor('xkcd:light blue')
@@ -1071,6 +1075,8 @@ class CamisDrivingModel:
             Cs = []
             Ps = []
             Bs = []
+        axes6.set_title("$β(ψ,γ_{ij})$")
+        axes6.tick_params(axis='both', which='major', labelsize='large')
         fig.tight_layout()
         
         ax3 = fig.add_subplot(133)
@@ -1099,9 +1105,11 @@ class CamisDrivingModel:
 #        box = ax3.get_position()
 #        ax3.set_position([box.x0, box.y0, box.width * 0.5, box.height])
         
-        plt.ylabel('Cost [As/m]')
-        plt.xlabel('Slope Gradient [degrees]')
+        plt.ylabel('Cost [As/m]',fontsize='x-large')
+        plt.xlabel('Slope Gradient [degrees]',fontsize='x-large')
         plt.grid('True')
+        ax3.tick_params(axis='both', which='major', labelsize='large')
+        ax3.yaxis.labelpad=-3
         Bs = []
         Cs = []
         Anisotropy = np.zeros_like(linearGradient)
@@ -1122,7 +1130,7 @@ class CamisDrivingModel:
         ax3b = ax3.twinx()
         l9 = ax3b.plot(linearGradient,Anisotropy,color='r', label = '$ϒ(x_{ij})$')
         # l10 = ax3b.plot(linearGradient,Cn,color='r', linestyle='dashed', label = '$C_n/C_o$')
-        ax3b.set_ylabel('Anisotropy Ratio', color='r')
+        ax3b.set_ylabel('Anisotropy Ratio', color='r',fontsize='x-large')
         ax3b.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
         ax3b.tick_params('y', colors='r')
         if iso:
@@ -1133,4 +1141,7 @@ class CamisDrivingModel:
         # ax3.legend(lns, labs, fontsize='small',\
         #     loc='upper right', bbox_to_anchor=(1.5, 1.1), ncol=1)
         ax3.legend(lns, labs, fontsize='large', ncol=2)
-        fig.tight_layout()
+        ax3b.tick_params(axis='both', which='major', labelsize='large')
+        # fig.tight_layout()
+        plt.subplots_adjust(top=0.98, bottom=0.14, left=0.0, right=0.96,
+                            hspace=0.2, wspace=0.0)

@@ -53,7 +53,7 @@ from matplotlib.colors import LightSource
 ### IMPORT PLANNED PATHS
 ## =============================================================================
 # Import 20201030execution.spydata using the variable explorer
-env = env_CUAD03_scene01[0]
+# env = env_CUAD03_scene01[0]
 
 #I2Cmatrix = \
 #            R.from_euler('ZYX', [0.0, 180.0-12.1770199928157, 0.0], degrees=True) * \
